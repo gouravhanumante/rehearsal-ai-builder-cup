@@ -1,0 +1,97 @@
+.ds-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 var(--space-control-inline);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.ds-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ds-button--primary {
+  border-color: var(--color-action);
+  color: #fff;
+  background: var(--color-action);
+}
+
+.ds-button--primary:hover:not(:disabled) {
+  border-color: #244638;
+  background: #244638;
+}
+
+.ds-button--secondary {
+  border-color: #dce3dd;
+  color: #40534a;
+  background: #fff;
+}
+
+.ds-button--secondary:hover:not(:disabled) {
+  border-color: #aebdb2;
+  background: #fafcf9;
+}
+
+.ds-button--quiet {
+  color: #56645d;
+  background: transparent;
+}
+
+.ds-button--quiet:hover:not(:disabled) {
+  background: #f0f3ef;
+}
+
+.ds-button:disabled {
+  border-color: #e9ece9;
+  color: #a0a9a2;
+  background: #f7f8f6;
+  cursor: not-allowed;
+}
+
+.ds-button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.ds-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.ds-status-badge--success { color: var(--color-success-text); background: var(--color-success-bg); }
+.ds-status-badge--warning { color: var(--color-caution-text); background: var(--color-caution-bg); }
+.ds-status-badge--danger { color: var(--color-danger-text); background: var(--color-danger-bg); }
+.ds-status-badge--neutral { color: #66746b; background: #eef1ed; }
+
+.ds-status-badge__dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (max-width: 680px) {
+  .ds-button { min-height: 42px; padding-inline: 13px; font-size: 12px; }
+  .ds-status-badge { font-size: 9px; }
+}
