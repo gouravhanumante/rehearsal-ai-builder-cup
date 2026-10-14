@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import { assistantRequestSchema } from './contracts.js'
 import { detectMimeType, extractRequestSchema, extractWithGemini } from './documents.js'
+import { mapColumnsWithGemini, mappingRequestSchema } from './importMapping.js'
 import { answerWithGemini, GeminiNotConfiguredError, geminiModel, isGeminiConfigured } from './gemini.js'
 import { rehearse } from '../../shared/planner/plan.js'
 import { parseWorkspace } from '../../shared/planner/validate.js'
@@ -22,6 +23,14 @@ const documentLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many documents. Try again in a minute.' } },
+})
+
+const mappingLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many requests. Try again in a minute.' } },
 })
 
 const notConfigured = { error: { code: 'AI_NOT_CONFIGURED', message: 'Gemini is not configured on the server yet.' } }
@@ -144,6 +153,23 @@ export function createApp() {
 
     try {
       response.json(await extractWithGemini(parsed.data))
+    } catch (error) {
+      sendAiFailure(error, response)
+    }
+  })
+
+  app.post('/api/imports/map', mappingLimiter, async (request, response) => {
+    const parsed = mappingRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      response.status(400).json({ error: { code: 'INVALID_IMPORT', message: 'The column names could not be read.' } })
+      return
+    }
+    if (!isGeminiConfigured()) {
+      response.status(503).json(notConfigured)
+      return
+    }
+    try {
+      response.json(await mapColumnsWithGemini(parsed.data))
     } catch (error) {
       sendAiFailure(error, response)
     }

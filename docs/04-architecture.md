@@ -49,6 +49,7 @@ The document endpoint `POST /api/documents/extract` (`backend/src/documents.ts`)
 - **Ask AI model:** Gemini 3.5 Flash-Lite with low thinking, a bounded output size, and a 15-second request timeout for interactive latency. Model selection stays configurable through `GEMINI_MODEL`.
 - **Demo data:** resettable sample workspace; planned Firestore use is only for sample/demo state and audit data.
 - **Real data:** today a Real workspace is stored in the browser (IndexedDB, `frontend/src/data/realStore.ts`) with a downloadable backup (`data/backup.ts`); Gemini receives only the explicitly submitted question/context or scan for processing. Rehearsal's backend stores nothing. Cloud save (Google sign-in + Firestore, owner-only rules) is planned before submission, see `TODO.md`.
+- **Column matching:** `POST /api/imports/map` (`backend/src/importMapping.ts`) sends Gemini column names (and optionally a few sample rows) and returns only fields of the chosen import kind and column numbers that exist, each used once. The file itself is parsed in the browser and never uploaded.
 - **Plan re-check at scale:** `POST /api/plans/check` receives only the slice of the workspace one plan reads (`shared/planner/slice.ts`), so a large business sends a small request; a test proves the slice gives the same answer as the whole workspace.
 - **Development proxy:** Vite forwards `/api` to the local Node API on port 8080. Production will use Firebase Hosting rewrites to Cloud Run.
 

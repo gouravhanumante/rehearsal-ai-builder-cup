@@ -28,6 +28,10 @@
 - [ ] deploy working prototype on Google Cloud stack
 - [ ] create demo script and 3-minute flow
 
+- [ ] before real users: set `SEND_SAMPLE_ROWS` to false in `frontend/src/import/suggest.ts` (send only column names to Gemini) and move to a paid Gemini tier or Vertex AI, because the free tier lets Google use submitted content
+- [ ] import suppliers/offers and transfer routes from files
+- [ ] several products on one order/shipment when typing it in
+
 ## Priority P1 — important for a solid hackathon demo
 - [ ] add separate Demo and Real workspace selector
 - [ ] persist Real workspace facts and evidence in browser-local storage only

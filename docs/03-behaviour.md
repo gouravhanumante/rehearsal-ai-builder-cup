@@ -194,7 +194,24 @@ Two separate choices:
   problem per shipment (reporting the same shipment again moves the date, it does not add a second problem), and
   the Overview then shows the orders at risk. **Mark resolved** takes the problem off once the shipment arrives.
   The delay arrival can be read from a supplier message or email the same way other documents are.
-- Not built yet: spreadsheet import, several products on one order, and cloud save/sign-in (see `TODO.md`).
+- **Import from a file** (.csv or .xlsx, read in the browser, max 20 MB / 100,000 rows) for stock counts, orders and
+  incoming shipments (`frontend/src/import/`, `components/import/ImportDialog.tsx`). Three steps: choose file, match
+  columns, check before saving. Rules:
+  - Columns are matched by their usual names; **Ask Gemini** fills the gaps when the user clicks it (it gets the
+    column names and, while `SEND_SAMPLE_ROWS` is on, three trimmed sample rows; the backend only returns real fields
+    and real column numbers).
+  - Names are matched to existing locations and products ignoring case and spacing; unseen names are created, but
+    only if a kept row uses them.
+  - A bad row is left out and listed with its row number; an unreadable count is never turned into zero, so that
+    stock stays unknown. Rows with the same reference are lines of one order or shipment; if any row of it is bad,
+    the whole order or shipment is left out so demand or supply is never understated.
+  - Importing the same file twice changes nothing the second time. Imported values are marked "Imported from file"
+    and count as verified.
+  - Dates follow the country's order (day first for India, month first for the US, changeable); a date with no time
+    means the end of that day. A new arrival date for a known shipment keeps the original promise and is not
+    treated as a delay until the user reports one.
+- Not built yet: several products on one order when typing it in, importing routes and suppliers, and cloud
+  save/sign-in (see `TODO.md`).
 
 ## 10. Objectives
 - User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or

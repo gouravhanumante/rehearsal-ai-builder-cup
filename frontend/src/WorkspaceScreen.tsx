@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Boxes, ClipboardPlus, Info, MapPinPlus, PackagePlus, Route, TriangleAlert, Truck, X } from 'lucide-react'
+import { Boxes, ClipboardPlus, FileUp, Info, MapPinPlus, PackagePlus, Route, TriangleAlert, Truck, X } from 'lucide-react'
 import { Topbar } from './components/layout/Topbar'
 import { SectionNavigation, type SectionName } from './components/layout/SectionNavigation'
 import { AskAiPanel } from './components/assistant/AskAiPanel'
@@ -12,7 +12,9 @@ import { SuppliersView } from './components/operations/SuppliersView'
 import { ApprovalWarning } from './components/planning/ApprovalWarning'
 import { OverviewRecommendation } from './components/planning/OverviewRecommendation'
 import { RecoveryPlans } from './components/planning/RecoveryPlans'
+import { ImportDialog } from './components/import/ImportDialog'
 import { SetupView, type SetupAction } from './components/setup/SetupView'
+import type { ImportKind } from '../../shared/import/fields'
 import type { Workspace } from '../../shared/planner/model'
 import { rehearse, type Plan } from '../../shared/planner/plan'
 import { checkPlanOnServer } from './data/planCheck'
@@ -46,6 +48,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const [pendingApproval, setPendingApproval] = useState<Plan | null>(null)
   const [editor, setEditor] = useState<OpenEditor | null>(null)
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const [importKind, setImportKind] = useState<ImportKind | null>(null)
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
   const editorConfig = editor ? editorFor(editor.target, workspace, format) : null
 
@@ -90,9 +93,10 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const setupActions: Partial<Record<SetupStepId, SetupAction[]>> = {
     locations: [{ label: 'Add location', icon: <MapPinPlus size={14} />, onClick: () => openEditor({ type: 'new-location' }), primary: progress.next?.id === 'locations' }],
     products: [{ label: 'Add product', icon: <PackagePlus size={14} />, onClick: () => openEditor({ type: 'new-product' }), primary: progress.next?.id === 'products' }],
-    stock: [{ label: 'Open Inventory', icon: <Boxes size={14} />, onClick: () => setActiveSection('Inventory'), primary: progress.next?.id === 'stock' }],
-    orders: [{ label: 'Add order', icon: <ClipboardPlus size={14} />, onClick: () => openEditor({ type: 'new-order' }), primary: progress.next?.id === 'orders', blockedBy: needsBoth }],
+    stock: [{ label: 'Import file', icon: <FileUp size={14} />, onClick: () => setImportKind('stock') }, { label: 'Open Inventory', icon: <Boxes size={14} />, onClick: () => setActiveSection('Inventory'), primary: progress.next?.id === 'stock' }],
+    orders: [{ label: 'Import file', icon: <FileUp size={14} />, onClick: () => setImportKind('orders') }, { label: 'Add order', icon: <ClipboardPlus size={14} />, onClick: () => openEditor({ type: 'new-order' }), primary: progress.next?.id === 'orders', blockedBy: needsBoth }],
     shipments: [
+      { label: 'Import file', icon: <FileUp size={14} />, onClick: () => setImportKind('shipments') },
       { label: 'Add shipment', icon: <Truck size={14} />, onClick: () => openEditor({ type: 'new-shipment' }), primary: progress.next?.id === 'shipments', blockedBy: needsBoth },
       { label: 'Report a delay', icon: <TriangleAlert size={14} />, onClick: () => openEditor({ type: 'report-delay' }), blockedBy: progress.canReportDelay ? undefined : 'Add a shipment first' },
     ],
@@ -142,8 +146,8 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
                 <CommitmentsPanel onToggleAll={() => setActiveSection('Orders')} showAll={false} />
                 <OverviewRecommendation onApprove={requestApproval} onViewOptions={() => setActiveSection('Rehearsals')} />
               </>)}
-            {activeSection === 'Orders' && <CommitmentsPanel onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
-            {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} />}
+            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
+            {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} />}
             {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={(target) => openEditor(target)} onApprove={requestApproval} onDecideConflict={decideConflict} />}
             <footer className="page-footer">
@@ -160,6 +164,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
           onVerify={(target) => { setPendingApproval(null); openEditor(target, 'document') }}
           plan={pendingApproval}
         />}
+        {importKind && <ImportDialog kind={importKind} onApply={(next) => { saveChange(next); setImportKind(null) }} onClose={() => setImportKind(null)} />}
         {editor && editorConfig && <DetailsEditor
           config={editorConfig}
           initialMode={editor.mode}

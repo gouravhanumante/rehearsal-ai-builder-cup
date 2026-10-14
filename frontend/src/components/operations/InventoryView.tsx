@@ -9,11 +9,12 @@ import { EmptyState } from '../layout/EmptyState'
 
 type InventoryViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
+  onImport?: () => void
 }
 
 const kindLabels = { warehouse: 'Warehouse', store: 'Store', 'distribution-centre': 'Distribution centre' }
 
-export function InventoryView({ onEdit }: InventoryViewProps) {
+export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const [selectedProductId, setSelectedProductId] = useState(workspace.products[0]?.id ?? '')
   const product = workspace.products.find((item) => item.id === selectedProductId) ?? workspace.products[0]
@@ -24,7 +25,8 @@ export function InventoryView({ onEdit }: InventoryViewProps) {
           <div><p className="section-kicker">INVENTORY</p><h2 id="inventory-title">Stock by location</h2></div>
         </div>
         <EmptyState body="Add the products you stock. Then add your locations and how much of each product is at each one." icon={<PackagePlus size={20} />} title="No products yet">
-          <Button icon={<PackagePlus size={14} />} onClick={() => onEdit({ type: 'new-product' }, 'manual')} variant="primary">Add product</Button>
+          {onImport && <Button icon={<FileUp size={14} />} onClick={onImport} variant="primary">Import stock file</Button>}
+          <Button icon={<PackagePlus size={14} />} onClick={() => onEdit({ type: 'new-product' }, 'manual')} variant={onImport ? 'secondary' : 'primary'}>Add product</Button>
           <Button icon={<MapPinPlus size={14} />} onClick={() => onEdit({ type: 'new-location' }, 'manual')} variant="secondary">Add location</Button>
         </EmptyState>
       </section>
@@ -46,6 +48,7 @@ export function InventoryView({ onEdit }: InventoryViewProps) {
               {workspace.products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>}
+          {onImport && <Button icon={<FileUp size={14} />} onClick={onImport} variant="secondary">Import stock file</Button>}
           <Button icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'product', productId: product.id }, 'manual')} variant="quiet">Edit product</Button>
           <Button icon={<PackagePlus size={14} />} onClick={() => onEdit({ type: 'new-product' }, 'manual')} variant="secondary">Add product</Button>
           <Button icon={<MapPinPlus size={14} />} onClick={() => onEdit({ type: 'new-location' }, 'manual')} variant="secondary">Add location</Button>

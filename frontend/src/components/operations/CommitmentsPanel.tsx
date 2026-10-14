@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ChevronDown, ChevronUp, ClipboardPlus, PencilLine, Warehouse } from 'lucide-react'
+import { ChevronDown, ChevronUp, ClipboardPlus, FileUp, PencilLine, Warehouse } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Order } from '../../../../shared/planner/model'
@@ -12,12 +12,13 @@ type CommitmentsPanelProps = {
   onToggleAll?: () => void
   onEditOrder?: (orderId: string) => void
   onAddOrder?: () => void
+  onImportOrders?: () => void
 }
 
 const avatarTones = ['green', 'blue', 'yellow'] as const
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join('')
 
-export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder }: CommitmentsPanelProps) {
+export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder, onImportOrders }: CommitmentsPanelProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
   const editable = Boolean(onEditOrder)
@@ -50,7 +51,8 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
       <section className="orders-section" aria-labelledby="orders-title">
         <div className="section-heading"><div><p className="section-kicker">CUSTOMER ORDERS</p><h2 id="orders-title">No orders yet</h2></div></div>
         <EmptyState body="Add or import your open customer orders. Rehearsal uses them to see who is affected when a shipment is late." icon={<ClipboardPlus size={20} />} title="Nothing to watch yet">
-          {onAddOrder && <Button icon={<ClipboardPlus size={14} />} onClick={onAddOrder} variant="primary">Add order</Button>}
+          {onImportOrders && <Button icon={<FileUp size={14} />} onClick={onImportOrders} variant="primary">Import orders</Button>}
+          {onAddOrder && <Button icon={<ClipboardPlus size={14} />} onClick={onAddOrder} variant="secondary">Add order</Button>}
         </EmptyState>
       </section>
     )
@@ -60,6 +62,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
     <section className="orders-section" aria-labelledby="orders-title">
       <div className="section-heading">
         <div><p className="section-kicker">{showAll || noDisruption ? 'CUSTOMER ORDERS' : 'IMPACTED CUSTOMER ORDERS'}</p><h2 id="orders-title">{noDisruption ? `${format.number(workspace.orders.length)} open order${workspace.orders.length === 1 ? '' : 's'}` : `${affectedCount} ${affectedCount === 1 ? 'delivery needs' : 'deliveries need'} attention`}</h2></div>
+        {onImportOrders && <Button icon={<FileUp size={14} />} onClick={onImportOrders} variant="secondary">Import orders</Button>}
         {onAddOrder && <Button icon={<ClipboardPlus size={14} />} onClick={onAddOrder} variant="secondary">Add order</Button>}
         {onToggleAll && <Button className="expand-orders" icon={showAll ? <ChevronUp size={15} /> : <ChevronDown size={15} />} onClick={onToggleAll} variant="quiet">
           {showAll ? 'Show fewer' : `View all ${workspace.orders.length} orders`}
