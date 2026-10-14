@@ -53,3 +53,12 @@ export function saveDemo(data: DistributorData) {
 export function clearDemo() {
   localStorage.removeItem(STORAGE_KEY)
 }
+
+/** Another tab saved or reset; hand back what is now stored so this tab does not overwrite it. */
+export function onDemoChangedElsewhere(apply: (data: DistributorData) => void) {
+  const handle = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) apply(parseSavedDemo(event.newValue) ?? distributorDemo)
+  }
+  window.addEventListener('storage', handle)
+  return () => window.removeEventListener('storage', handle)
+}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Topbar } from './components/layout/Topbar'
 import { SectionNavigation, type SectionName } from './components/layout/SectionNavigation'
 import { AskAiPanel } from './components/assistant/AskAiPanel'
@@ -13,7 +13,7 @@ import { OverviewRecommendation } from './components/planning/OverviewRecommenda
 import { RecoveryPlans, type Approval } from './components/planning/RecoveryPlans'
 import type { RecoveryPlan } from './data/demoDistributor'
 import { distributorDemo, type DistributorData } from './data/distributorDemo'
-import { clearDemo, loadDemo, saveDemo } from './data/demoStore'
+import { clearDemo, loadDemo, onDemoChangedElsewhere, saveDemo } from './data/demoStore'
 import { rehearseDistributor } from './domain/rehearseDistributor'
 import './App.css'
 
@@ -28,6 +28,12 @@ function App() {
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<SectionName>('Overview')
   const editorConfig = editor ? editorFor(editor.target, data) : null
+
+  useEffect(() => onDemoChangedElsewhere((next) => {
+    setData(next)
+    setApproval(null)
+    setEditor(null)
+  }), [])
 
   const approvePlan = (plan: RecoveryPlan) => {
     if (plan.status !== 'ready') return
