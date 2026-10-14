@@ -26,6 +26,10 @@ export function isGeminiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY?.trim())
 }
 
+export function geminiModel() {
+  return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL
+}
+
 function hasUnsupportedNumbers(answer: string, request: AssistantRequest) {
   const verifiedContext = JSON.stringify({
     facts: request.facts.filter((fact) => fact.evidenceStatus !== 'unknown'),
@@ -61,7 +65,7 @@ export async function answerWithGemini(request: AssistantRequest): Promise<Assis
   if (!apiKey) throw new GeminiNotConfiguredError()
 
   const ai = new GoogleGenAI({ apiKey })
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL
+  const model = geminiModel()
   const prompt = JSON.stringify({
     workspaceName: request.workspaceName,
     question: request.question,

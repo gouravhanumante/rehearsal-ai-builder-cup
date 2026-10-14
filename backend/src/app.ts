@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import { assistantRequestSchema } from './contracts.js'
 import { detectMimeType, extractRequestSchema, extractWithGemini } from './documents.js'
-import { answerWithGemini, GeminiNotConfiguredError, isGeminiConfigured } from './gemini.js'
+import { answerWithGemini, GeminiNotConfiguredError, geminiModel, isGeminiConfigured } from './gemini.js'
 
 const assistantLimiter = rateLimit({
   windowMs: 60_000,
@@ -59,7 +59,7 @@ export function createApp() {
     response.json({
       status: 'ok',
       aiConfigured: isGeminiConfigured(),
-      model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash',
+      model: geminiModel(),
     })
   })
 

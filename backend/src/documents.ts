@@ -1,8 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { z } from 'zod'
-import { GeminiNotConfiguredError } from './gemini.js'
+import { GeminiNotConfiguredError, geminiModel } from './gemini.js'
 
-const DEFAULT_MODEL = 'gemini-3.5-flash-lite'
 export const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
 const MAX_BASE64_LENGTH = Math.ceil(MAX_DOCUMENT_BYTES / 3) * 4
 
@@ -100,7 +99,7 @@ export async function extractWithGemini(request: ExtractRequest): Promise<Extrac
   if (!apiKey) throw new GeminiNotConfiguredError()
 
   const ai = new GoogleGenAI({ apiKey })
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL
+  const model = geminiModel()
   const file = request.mimeType === 'application/pdf'
     ? { type: 'document' as const, data: request.dataBase64, mime_type: request.mimeType }
     : { type: 'image' as const, data: request.dataBase64, mime_type: request.mimeType }

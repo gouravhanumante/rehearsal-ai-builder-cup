@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createApp } from './app.js'
+import { geminiModel } from './gemini.js'
 
 const originalApiKey = process.env.GEMINI_API_KEY
+const originalModel = process.env.GEMINI_MODEL
 
 async function withServer(run: (url: string) => Promise<void>) {
   const server = createApp().listen(0, '127.0.0.1')
@@ -18,16 +20,20 @@ async function withServer(run: (url: string) => Promise<void>) {
 afterEach(() => {
   if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY
   else process.env.GEMINI_API_KEY = originalApiKey
+  if (originalModel === undefined) delete process.env.GEMINI_MODEL
+  else process.env.GEMINI_MODEL = originalModel
 })
 
 describe('assistant API', () => {
-  it('reports readiness without exposing credentials', async () => {
+  it('reports the model it actually uses, without exposing credentials', async () => {
     delete process.env.GEMINI_API_KEY
+    delete process.env.GEMINI_MODEL
     await withServer(async (url) => {
       const response = await fetch(`${url}/api/health`)
       const body = await response.json()
       expect(response.status).toBe(200)
-      expect(body).toMatchObject({ status: 'ok', aiConfigured: false, model: 'gemini-3.8-flash' })
+      expect(body).toMatchObject({ status: 'ok', aiConfigured: false, model: geminiModel() })
+      expect(body.model).toBe('gemini-3.5-flash-lite')
       expect(JSON.stringify(body)).not.toContain('GEMINI_API_KEY')
     })
   })
