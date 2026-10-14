@@ -8,6 +8,13 @@ export function originAfterTyping(value: string, initialValue: string | undefine
   return value === initialValue ? 'unchanged' : 'typed'
 }
 
+/** What the form shows when it opens: the saved values, with any pre-filled suggestion already counting as a change. */
+export function openingState(fields: FieldSpec[], initial: Record<string, string>, prefilled: Record<string, string> = {}) {
+  const values = { ...initial, ...prefilled }
+  const origin: Record<string, Origin> = Object.fromEntries(fields.map((field) => [field.key, originAfterTyping(values[field.key] ?? '', initial[field.key])]))
+  return { values, origin }
+}
+
 /** Evidence saved with a value: the attached document, the keyboard, or whatever it had before. */
 export function resolveEvidence(origin: Origin, value: ParsedValue, previous: Evidence | null, documentName: string | null, recordedAt: string): Evidence | null {
   if (value === null) return null

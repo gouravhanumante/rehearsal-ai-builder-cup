@@ -42,6 +42,8 @@ export type EditorConfig = {
   stockChecks?: StockCheck[]
   fields: FieldSpec[]
   initial: Record<string, string>
+  /** Values the form opens with that differ from what is saved (e.g. a product pre-ticked from "Does X sell Y?"), so they count as a change. */
+  prefilled?: Record<string, string>
   initialEvidence: Record<string, Evidence | null>
   /** A rule that spans several fields (e.g. a transfer cannot go from a place to itself). Returns a message, or null if fine. */
   validate?: (values: Record<string, ParsedValue>) => string | null
@@ -269,7 +271,10 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'productIds', label: 'Products they can supply', type: 'multiselect', required: true, extractable: false, isFact: false, options: productOptions, hint: 'Removing a product also removes any reply recorded for it.' },
         { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions, hint: 'Changing this clears their replies, since arrival times were for the old place.' },
       ],
-      initial: { name: supplier.name, contact: supplier.contact ?? '', productIds: JSON.stringify([...new Set([...supplier.offers.map((offer) => offer.productId), ...(target.addProductId ? [target.addProductId] : [])])]), locationId: deliverTo },
+      initial: { name: supplier.name, contact: supplier.contact ?? '', productIds: JSON.stringify([...new Set(supplier.offers.map((offer) => offer.productId))]), locationId: deliverTo },
+      prefilled: target.addProductId && !supplier.offers.some((offer) => offer.productId === target.addProductId)
+        ? { productIds: JSON.stringify([...new Set([...supplier.offers.map((offer) => offer.productId), target.addProductId])]) }
+        : undefined,
       initialEvidence: { name: null, contact: null, productIds: null, locationId: null },
       apply: (values) => {
         const locationId = values.locationId as string

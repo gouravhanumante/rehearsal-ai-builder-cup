@@ -9,7 +9,7 @@ import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { choicesOf, displayValue, parseField, type EditorConfig, type ParsedValue } from './editorConfigs'
 import { MultiPicker } from './MultiPicker'
-import { originAfterTyping, resolveEvidence, reviewFieldKeys, type Origin } from './editorRules'
+import { openingState, originAfterTyping, resolveEvidence, reviewFieldKeys, type Origin } from './editorRules'
 
 type ExtractedField = { key: string; value: string | null; quote: string | null }
 
@@ -37,8 +37,9 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const canReadDocuments = config.fields.some((field) => field.extractable)
   const [mode, setMode] = useState(canReadDocuments ? initialMode : 'manual')
   const [step, setStep] = useState<'edit' | 'review'>('edit')
-  const [values, setValues] = useState(config.initial)
-  const [origin, setOrigin] = useState<Record<string, Origin>>(() => Object.fromEntries(config.fields.map((field) => [field.key, 'unchanged'])))
+  const [opening] = useState(() => openingState(config.fields, config.initial, config.prefilled))
+  const [values, setValues] = useState(opening.values)
+  const [origin, setOrigin] = useState<Record<string, Origin>>(opening.origin)
   const [quotes, setQuotes] = useState<Record<string, string>>({})
   const [documentName, setDocumentName] = useState<string | null>(null)
   const [documentSummary, setDocumentSummary] = useState<string | null>(null)

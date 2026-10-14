@@ -5,6 +5,7 @@ import { rehearse } from '../../../../shared/planner/plan'
 import { createFormat } from '../../presentation/format'
 import type { EditTarget } from '../../presentation/planText'
 import { editorFor, parseField } from './editorConfigs'
+import { changedFieldKeys, openingState } from './editorRules'
 
 const typed: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-14T09:00:00+05:30' }
 
@@ -105,6 +106,18 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
   })
 
   it('watches the order without raising an alarm while every shipment is on time', () => {
+  it('"Does Vibgyor sell Mops?" opens their form with Mops already ticked, and that can be saved without touching anything', () => {
+    let workspace = smallBusiness()
+    workspace = enter(workspace, { type: 'new-product' }, { name: 'Mops', perPackage: '1' }).workspace
+    const [beans, mops] = workspace.products.map((product) => product.id)
+    workspace = enter(workspace, { type: 'new-supplier' }, { name: 'Vibgyor', productIds: JSON.stringify([beans]), locationId: workspace.locations[0].id }).workspace
+    const config = editorFor({ type: 'supplier', supplierId: workspace.suppliers[0].id, addProductId: mops }, workspace, createFormat(workspace.settings))
+    if (!config) throw new Error('no editor')
+    const { values, origin } = openingState(config.fields, config.initial, config.prefilled)
+    expect(JSON.parse(values.productIds)).toEqual([beans, mops])
+    expect(changedFieldKeys(config.fields, values, config.initial, origin, config.initialEvidence)).toEqual(['productIds'])
+  })
+
     const workspace = smallBusiness()
     expect(workspace.orders).toHaveLength(1)
     expect(workspace.shipments).toHaveLength(1)
