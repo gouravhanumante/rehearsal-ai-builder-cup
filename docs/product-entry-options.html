@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add Product · UI Options</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --deep: #17372f;
+      --canvas: #f2f5f1;
+      --surface: #fff;
+      --line: #dfe6df;
+      --ink: #23382d;
+      --muted: #5d6d63;
+      --action: #315b4a;
+      --accent: #c6e36a;
+      --soft: #edf3ec;
+      --optional: #f7f2e5;
+      --optional-ink: #77591f;
+      --radius: 8px;
+      font-family: Manrope, "Avenir Next", sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); }
+    button, input, select { font: inherit; }
+    .topbar { min-height: 62px; display: flex; align-items: center; gap: 12px; padding: 12px max(20px, calc((100vw - 1120px) / 2)); color: white; background: var(--deep); }
+    .mark { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 6px; color: var(--deep); background: var(--accent); font-weight: 800; }
+    .brand { font-size: 17px; font-weight: 800; }
+    .business { margin-left: 12px; padding-left: 18px; border-left: 1px solid #476258; font-size: 12px; }
+    main { width: min(1120px, calc(100% - 32px)); margin: 34px auto 60px; }
+    .eyebrow, .kicker { margin: 0; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    h1 { margin: 7px 0 8px; font-size: 29px; line-height: 1.2; }
+    .intro > p:last-child { max-width: 720px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .rule { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--action); background: #e9f0e8; font-size: 12px; }
+    .rule strong { color: var(--action); }
+    .option { display: grid; grid-template-columns: minmax(210px, .75fr) minmax(0, 1.7fr); gap: 24px; margin-top: 24px; padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--radius); background: #f8faf7; }
+    .option-heading { display: flex; align-items: flex-start; gap: 11px; }
+    .number { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border-radius: 6px; color: var(--action); background: #e4ece2; font-size: 12px; font-weight: 800; }
+    .option h2 { margin: 0 0 5px; font-size: 17px; line-height: 1.3; }
+    .option-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .tag { display: inline-block; margin-top: 10px; padding: 5px 8px; border-radius: 5px; color: var(--action); background: var(--soft); font-size: 10px; font-weight: 750; }
+    .preview { min-width: 0; padding: 20px 22px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+    .preview-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 17px; }
+    .preview-head h3 { margin: 4px 0 0; font-size: 17px; }
+    .close { border: 0; color: #68786d; background: none; font-size: 21px; line-height: 1; }
+    .fields { display: grid; gap: 13px; }
+    .field { display: grid; gap: 5px; min-width: 0; }
+    .field label { color: #3a5043; font-size: 11px; font-weight: 750; }
+    .field label small { color: #8a968e; font-weight: 500; }
+    .hint { color: #66766b; font-size: 10px; line-height: 1.45; }
+    .control { width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid #d9e1da; border-radius: 6px; color: #2f4437; background: white; font-size: 12px; }
+    .select-row { position: relative; }
+    .optional-details { margin-top: 2px; border-top: 1px solid var(--line); }
+    .optional-details summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; color: #40594a; font-size: 12px; font-weight: 750; cursor: pointer; list-style: none; }
+    .optional-details summary::-webkit-details-marker { display: none; }
+    .optional-details summary::after { content: "+"; color: var(--action); font-size: 18px; font-weight: 500; }
+    .optional-details[open] summary::after { content: "−"; }
+    .optional-content { display: grid; gap: 13px; padding: 0 0 12px; }
+    .optional-badge { padding: 3px 6px; border-radius: 4px; color: var(--optional-ink); background: var(--optional); font-size: 9px; font-weight: 700; }
+    .footer { display: flex; justify-content: flex-end; gap: 8px; margin: 17px -22px -20px; padding: 12px 22px; border-top: 1px solid var(--line); background: #fbfcfb; }
+    .button { min-height: 35px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: white; font-size: 11px; font-weight: 650; }
+    .primary { border-color: var(--action); color: white; background: var(--action); }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .table-wrap { overflow-x: auto; margin-top: 6px; border: 1px solid var(--line); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { min-width: 115px; padding: 10px 11px; border-bottom: 1px solid var(--line); font-size: 11px; }
+    th { color: var(--muted); background: #f7f9f6; font-size: 10px; }
+    tr:last-child td { border-bottom: 0; }
+    td input, td select { width: 100%; min-width: 90px; height: 32px; padding: 0 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: white; font-size: 10px; }
+    .add-row { margin-top: 9px; border: 0; color: var(--action); background: none; font-size: 11px; font-weight: 700; }
+    .option-note { grid-column: 2; margin: -12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    @media (max-width: 760px) {
+      .topbar { padding-inline: 16px; }
+      .business { margin-left: auto; padding-left: 10px; font-size: 10px; }
+      main { width: calc(100% - 22px); margin-top: 23px; }
+      h1 { font-size: 24px; }
+      .option { grid-template-columns: 1fr; gap: 13px; padding: 15px 12px; }
+      .preview { padding: 16px 12px; }
+      .footer { margin: 15px -12px -16px; padding-inline: 12px; }
+      .option-note { grid-column: 1; margin: -3px 0 0; }
+      .split { grid-template-columns: 1fr; }
+      .number { width: 28px; height: 28px; flex-basis: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <span class="mark" aria-hidden="true">R</span>
+    <span class="brand">rehearsal.</span>
+    <span class="business">Gourav King Traders</span>
+  </header>
+  <main>
+    <header class="intro">
+      <p class="eyebrow">Add product · UI options</p>
+      <h1>What details do you need?</h1>
+      <p>Only the product name and the unit you count in are needed to record stock. Pack description helps people recognize the item; storage limit is optional.</p>
+      <div class="rule"><span><strong>Needed:</strong> name and stock unit</span><span><strong>Optional:</strong> pack details and storage limit</span><span>Examples use Vibranium.</span></div>
+    </header>
+
+    <section class="option" aria-labelledby="option-one">
+      <div class="option-heading">
+        <span class="number">1</span>
+        <div>
+          <h2 id="option-one">Essentials first</h2>
+          <p>Ask for just the information needed now. Put pack description and storage limit under optional details.</p>
+          <span class="tag">Recommended</span>
+        </div>
+      </div>
+      <div class="preview">
+        <div class="preview-head"><div><p class="kicker">PRODUCTS</p><h3>Add product</h3></div><button class="close" aria-label="Close">×</button></div>
+        <div class="fields">
+          <div class="field"><label for="name-1">Name</label><input class="control" id="name-1" value="Vibranium"></div>
+          <div class="field"><label for="unit-1">Unit you count stock in</label><select class="control" id="unit-1"><option>Choose a unit</option><option>Unit / each</option><option>Piece</option><option>Box</option><option>Case</option><option selected>Bag</option><option>Pack</option><option>Bottle</option><option>Pallet</option><option>Kilogram (kg)</option><option>Gram (g)</option><option>Litre (L)</option><option>Millilitre (mL)</option><option>Other</option></select><small class="hint">How you count quantities in stock and orders.</small></div>
+          <details class="optional-details">
+            <summary>More details <span class="optional-badge">Optional</span></summary>
+            <div class="optional-content">
+              <div class="field"><label for="pack-1">How it is packed</label><input class="control" id="pack-1" value="20 kg bag"><small class="hint">Describe one pack, e.g. “20 kg bag” or “12 bottles per case”.</small></div>
+              <div class="field"><label for="limit-1">Most one location can store</label><input class="control" id="limit-1" placeholder="Leave blank for no limit"><small class="hint">In bags. A warehouse can override this for this product.</small></div>
+            </div>
+          </details>
+        </div>
+        <div class="footer"><button class="button">Cancel</button><button class="button primary">Review product</button></div>
+      </div>
+      <p class="option-note">Fast to start; useful details remain available without making setup feel mandatory.</p>
+    </section>
+
+    <section class="option" aria-labelledby="option-two">
+      <div class="option-heading">
+        <span class="number">2</span>
+        <div>
+          <h2 id="option-two">Guided form</h2>
+          <p>Keep all details visible, but label optional fields clearly and use examples to explain them.</p>
+        </div>
+      </div>
+      <div class="preview">
+        <div class="preview-head"><div><p class="kicker">PRODUCTS</p><h3>Add product</h3></div><button class="close" aria-label="Close">×</button></div>
+        <div class="fields">
+          <div class="field"><label for="name-2">Name</label><input class="control" id="name-2" value="Vibranium"></div>
+          <div class="field"><label for="unit-2">Unit you count stock in</label><select class="control" id="unit-2"><option>Choose a unit</option><option>Unit / each</option><option>Piece</option><option>Pair</option><option>Box</option><option>Case</option><option selected>Bag</option><option>Pack</option><option>Bottle</option><option>Pallet</option><option>Kilogram (kg)</option><option>Gram (g)</option><option>Litre (L)</option><option>Millilitre (mL)</option><option>Other</option></select><small class="hint">Choose the unit your stock count will use. Quantities are whole numbers.</small></div>
+          <div class="field"><label for="pack-2">How it is packed <small>· optional</small></label><input class="control" id="pack-2" value="20 kg bag"><small class="hint">For example: “20 kg bag”. This describes the pack; it does not change the count unit.</small></div>
+          <div class="field"><label for="limit-2">Most one location can store <small>· optional</small></label><input class="control" id="limit-2" value="500"><small class="hint">500 bags per location. A warehouse can override this for this product.</small></div>
+        </div>
+        <div class="footer"><button class="button">Cancel</button><button class="button primary">Review product</button></div>
+      </div>
+      <p class="option-note">More complete at a glance, but asks users to process three concepts before they can add the product.</p>
+    </section>
+
+    <section class="option" aria-labelledby="option-three">
+      <div class="option-heading">
+        <span class="number">3</span>
+        <div>
+          <h2 id="option-three">Quick-add list</h2>
+          <p>Enter several products in a compact table. Add packaging and storage details later.</p>
+        </div>
+      </div>
+      <div class="preview">
+        <div class="preview-head"><div><p class="kicker">PRODUCTS</p><h3>Add products</h3></div><button class="close" aria-label="Close">×</button></div>
+        <p class="hint">Enter the name and the unit you use for stock counts. Pack and storage details are optional.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Product name</th><th>Counted in</th><th>Pack description <span class="optional-badge">Optional</span></th></tr></thead>
+            <tbody>
+              <tr><td><input value="Vibranium" aria-label="Product name"></td><td><select aria-label="Counted in"><option>Bag</option><option>Box</option><option>kg</option><option>Other</option></select></td><td><input value="20 kg bag" aria-label="Pack description"></td></tr>
+              <tr><td><input placeholder="Product name" aria-label="Second product name"></td><td><select aria-label="Second product unit"><option>Choose unit</option><option>Unit / each</option><option>Case</option><option>Other</option></select></td><td><input placeholder="Optional" aria-label="Second pack description"></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button class="add-row">+ Add another product</button>
+        <div class="footer"><button class="button">Cancel</button><button class="button primary">Review 1 product</button></div>
+      </div>
+      <p class="option-note">Efficient for bulk entry, but less helpful when someone needs guidance about units and packaging.</p>
+    </section>
+  </main>
+</body>
+</html>
