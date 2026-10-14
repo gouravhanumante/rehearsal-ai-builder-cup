@@ -83,22 +83,37 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
       return line.status === 'short' && (!earlier || earlier.status !== 'short' || earlier.covered > line.covered)
     })
   }, [draft, workspace])
-  // Shown under Quantity: how much the chosen warehouse can spare, and whether this order needs more.
-  const stockHint = useMemo(() => {
-    if (!config.checksStock) return null
+  // The order this form is about: the one being edited, or the one being added.
+  const targetOrderId = useMemo(() => {
+    const edited = config.stockChecks?.find((check) => check.orderId)?.orderId
+    if (edited) return edited
+    if (!config.stockChecks || !draft) return null
+    return draft.orders.find((order) => !workspace.orders.some((item) => item.id === order.id))?.id ?? null
+  }, [config.stockChecks, draft, workspace])
+  // Shown under each quantity: how much the chosen warehouse can spare, and whether this order needs more.
+  const stockHints = useMemo(() => {
+    const hints: Record<string, { productId: string; locationId: string; onHand: number; counted: boolean; spare: number; short: boolean; coveredByDeliveries: boolean }> = {}
     const value = (key: string) => { const result = parsed[key]; return result && 'value' in result ? result.value : null }
-    const productId = value('productId')
-    const locationId = value('locationId')
-    const quantity = value('quantity')
-    if (typeof productId !== 'string' || typeof locationId !== 'string') return null
-    const record = workspace.stock.find((item) => item.locationId === locationId && item.productId === productId)
-    const spare = spareStock(workspace, locationId, productId)
-    const wanted = typeof quantity === 'number' ? quantity : null
-    // With every field filled, the full check also counts deliveries arriving before the due date.
-    const short = draft ? newShortages.length > 0 : wanted !== null && wanted > spare
-    const coveredByDeliveries = Boolean(draft) && !short && wanted !== null && wanted > spare
-    return { productId, locationId, onHand: record?.available.value ?? 0, counted: Boolean(record), spare, short, coveredByDeliveries }
-  }, [config.checksStock, parsed, workspace, draft, newShortages.length])
+    for (const check of config.stockChecks ?? []) {
+      const productId = check.productId ?? (check.productKey ? value(check.productKey) : null)
+      const locationId = value(check.locationKey)
+      const quantity = value(check.quantityKey)
+      if (typeof productId !== 'string' || typeof locationId !== 'string') continue
+      // An edited order's own demand must not count against itself.
+      const others = check.orderId ? { ...workspace, orders: workspace.orders.filter((order) => order.id !== check.orderId) } : workspace
+      const record = workspace.stock.find((item) => item.locationId === locationId && item.productId === productId)
+      const spare = spareStock(others, locationId, productId)
+      const wanted = typeof quantity === 'number' ? quantity : null
+      // With every field filled, the full check also counts deliveries arriving before the due date.
+      const line = draft && targetOrderId ? orderCoverage(draft, locationId).find((item) => item.orderId === targetOrderId && item.productId === productId) : undefined
+      const short = line ? line.status === 'short' : wanted !== null && wanted > spare
+      const coveredByDeliveries = Boolean(line) && !short && wanted !== null && wanted > spare
+      hints[check.quantityKey] = { productId, locationId, onHand: record?.available.value ?? 0, counted: Boolean(record), spare, short, coveredByDeliveries }
+    }
+    return hints
+  }, [config.stockChecks, parsed, workspace, draft, targetOrderId])
+  // Other orders this change leaves short; the order in the form is covered by the hint under its quantity.
+  const otherShortages = newShortages.filter((line) => line.orderId !== targetOrderId)
 
   const updateValue = (key: string, value: string) => {
     setValues((previous) => ({ ...previous, [key]: value }))
@@ -216,23 +231,28 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                     {mode === 'document' && documentName && field.extractable && fieldOrigin !== 'document' && <small className="editor-missing">Not found in the document</small>}
                   </div>
                   {(showErrors || (values[field.key] ?? '').trim() !== '') && 'error' in result && <small className="editor-error">{result.error}</small>}
-                  {field.key === 'quantity' && stockHint && (!('error' in result) || !(values[field.key] ?? '').trim()) && <small aria-live="polite" className={stockHint.short || !stockHint.counted ? 'editor-stock-warning' : 'editor-hint'}>
-                    {!stockHint.counted
-                      ? `${words.locationName(stockHint.locationId)} has no stock count for ${words.productName(stockHint.productId)} yet, so this can't be checked.`
-                      : stockHint.short
-                        ? `More than ${words.locationName(stockHint.locationId)} can spare: at most ${words.quantity(stockHint.spare, stockHint.productId)}${stockHint.onHand > stockHint.spare ? ` (it has ${format.number(stockHint.onHand)}; the rest is promised to other orders)` : ''}. You can still save the order; Rehearsal will look for ways to cover it.`
-                        : stockHint.coveredByDeliveries
-                          ? `Covered: ${words.locationName(stockHint.locationId)} can spare ${words.quantity(stockHint.spare, stockHint.productId)} now, and deliveries arrive before the due date.`
-                          : `${words.locationName(stockHint.locationId)} can spare up to ${words.quantity(stockHint.spare, stockHint.productId)}${stockHint.onHand > stockHint.spare ? ` (it has ${format.number(stockHint.onHand)}; the rest is promised to other orders)` : ''}.`}
-                  </small>}
+                  {stockHints[field.key] && (!('error' in result) || !(values[field.key] ?? '').trim()) && (() => {
+                    const hint = stockHints[field.key]
+                    const where = words.locationName(hint.locationId)
+                    const promised = hint.onHand > hint.spare ? ` (it has ${format.number(hint.onHand)}; the rest is promised to other orders)` : ''
+                    return <small aria-live="polite" className={hint.short || !hint.counted ? 'editor-stock-warning' : 'editor-hint'}>
+                      {!hint.counted
+                        ? `${where} has no stock count for ${words.productName(hint.productId)} yet, so this can't be checked.`
+                        : hint.short
+                          ? `More than ${where} can spare: at most ${words.quantity(hint.spare, hint.productId)}${promised}. You can still save the order; Rehearsal will look for ways to cover it.`
+                          : hint.coveredByDeliveries
+                            ? `Covered: ${where} can spare ${words.quantity(hint.spare, hint.productId)} now, and deliveries arrive before the due date.`
+                            : `${where} can spare up to ${words.quantity(hint.spare, hint.productId)}${promised}.`}
+                    </small>
+                  })()}
                 </div>
               )
             })}
           </div>}
           {showErrors && crossError && <p className="editor-error" role="alert">{crossError}</p>}
-          {showForm && draftWords && newShortages.length > 0 && !config.checksStock && <div aria-live="polite" className="editor-live-warning">
-            <strong>Not enough stock</strong>
-            <ul className="editor-shortages">{newShortages.map((line) => (
+          {showForm && draftWords && otherShortages.length > 0 && <div aria-live="polite" className="editor-live-warning">
+            <strong>{config.stockChecks ? 'This leaves other orders short' : 'Not enough stock'}</strong>
+            <ul className="editor-shortages">{otherShortages.map((line) => (
               <li key={`${line.orderId}-${line.productId}`}><strong>{draftWords.customer(line.orderId)} · {draftWords.productName(line.productId)}</strong><small>{draftWords.shortageText(line)}</small></li>
             ))}</ul>
             <small>You can still save it; Rehearsal will then show ways to cover it.</small>

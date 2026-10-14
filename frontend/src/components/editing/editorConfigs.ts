@@ -20,6 +20,7 @@ export type FieldSpec = {
   suffix?: string
 }
 export type ParsedValue = number | string | null
+export type StockCheck = { quantityKey: string; locationKey: string; productId?: string; productKey?: string; orderId?: string }
 
 /** A multiselect keeps its choices as a JSON list in the form's text value. */
 export const choicesOf = (raw: string): string[] => {
@@ -37,8 +38,8 @@ export type EditorConfig = {
   documentHint: string
   /** Creates a record rather than editing one, so the review lists every detail instead of before → after. */
   isNew?: boolean
-  /** Warn while typing when productId / quantity / locationId ask for more than that location can spare. */
-  checksStock?: boolean
+  /** Quantity boxes to check against what the warehouse can spare. orderId: the order being edited, left out of "its other orders". */
+  stockChecks?: StockCheck[]
   fields: FieldSpec[]
   initial: Record<string, string>
   initialEvidence: Record<string, Evidence | null>
@@ -158,6 +159,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: `Edit ${order.id}`,
       subtitle: order.customer,
       documentHint: 'Purchase order or order confirmation',
+      stockChecks: order.lines.map((line) => ({ quantityKey: lineKey(line.productId), productId: line.productId, locationKey: 'locationId', orderId: order.id })),
       fields: [
         { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true },
         ...order.lines.map((line): FieldSpec => ({ key: lineKey(line.productId), label: `${productName(line.productId)} (${pluralUnit(unitOf(line.productId), 2)})`, type: 'integer', required: true, extractable: true, isFact: true })),
@@ -306,7 +308,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       subtitle: 'A customer order you have promised to deliver',
       documentHint: 'Purchase order or order confirmation',
       isNew: true,
-      checksStock: true,
+      stockChecks: [{ quantityKey: 'quantity', productKey: 'productId', locationKey: 'locationId' }],
       fields: [
         { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true, placeholder: 'e.g. Shiva Kirana' },
         { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
