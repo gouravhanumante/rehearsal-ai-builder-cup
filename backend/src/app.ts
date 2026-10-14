@@ -3,6 +3,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import { assistantRequestSchema } from './contracts.js'
+import { detectMimeType, extractRequestSchema, extractWithGemini } from './documents.js'
 import { answerWithGemini, GeminiNotConfiguredError, isGeminiConfigured } from './gemini.js'
 
 const assistantLimiter = rateLimit({
@@ -13,11 +14,45 @@ const assistantLimiter = rateLimit({
   message: { error: { code: 'RATE_LIMITED', message: 'Too many questions. Try again in a minute.' } },
 })
 
+const documentLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 6,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many documents. Try again in a minute.' } },
+})
+
+const notConfigured = { error: { code: 'AI_NOT_CONFIGURED', message: 'Gemini is not configured on the server yet.' } }
+
+function sendAiFailure(error: unknown, response: express.Response) {
+  if (error instanceof GeminiNotConfiguredError) {
+    response.status(503).json(notConfigured)
+    return
+  }
+  if (error instanceof ZodError || error instanceof SyntaxError) {
+    response.status(502).json({
+      error: { code: 'AI_RESPONSE_INVALID', message: 'The AI response could not be verified. Please retry.' },
+    })
+    return
+  }
+  if (error instanceof Error && /timeout|timed out/i.test(error.message)) {
+    response.status(504).json({
+      error: { code: 'AI_TIMEOUT', message: 'Gemini is taking too long. Please retry.' },
+    })
+    return
+  }
+  response.status(502).json({
+    error: { code: 'AI_UNAVAILABLE', message: 'Gemini could not answer right now. Please retry.' },
+  })
+}
+
 export function createApp() {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
   app.use(helmet())
+  // Documents need a bigger body than questions; this parser runs first only for that route.
+  app.use('/api/documents', express.json({ limit: '6mb' }))
   app.use(express.json({ limit: '24kb' }))
 
   app.get('/api/health', (_request, response) => {
@@ -42,9 +77,7 @@ export function createApp() {
     }
 
     if (!isGeminiConfigured()) {
-      response.status(503).json({
-        error: { code: 'AI_NOT_CONFIGURED', message: 'Gemini is not configured on the server yet.' },
-      })
+      response.status(503).json(notConfigured)
       return
     }
 
@@ -52,32 +85,52 @@ export function createApp() {
       const result = await answerWithGemini(parsed.data)
       response.json(result)
     } catch (error) {
-      if (error instanceof GeminiNotConfiguredError) {
-        response.status(503).json({
-          error: { code: 'AI_NOT_CONFIGURED', message: 'Gemini is not configured on the server yet.' },
-        })
-        return
-      }
-      if (error instanceof ZodError || error instanceof SyntaxError) {
-        response.status(502).json({
-          error: { code: 'AI_RESPONSE_INVALID', message: 'The AI response could not be verified. Please retry.' },
-        })
-        return
-      }
-      if (error instanceof Error && /timeout|timed out/i.test(error.message)) {
-        response.status(504).json({
-          error: { code: 'AI_TIMEOUT', message: 'Gemini is taking too long. Please retry.' },
-        })
-        return
-      }
-      response.status(502).json({
-        error: { code: 'AI_UNAVAILABLE', message: 'Gemini could not answer right now. Please retry.' },
+      sendAiFailure(error, response)
+    }
+  })
+
+  app.post('/api/documents/extract', documentLimiter, async (request, response) => {
+    const parsed = extractRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      response.status(400).json({
+        error: {
+          code: 'INVALID_DOCUMENT',
+          message: 'Use a PNG, JPG, WEBP photo or a PDF under 4 MB.',
+          fields: parsed.error.issues.map((issue) => issue.path.join('.')),
+        },
       })
+      return
+    }
+    if (detectMimeType(parsed.data.dataBase64) !== parsed.data.mimeType) {
+      response.status(400).json({
+        error: { code: 'INVALID_DOCUMENT', message: 'That file does not look like the photo or PDF it claims to be.' },
+      })
+      return
+    }
+    if (!isGeminiConfigured()) {
+      response.status(503).json(notConfigured)
+      return
+    }
+
+    try {
+      response.json(await extractWithGemini(parsed.data))
+    } catch (error) {
+      sendAiFailure(error, response)
     }
   })
 
   app.use((_request, response) => {
     response.status(404).json({ error: { code: 'NOT_FOUND', message: 'This API route does not exist.' } })
+  })
+
+  app.use((error: { type?: string; status?: number }, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
+    if (error.type === 'entity.too.large') {
+      response.status(413).json({ error: { code: 'TOO_LARGE', message: 'That upload is too large. Use a file under 4 MB.' } })
+      return
+    }
+    response.status(error.status && error.status < 500 ? error.status : 500).json({
+      error: { code: 'BAD_REQUEST', message: 'The request could not be read.' },
+    })
   })
 
   return app

@@ -18,7 +18,9 @@ A deterministic planning engine decides what is feasible and computes all number
 
 Gemini never produces a final quantity, date or amount that is not recomputed by the engine.
 
-The Ask AI endpoint sends the user's question plus current workspace facts/options to Gemini with `store: false`. It returns plain-language explanation and references to known options; the server filters unknown option IDs and allows recommendations only for planner-ready options. The model does not write records or define plan status. Answers with unsupported numeric claims are replaced by a safe message directing users to verified UI figures.
+The Ask AI endpoint sends the user's question plus current workspace facts/options to Gemini with `store: false`. It returns plain-language explanation and references to known options; the server filters unknown option IDs and allows recommendations only for planner-ready options. The model does not write records or define plan status. Answers with unsupported numeric claims are replaced by a safe message directing users to verified UI figures. Facts are sent as `confirmed`, `unverified` (typed in, no document), or `unknown` (`backend/src/contracts.ts`).
+
+The document endpoint `POST /api/documents/extract` (`backend/src/documents.ts`) takes one PNG/JPG/WEBP/PDF (max 4 MB, base64 JSON, 6/min rate limit) plus the list of fields the current form needs. The server checks the file's first bytes match its claimed type before any model call, sends it to Gemini with `store: false`, and keeps a value only if it was requested, has the right shape (whole number, plain amount, ISO date-time with offset, short text), and comes with the document text it was read from. Nothing is written; the browser shows the proposal for the user to check and confirm.
 
 ## How Gemini is used (no training)
 - Prompting with clear instructions and a few examples.

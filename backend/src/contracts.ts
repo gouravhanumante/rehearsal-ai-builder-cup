@@ -4,7 +4,7 @@ const factSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().min(1).max(100),
   value: z.string().max(500).nullable(),
-  evidenceStatus: z.enum(['confirmed', 'unknown']),
+  evidenceStatus: z.enum(['confirmed', 'unverified', 'unknown']),
   source: z.string().max(160).optional(),
 }).strict()
 

@@ -57,3 +57,35 @@ describe('assistant API', () => {
     })
   })
 })
+
+describe('document reading API', () => {
+  it('rejects a file whose contents do not match the type it claims, before any model call', async () => {
+    process.env.GEMINI_API_KEY = 'test-key-not-used'
+    await withServer(async (url) => {
+      const response = await fetch(`${url}/api/documents/extract`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fileName: 'quote.png',
+          mimeType: 'image/png',
+          dataBase64: Buffer.from('this is not really an image').toString('base64').replace(/=+$/, ''),
+          fields: [{ key: 'availableCases', label: 'Stock', type: 'integer' }],
+        }),
+      })
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ error: { code: 'INVALID_DOCUMENT' } })
+    })
+  })
+
+  it('answers an oversized upload with a clear JSON error', async () => {
+    await withServer(async (url) => {
+      const response = await fetch(`${url}/api/documents/extract`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dataBase64: 'A'.repeat(7 * 1024 * 1024) }),
+      })
+      expect(response.status).toBe(413)
+      expect(await response.json()).toMatchObject({ error: { code: 'TOO_LARGE' } })
+    })
+  })
+})

@@ -28,7 +28,7 @@ export function isGeminiConfigured() {
 
 function hasUnsupportedNumbers(answer: string, request: AssistantRequest) {
   const verifiedContext = JSON.stringify({
-    facts: request.facts.filter((fact) => fact.evidenceStatus === 'confirmed'),
+    facts: request.facts.filter((fact) => fact.evidenceStatus !== 'unknown'),
     options: request.options,
   })
   const verifiedNumbers = new Set(verifiedContext.match(/\d[\d,]*(?:\.\d+)?/g) ?? [])
@@ -79,7 +79,7 @@ export async function answerWithGemini(request: AssistantRequest): Promise<Assis
     },
     system_instruction: [
       'You are Rehearsal, an assistant for small-business operations recovery.',
-      'Use only the supplied workspace facts. A fact marked unknown is not known; say so plainly.',
+      'Use only the supplied workspace facts. A fact marked unknown is not known; say so plainly. A fact marked unverified was typed in by the user without a document; mention that when it matters.',
       'Never invent or calculate quantities, dates, prices, stock, or capacity. Do not state numeric values in prose; exact values remain visible in the UI.',
       'Explain the checked options in everyday language. You may recommend only an option whose supplied status is ready.',
       'Return referencedOptionIds only for supplied option IDs. Do not claim that business data changed, that an order was placed, or that a message was sent.',
