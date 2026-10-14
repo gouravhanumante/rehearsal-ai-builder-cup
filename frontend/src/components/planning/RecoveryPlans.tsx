@@ -1,7 +1,7 @@
 import { Check, CircleHelp, CircleX, LifeBuoy, PackagePlus, PencilLine, ShieldCheck, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import { rankPlans, type Plan } from '../../../../shared/planner/plan'
+import { rankPlans, spareStock, type Plan } from '../../../../shared/planner/plan'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { AskSuppliers } from './AskSuppliers'
@@ -48,9 +48,10 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
     for (const record of workspace.stock.filter((item) => item.productId === group.productId && item.locationId !== group.locationId && item.available.value > 0)) {
       const from = record.locationId
       const to = group.locationId
+      const spare = spareStock(workspace, from, group.productId)
       const answered = workspace.routes.some((route) => route.fromLocationId === from && route.toLocationId === to)
         || (workspace.noTransfers ?? []).some((pair) => pair.fromLocationId === from && pair.toLocationId === to)
-      if (!answered && !routeQuestions.has(`${from}|${to}`)) routeQuestions.set(`${from}|${to}`, { from, to, productId: group.productId, quantity: record.available.value })
+      if (spare > 0 && !answered && !routeQuestions.has(`${from}|${to}`)) routeQuestions.set(`${from}|${to}`, { from, to, productId: group.productId, quantity: spare })
     }
   }
 
@@ -65,7 +66,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         <div className="no-options-note route-question" key={`${from}|${to}`}>
           <Truck size={20} />
           <span><strong>Can you move stock from {words.locationName(from)} to {words.locationName(to)}?</strong>{' '}
-            {words.locationName(from)} has {words.quantity(quantity, productId)} of {words.productName(productId)}. If you can, add how long it takes and Rehearsal will check it.
+            {words.locationName(from)} can spare {words.quantity(quantity, productId)} of {words.productName(productId)} after its own orders. If you can, add how long it takes and Rehearsal will check it.
           </span>
           <span className="no-options-actions">
             <Button icon={<Truck size={14} />} onClick={() => onAddDetails({ type: 'new-route', fromLocationId: from, toLocationId: to })} variant="primary">Yes, add transfer</Button>

@@ -14,12 +14,14 @@ export function sliceForPlan(workspace: Workspace, planId: string): Workspace | 
   const moved = workspace.orders.find((order) => order.id === plan.orderId)
   const productIds = new Set([productId, ...(shipFrom && moved ? moved.lines.map((line) => line.productId) : [])])
   const hasProduct = (lines: { productId: string }[]) => lines.some((line) => productIds.has(line.productId))
-  const served = (id: string) => id === locationId || id === shipFrom
+  const routes = workspace.routes.filter((route) => route.toLocationId === locationId)
+  const sources = new Set(routes.map((route) => route.fromLocationId))
+  // Transfers only move what a source can spare, so its own orders and deliveries matter too.
+  const served = (id: string) => id === locationId || id === shipFrom || sources.has(id)
 
   const shipments = workspace.shipments.filter((shipment) => served(shipment.locationId) && hasProduct(shipment.lines))
   const shipmentIds = new Set(shipments.map((shipment) => shipment.id))
-  const routes = workspace.routes.filter((route) => route.toLocationId === locationId)
-  const locationIds = new Set([locationId, ...routes.map((route) => route.fromLocationId), ...(shipFrom ? [shipFrom] : [])])
+  const locationIds = new Set([locationId, ...sources, ...(shipFrom ? [shipFrom] : [])])
 
   return {
     ...workspace,

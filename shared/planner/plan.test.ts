@@ -154,8 +154,19 @@ describe('warehouse transfer options', () => {
     }, 'north', 0)
     const { impact, plans } = rehearse(data)
     expect(impact.groups).toEqual([expect.objectContaining({ kind: 'shortage', exposedQuantity: 3, affectedOrderIds: ['SK-1'] })])
-    expect(plans.find((plan) => plan.id === transferPlan)).toMatchObject({ status: 'ready', quantity: 8, outcome: { exposedQuantity: 0, protectsPriority: true } })
+    expect(plans.find((plan) => plan.id === transferPlan)).toMatchObject({ status: 'ready', quantity: 3, outcome: { exposedQuantity: 0, protectsPriority: true } })
     expect(recommendPlan(plans)?.id).toBe(transferPlan)
+  })
+
+  it('moves only what is short, and never stock South Hub needs for its own orders', () => {
+    // North is short 3. South has 14 but owes 12 to its own customer on Saturday, so only 2 can go.
+    const southOwn: Order = { id: 'S-1', customer: 'South buyer', locationId: 'south', dueAt: '2026-10-17T09:00:00+05:30', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity: 12 }], evidence: typed }
+    const data: Workspace = withStock({
+      ...sampleWorkspace,
+      disruptions: [], shipments: [],
+      orders: [{ id: 'SK-1', customer: 'Shiva Kirana', locationId: 'north', dueAt: '2026-10-16T22:00:00+05:30', priority: 'protected', lines: [{ productId: 'harbor-blend', quantity: 3 }], evidence: typed }, southOwn],
+    }, 'north', 0)
+    expect(planIn(data, transferPlan)).toMatchObject({ quantity: 2, outcome: { exposedQuantity: 1 } })
   })
 
   it('a covered order raises no problem at all', () => {

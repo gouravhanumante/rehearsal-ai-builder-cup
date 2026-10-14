@@ -180,6 +180,34 @@ export function orderCoverage(workspace: Workspace, onlyLocationId?: string): Or
   return result
 }
 
+/**
+ * How much of a product a location can give away today and still cover every one of its own
+ * orders as well as it does now (stock on hand plus deliveries arriving by each due time).
+ */
+export function spareStock(workspace: Workspace, locationId: string, productId: string): number {
+  const onHand = workspace.stock.find((record) => record.locationId === locationId && record.productId === productId)?.available.value ?? 0
+  const demands: Demand[] = workspace.orders
+    .filter((order) => order.locationId === locationId)
+    .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+    .filter((demand) => demand.quantity > 0)
+  if (demands.length === 0) return onHand
+  const horizon = Math.max(...demands.map((demand) => time(demand.order.dueAt)))
+  const inbound: Batch[] = workspace.shipments
+    .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
+    .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
+  const coveredWith = (stock: number) => allocate(demands, [{ at: null, quantity: stock }, ...inbound], new Set())
+    .reduce((total, item) => total + item.covered, 0)
+  const full = coveredWith(onHand)
+  let low = 0
+  let high = onHand
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2)
+    if (coveredWith(onHand - mid) === full) low = mid
+    else high = mid - 1
+  }
+  return low
+}
+
 export function rehearse(workspace: Workspace) {
   const { settings } = workspace
   const stockKey = (locationId: string, productId: string) => `${locationId}|${productId}`
@@ -293,7 +321,9 @@ export function rehearse(workspace: Workspace) {
         const source = stockByKey.get(stockKey(route.fromLocationId, productId))
         if (!source) continue
         const sourceQuantity = source.available.value
-        const quantity = fits(Math.min(sourceQuantity, destinationLimit ?? sourceQuantity))
+        const spare = spareStock(workspace, route.fromLocationId, productId)
+        // Move only what is short, from what the source can spare, within receiving and storage limits.
+        const quantity = fits(Math.min(spare, baseline.exposedQuantity, destinationLimit ?? spare))
         const costFor = (amount: number): Money | null => {
           const quote = route.quotes.find((item) => item.quantity === amount)
           return quote ? { amount: quote.amount, currency: settings.currency } : null
@@ -324,12 +354,13 @@ export function rehearse(workspace: Workspace) {
             unverified: late ? [] : unverified,
           })
         }
-        // Only worth showing when moving everything would break the receiving limit.
-        if (destinationLimit !== null && sourceQuantity > destinationLimit) {
+        // Only worth showing when moving all that is needed would break the receiving limit.
+        const wanted = Math.min(spare, baseline.exposedQuantity)
+        if (destinationLimit !== null && wanted > destinationLimit) {
           plans.push({
             ...base, id: `bulk:${route.id}:${productId}`, kind: 'bulk-transfer', status: 'rejected',
-            reason: { code: 'transfer-over-limit', limit: destinationLimit, excess: sourceQuantity - destinationLimit },
-            quantity: sourceQuantity, cost: costFor(sourceQuantity), outcome: null, unverified: [],
+            reason: { code: 'transfer-over-limit', limit: destinationLimit, excess: wanted - destinationLimit },
+            quantity: wanted, cost: costFor(wanted), outcome: null, unverified: [],
           })
         }
       }

@@ -63,7 +63,10 @@ Agreed with the user: both paths exist, and the difference is always visible.
   stock, the app asks "Who gets the 14 cases?" with **Order due first** / **Priority order**.
   Until answered, the order due first keeps it. Approving with an unanswered conflict shows a
   warning and records how many conflicts used the default. (`ConflictCards.tsx`)
-- Each transfer route into the delayed location is its own option, checked against the
+- Each transfer route into the delayed location is its own option. It moves **only what is
+  short**, and only what the source can **spare** after covering its own orders (`spareStock`,
+  user decision 2026-10-14), capped by the destination's daily receiving limit and storage room,
+  and checked against the
   destination's daily receiving limit and against the priority order's due time. Its cost is
   shown only when someone quoted a price for exactly that quantity. A route with unknown arrival
   is **Needs information** with **Add details** (no dead end).
