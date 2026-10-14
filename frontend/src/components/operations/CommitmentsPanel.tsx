@@ -143,7 +143,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
           return <span key={`${route.id}-${group.productId}`}>
             {index > 0 && <span className="capacity-separator" />}
             {destination?.receivingLimitPerDay !== null && destination?.receivingLimitPerDay !== undefined && <><strong>{destination.name} receiving limit</strong> {words.quantity(destination.receivingLimitPerDay, group.productId)}/day · </>}
-            {source ? `${words.quantity(source.available.value, group.productId)} unallocated at ${words.locationName(route.fromLocationId)}` : `Stock at ${words.locationName(route.fromLocationId)} unknown`}
+            {source ? `${words.quantity(source.available.value, group.productId)}${manyProducts ? ` of ${words.productName(group.productId)}` : ''} unallocated at ${words.locationName(route.fromLocationId)}` : `${manyProducts ? `${words.productName(group.productId)} stock` : 'Stock'} at ${words.locationName(route.fromLocationId)} unknown`}
           </span>
         })}
       </div>}

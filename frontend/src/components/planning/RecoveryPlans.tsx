@@ -1,8 +1,9 @@
 import { Check, CircleHelp, CircleX, LifeBuoy, MapPin, PackagePlus, PencilLine, ShieldCheck, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import { rankPlans, type ImpactGroup, type Plan } from '../../../../shared/planner/plan'
+import { type Plan } from '../../../../shared/planner/plan'
 import type { EditTarget } from '../../presentation/planText'
+import { problemsOf } from '../../presentation/problems'
 import { openQuestions } from '../../presentation/questions'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { AskSuppliers } from './AskSuppliers'
@@ -48,11 +49,8 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
     const names = orderIds.map((id) => words.customer(id))
     return names.length <= 2 ? names.join(' and ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`
   }
-  // One block per problem (a late delivery or a shortage, for one product at one place), each with its own options best first.
-  const sameIssue = (plan: Plan, group: ImpactGroup) => plan.disruptionId === group.disruptionId && plan.productId === group.productId && plan.locationId === group.locationId
-  const issues = rehearsal.impact.groups
-    .map((group) => ({ group, options: rankPlans(plans.filter((plan) => sameIssue(plan, group))) }))
-    .filter(({ group, options }) => group.exposedQuantity > 0 || options.length > 0)
+  // One block per problem, each with its own options best first.
+  const issues = problemsOf(workspace, rehearsal, words)
 
   const card = (plan: Plan, index: number) => {
     const text = words.planText(plan)
@@ -118,8 +116,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         <span><strong>{words.planText(approved).title} approved for this demo{approval.withWarning ? ' with a warning' : ''}.</strong>{approval.defaultedConflicts > 0 ? ` Earliest due was used for ${approval.defaultedConflicts} unanswered conflict${approval.defaultedConflicts === 1 ? '' : 's'}.` : ''} No business records were changed.</span>
       </div>}
       {plans.length === 0 && rehearsal.impact.groups.length === 0 && <p className="editor-empty">Nothing to rehearse: no delay reported and every order is covered by stock or recorded deliveries.</p>}
-      {issues.map(({ group, options }, issueIndex) => {
-        const shipment = workspace.shipments.find((item) => item.id === group.shipmentId)
+      {issues.map(({ group, options, title }, issueIndex) => {
         const product = words.productName(group.productId)
         const where = words.locationName(group.locationId)
         const shortOrders = group.allocations.filter((item) => item.covered < item.ordered).map((item) => item.orderId)
@@ -131,7 +128,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
           <section aria-labelledby={`issue-${issueIndex}`} className="issue-block" key={`${group.disruptionId}|${group.productId}|${group.locationId}`}>
             <header className="issue-head">
               <span className="issue-count">{issues.length > 1 ? `Problem ${issueIndex + 1} of ${issues.length}` : 'Problem'}</span>
-              <h3 id={`issue-${issueIndex}`}>{group.kind === 'delay' ? `Late delivery from ${shipment?.supplierName ?? 'a supplier'} · ${product} at ${where}` : `Not enough ${product} at ${where}`}</h3>
+              <h3 id={`issue-${issueIndex}`}>{title}</h3>
               <p><strong>{words.quantity(group.exposedQuantity, group.productId)} short</strong>{shortOrders.length > 0 && ` · ${customers(shortOrders)}`} · {workable.length === 0 ? 'no workable option yet' : `${workable.length} ${workable.length === 1 ? 'option' : 'options'}`}</p>
             </header>
             {workable.length === 0 && <div className="no-options-note next-steps">

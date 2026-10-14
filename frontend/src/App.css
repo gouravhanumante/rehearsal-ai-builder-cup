@@ -588,6 +588,10 @@
   color: #65736a;
   font-size: 10px;
 }
+.overview-problems { display: grid; gap: 10px; margin-top: 20px; }
+.overview-problems > .overview-recommendation { margin-top: 0; }
+.overview-problems-kicker { margin: 0; }
+.overview-problems-notes { display: grid; gap: 4px; }
 
 .overview-recommendation {
   display: grid;
