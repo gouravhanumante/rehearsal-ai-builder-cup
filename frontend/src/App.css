@@ -751,6 +751,34 @@
 .approval-facts .ds-button { min-height: 34px; color: #355d45; font-size: 11px; }
 .approval-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
 .approval-dialog footer .ds-button { min-height: 42px; font-size: 12px; }
+.approval-conflicts { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #f0dfbd; border-radius: 6px; color: #7b5618; background: #fff8ea; font-size: 11px; line-height: 1.5; }
+.approval-conflicts strong { color: #6b4910; }
+.approval-conflicts .ds-button { min-height: 34px; color: #355d45; font-size: 11px; }
+
+.storage-notice { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid #d9e3ea; border-radius: 6px; color: #3f5a6b; background: #f3f8fb; font-size: 12px; }
+.storage-notice span { flex: 1; }
+.storage-notice button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; color: inherit; background: transparent; cursor: pointer; }
+.storage-notice button:hover { background: #e3edf3; }
+
+.conflict-list { display: grid; gap: 10px; margin-bottom: 14px; }
+.conflict-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 14px 16px; border: 1px solid #f0dfbd; border-left: 4px solid #c3a054; border-radius: 8px; background: #fffbf2; }
+.conflict-card.is-decided { border-color: #dfe6df; border-left-color: #8fa596; background: #fff; }
+.conflict-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; color: #8a5a12; background: #fbefd8; }
+.conflict-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.conflict-title h3 { margin: 0; color: #2f4437; font-size: 14px; font-weight: 800; }
+.conflict-main p { margin: 5px 0 0; color: #5e6e63; font-size: 12px; line-height: 1.5; }
+.conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.conflict-actions .ds-button { min-height: 40px; font-size: 11px; }
+
+.recommendation-conflicts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 9px 0 0; color: #8a5a12; font-size: 11px; font-weight: 700; }
+.recommendation-conflicts button { padding: 0; border: 0; color: #355d45; background: none; cursor: pointer; font: inherit; text-decoration: underline; }
+
+.inventory-card-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: -12px 0 12px; }
+.inventory-card-actions .ds-button { min-height: 32px; padding-inline: 6px; color: #355d45; font-size: 11px; }
+.inventory-inbound + .inventory-inbound { margin-top: 10px; }
+.inventory-inbound .ds-button { min-height: 28px; margin-left: auto; padding-inline: 6px; color: #355d45; font-size: 10px; }
+.inventory-capacity .ds-button { min-height: 28px; padding-inline: 6px; color: #355d45; font-size: 10px; }
+.product-picker select { min-height: 38px; padding: 0 10px; border: 1px solid #d9e1da; border-radius: 6px; color: #35483b; background: #fff; font: inherit; font-size: 12px; }
 
 .assistant-overlay { position: fixed; z-index: 20; inset: 0; display: flex; justify-content: flex-end; }
 .assistant-scrim { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: rgba(17, 35, 27, 0.35); cursor: default; }
@@ -926,6 +954,9 @@
   .order-available { grid-column: 1; font-size: 10px; }
   .order-available::before { content: 'At hub: '; }
   .order-row > .ds-status-badge { grid-column: 2; grid-row: 3; justify-self: end; }
+  .conflict-card { grid-template-columns: 32px minmax(0, 1fr); }
+  .conflict-actions { grid-column: 1 / -1; }
+  .conflict-actions .ds-button { flex: 1; }
   .order-row.order-row--editable { grid-template-columns: minmax(0, 1fr) auto; }
   .order-edit { grid-column: 1 / -1; justify-self: start; padding-inline: 0; }
   .data-view-heading { flex-direction: column; align-items: flex-start; }

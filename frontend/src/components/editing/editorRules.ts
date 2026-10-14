@@ -1,4 +1,4 @@
-import type { Evidence } from '../../data/distributorDemo'
+import type { Evidence } from '../../../../shared/planner/model'
 import type { FieldSpec, ParsedValue } from './editorConfigs'
 
 /** Where a value in the open editor came from since it opened. */

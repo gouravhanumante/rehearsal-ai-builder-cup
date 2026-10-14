@@ -1,10 +1,11 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, ShieldCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
-import type { DistributorData } from '../../data/distributorDemo'
-import { rehearseDistributor } from '../../domain/rehearseDistributor'
-import { toIstInput } from '../../lib/istTime'
+import type { Workspace } from '../../../../shared/planner/model'
+import { rehearse } from '../../../../shared/planner/plan'
 import { useEscapeKey } from '../../lib/useEscapeKey'
+import { createWording } from '../../presentation/planText'
+import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { displayValue, parseField, type EditorConfig, type ParsedValue } from './editorConfigs'
 import { changedFieldKeys, originAfterTyping, resolveEvidence, type Origin } from './editorRules'
@@ -16,9 +17,8 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'application/pd
 
 type DetailsEditorProps = {
   config: EditorConfig
-  current: DistributorData
   initialMode: 'manual' | 'document'
-  onApply: (next: DistributorData) => void
+  onApply: (next: Workspace) => void
   onClose: () => void
 }
 
@@ -31,8 +31,10 @@ function readAsBase64(file: File) {
   })
 }
 
-export function DetailsEditor({ config, current, initialMode, onApply, onClose }: DetailsEditorProps) {
-  const [mode, setMode] = useState(initialMode)
+export function DetailsEditor({ config, initialMode, onApply, onClose }: DetailsEditorProps) {
+  const { workspace, rehearsal: before, format, words } = useWorkspaceView()
+  const canReadDocuments = config.fields.some((field) => field.extractable)
+  const [mode, setMode] = useState(canReadDocuments ? initialMode : 'manual')
   const [step, setStep] = useState<'edit' | 'review'>('edit')
   const [values, setValues] = useState(config.initial)
   const [origin, setOrigin] = useState<Record<string, Origin>>(() => Object.fromEntries(config.fields.map((field) => [field.key, 'unchanged'])))
@@ -45,7 +47,7 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
   const [recordedAt, setRecordedAt] = useState(() => new Date().toISOString())
   useEscapeKey(onClose)
 
-  const parsed = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, parseField(field, values[field.key] ?? '')])), [config.fields, values])
+  const parsed = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, parseField(field, values[field.key] ?? '', format)])), [config.fields, values, format])
   const hasErrors = Object.values(parsed).some((result) => 'error' in result)
 
   const evidenceFor = (key: string, value: ParsedValue) => resolveEvidence(origin[key], value, config.initialEvidence[key], documentName, recordedAt)
@@ -60,8 +62,8 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
     return config.apply(parsedValues, evidence)
   }, [step, hasErrors, parsed, origin, config, documentName, recordedAt])
 
-  const before = useMemo(() => rehearseDistributor(current), [current])
-  const after = useMemo(() => (next ? rehearseDistributor(next) : null), [next])
+  const after = useMemo(() => (next ? rehearse(next) : null), [next])
+  const nextWords = useMemo(() => (next ? createWording(next, format) : null), [next, format])
 
   const updateValue = (key: string, value: string) => {
     setValues((previous) => ({ ...previous, [key]: value }))
@@ -85,6 +87,7 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
           fileName: file.name.slice(0, 120),
           mimeType: file.type,
           dataBase64: await readAsBase64(file),
+          timeZone: workspace.settings.timeZone,
           fields: config.fields.filter((field) => field.extractable).map(({ key, label, type }) => ({ key, label, type })),
         }),
       })
@@ -95,7 +98,7 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
       const fieldTypes = Object.fromEntries(config.fields.map((field) => [field.key, field.type]))
       setValues((previous) => ({
         ...previous,
-        ...Object.fromEntries(found.map((field) => [field.key, fieldTypes[field.key] === 'datetime' ? toIstInput(field.value as string) : field.value as string])),
+        ...Object.fromEntries(found.map((field) => [field.key, fieldTypes[field.key] === 'datetime' ? format.toInput(field.value as string) : field.value as string])),
       }))
       setOrigin((previous) => ({ ...previous, ...Object.fromEntries(found.map((field) => [field.key, 'document' as const])) }))
       setQuotes(Object.fromEntries(found.map((field) => [field.key, field.quote ?? ''])))
@@ -119,9 +122,16 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
   const extractableCount = config.fields.filter((field) => field.extractable).length
   const foundCount = Object.values(origin).filter((item) => item === 'document').length
   const showForm = mode === 'manual' || documentName !== null
-  const planChanges = after ? after.plans
-    .map((plan) => ({ plan, previous: before.plans.find((item) => item.id === plan.id) }))
-    .filter(({ plan, previous }) => !previous || previous.statusLabel !== plan.statusLabel || previous.impact !== plan.impact) : []
+  const planChanges = after && nextWords ? after.plans
+    .map((plan) => {
+      const previous = before.plans.find((item) => item.id === plan.id)
+      return { now: nextWords.planText(plan), previous: previous ? words.planText(previous) : null, id: plan.id }
+    })
+    .filter(({ now, previous }) => !previous || previous.statusLabel !== now.statusLabel || previous.impact !== now.impact) : []
+  const exposedBefore = before.impact.exposedQuantity
+  const exposedAfter = after?.impact.exposedQuantity
+  const atRiskBefore = before.impact.affectedOrderIds.length
+  const atRiskAfter = after?.impact.affectedOrderIds.length
 
   return (
     <div className="assistant-overlay">
@@ -134,10 +144,10 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
         </header>
 
         {step === 'edit' && <div className="assistant-body editor-body">
-          <div aria-label="How do you want to add details?" className="editor-mode" role="radiogroup">
+          {canReadDocuments && <div aria-label="How do you want to add details?" className="editor-mode" role="radiogroup">
             <button aria-checked={mode === 'manual'} className={mode === 'manual' ? 'is-active' : ''} onClick={() => setMode('manual')} role="radio" type="button"><PencilLine size={15} /><span><strong>Type it in</strong><small>Quick, marked unverified</small></span></button>
             <button aria-checked={mode === 'document'} className={mode === 'document' ? 'is-active' : ''} onClick={() => setMode('document')} role="radio" type="button"><FileUp size={15} /><span><strong>Attach proof</strong><small>Photo or PDF, marked verified</small></span></button>
-          </div>
+          </div>}
 
           {mode === 'document' && <div className="editor-upload">
             <p>{config.documentHint}. Gemini reads it and fills in what it finds — you check every value before anything is saved.</p>
@@ -159,8 +169,8 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
               return (
                 <div className={`editor-field ${fieldOrigin === 'document' ? 'from-document' : ''}`} key={field.key}>
                   <label htmlFor={inputId}>{field.label}{!field.required && <small> · optional</small>}</label>
-                  {field.type === 'priority'
-                    ? <select id={inputId} onChange={(event) => updateValue(field.key, event.target.value)} value={values[field.key]}><option value="protected">Priority</option><option value="standard">Standard</option></select>
+                  {field.type === 'select'
+                    ? <select id={inputId} onChange={(event) => updateValue(field.key, event.target.value)} value={values[field.key]}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
                     : <input id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.required ? '' : 'Unknown'} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />}
                   <div className="editor-field-meta">
                     {field.isFact && (values[field.key] ?? '').trim() !== '' && <EvidenceMark evidence={evidenceFor(field.key, values[field.key])} />}
@@ -182,23 +192,23 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
               {changedFields.map((field) => (
                 <li key={field.key}>
                   <span>{field.label}</span>
-                  <span className="editor-change-values"><s>{displayValue(field, config.initial[field.key] ?? '')}</s><ArrowRight size={13} /><strong>{displayValue(field, values[field.key] ?? '')}</strong></span>
+                  <span className="editor-change-values"><s>{displayValue(field, config.initial[field.key] ?? '', format)}</s><ArrowRight size={13} /><strong>{displayValue(field, values[field.key] ?? '', format)}</strong></span>
                   {field.isFact && <EvidenceMark evidence={evidenceFor(field.key, 'value' in parsed[field.key] ? (parsed[field.key] as { value: ParsedValue }).value : null)} />}
                 </li>
               ))}
             </ul>}
           {after && <div className="editor-impact">
             <p className="reply-label">WHAT THIS CHANGES</p>
-            {before.impact.casesExposed === after.impact.casesExposed && before.impact.affectedOrderCount === after.impact.affectedOrderCount
-              ? <small>The shortage stays at {after.impact.casesExposed} cases across {after.impact.affectedOrderCount} orders until you approve a plan.</small>
+            {exposedBefore === exposedAfter && atRiskBefore === atRiskAfter
+              ? <small>The shortage stays at {words.totalQuantity(exposedBefore)} across {atRiskBefore} orders until you approve a plan.</small>
               : <div className="editor-impact-stats">
-                <span>Cases exposed <strong>{before.impact.casesExposed} → {after.impact.casesExposed}</strong></span>
-                <span>Orders at risk <strong>{before.impact.affectedOrderCount} → {after.impact.affectedOrderCount}</strong></span>
+                <span>Exposed <strong>{words.totalQuantity(exposedBefore)} → {words.totalQuantity(exposedAfter ?? 0)}</strong></span>
+                <span>Orders at risk <strong>{atRiskBefore} → {atRiskAfter}</strong></span>
               </div>}
             {planChanges.length === 0
               ? <small>No recovery option changes.</small>
-              : <ul>{planChanges.map(({ plan, previous }) => (
-                <li key={plan.id}><strong>{plan.title}</strong><span>{previous ? `${previous.statusLabel} → ` : 'New option · '}{plan.statusLabel}</span><small>{plan.impact}</small></li>
+              : <ul>{planChanges.map(({ now, previous, id }) => (
+                <li key={id}><strong>{now.title}</strong><span>{previous ? `${previous.statusLabel} → ` : 'New option · '}{now.statusLabel}</span><small>{now.impact}</small></li>
               ))}</ul>}
           </div>}
         </div>}

@@ -1,6 +1,7 @@
-import type { DistributorData, Evidence } from '../data/distributorDemo'
-import { formatDateTime } from '../lib/istTime'
-import type { Rehearsal } from './rehearseDistributor'
+import type { Evidence, Workspace } from '../../../shared/planner/model'
+import type { Rehearsal } from '../../../shared/planner/plan'
+import type { Format } from '../presentation/format'
+import type { Wording } from '../presentation/planText'
 
 export const MAX_ASSISTANT_FACTS = 40
 export const MAX_ASSISTANT_OPTIONS = 8
@@ -18,35 +19,60 @@ const sourceOf = (evidence: Evidence | null) =>
  * fit is counted in an explicit "not shown" fact, so the model never answers from a silently
  * partial picture.
  */
-export function buildAssistantContext(data: DistributorData, rehearsal: Rehearsal) {
-  const { inventory, warehouses, shipment, product } = data
+export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal, format: Format, words: Wording) {
   const fact = (id: string, label: string, value: string | null, evidence: Evidence | null): AssistantFact =>
     ({ id: id.slice(0, 64), label: label.slice(0, 100), value: value?.slice(0, 500) ?? null, evidenceStatus: evidenceStatus(evidence), source: sourceOf(evidence) })
-  const affectedIds = new Set(rehearsal.impact.northAllocations.map((allocation) => allocation.orderId))
-  const unaffected = data.orders.filter((order) => !affectedIds.has(order.id))
+  const affectedIds = new Set(rehearsal.impact.affectedOrderIds)
+  const unaffected = workspace.orders.filter((order) => !affectedIds.has(order.id))
+  const seen = new Set<string>()
+  const once = (item: AssistantFact) => (seen.has(item.id) ? [] : (seen.add(item.id), [item]))
 
-  const essential: AssistantFact[] = [
-    { id: 'shipment', label: 'Confirmed inbound shipment', value: `${shipment.cases} cases from ${shipment.supplier}; expected ${formatDateTime(shipment.confirmedArrivalAt)}`, evidenceStatus: 'confirmed', source: shipment.updateSource },
-    fact('north-stock', `${warehouses.north.name} stock`, `${inventory.northCases.value} cases of ${product.name}`, inventory.northCases.evidence),
-    fact('south-stock', `${warehouses.south.name} stock`, `${inventory.southUnallocatedCases.value} unallocated cases`, inventory.southUnallocatedCases.evidence),
-    ...data.suppliers.flatMap((supplier) => [
-      fact(`${supplier.id}-stock`, `${supplier.name} stock available`, supplier.availableCases.value === null ? null : `${supplier.availableCases.value} cases`, supplier.availableCases.evidence),
-      fact(`${supplier.id}-price`, `${supplier.name} price per case`, supplier.pricePerCase.value === null ? null : `$${supplier.pricePerCase.value}`, supplier.pricePerCase.evidence),
-      fact(`${supplier.id}-arrival`, `${supplier.name} arrival`, supplier.arrivalAt.value === null ? null : formatDateTime(supplier.arrivalAt.value), supplier.arrivalAt.evidence),
-    ]),
-  ]
-  const affectedOrders = data.orders
+  const essential: AssistantFact[] = rehearsal.impact.groups.flatMap((group) => {
+    const shipment = workspace.shipments.find((item) => item.id === group.shipmentId)
+    const stockAt = (locationId: string) => workspace.stock.find((record) => record.locationId === locationId && record.productId === group.productId)
+    const here = stockAt(group.locationId)
+    const product = words.productName(group.productId)
+    return [
+      ...once({ id: `delay-${group.shipmentId}`, label: 'Delayed inbound shipment', value: shipment ? `${shipment.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')} from ${shipment.supplierName} to ${words.locationName(shipment.locationId)}; now expected ${format.dateTime(shipment.confirmedArrivalAt)}` : null, evidenceStatus: 'confirmed', source: shipment?.updateSource ?? 'Supplier update' }),
+      ...once(fact(`stock-${group.locationId}-${group.productId}`, `${words.locationName(group.locationId)} stock of ${product}`, here ? words.quantity(here.available.value, group.productId) : null, here?.available.evidence ?? null)),
+      ...workspace.routes.filter((route) => route.toLocationId === group.locationId).flatMap((route) => {
+        const source = stockAt(route.fromLocationId)
+        return [
+          ...once(fact(`stock-${route.fromLocationId}-${group.productId}`, `${words.locationName(route.fromLocationId)} unallocated ${product}`, source ? words.quantity(source.available.value, group.productId) : null, source?.available.evidence ?? null)),
+          ...once(fact(`route-${route.id}`, `Transfer ${words.locationName(route.fromLocationId)} to ${words.locationName(route.toLocationId)} arrival`, route.arrivalAt.value ? format.dateTime(route.arrivalAt.value) : null, route.arrivalAt.evidence)),
+        ]
+      }),
+      ...workspace.suppliers.flatMap((supplier) => supplier.offers
+        .filter((offer) => offer.productId === group.productId && offer.locationId === group.locationId)
+        .flatMap((offer) => [
+          ...once(fact(`${supplier.id}-${offer.productId}-stock`, `${supplier.name} ${product} available`, offer.available.value === null ? null : words.quantity(offer.available.value, offer.productId), offer.available.evidence)),
+          ...once(fact(`${supplier.id}-${offer.productId}-price`, `${supplier.name} price per unit`, offer.pricePerUnit.value === null ? null : format.money(offer.pricePerUnit.value), offer.pricePerUnit.evidence)),
+          ...once(fact(`${supplier.id}-${offer.productId}-arrival`, `${supplier.name} arrival`, offer.arrivalAt.value === null ? null : format.dateTime(offer.arrivalAt.value), offer.arrivalAt.evidence)),
+        ])),
+    ]
+  })
+  const conflicts: AssistantFact[] = rehearsal.conflicts.map((conflict) => {
+    const text = words.conflictText(conflict)
+    return {
+      id: `conflict-${conflict.priorityOrderId}`.slice(0, 64),
+      label: 'Stock conflict between orders',
+      value: `${text.question} ${text.earlier} is due first; ${text.priority} is priority. ${conflict.decided ? 'User chose' : 'Not answered yet; default'}: ${conflict.winner === 'priority' ? 'priority order' : 'order due first'}.`,
+      evidenceStatus: 'confirmed',
+      source: 'Planner',
+    }
+  })
+  const affectedOrders = workspace.orders
     .filter((order) => affectedIds.has(order.id))
-    .map((order) => fact(order.id, `${order.customer} order (affected)`, `${order.cases} cases due ${formatDateTime(order.dueAt)}; ${order.priority} priority`, order.evidence))
+    .map((order) => fact(order.id, `${order.customer} order (affected)`, `${order.lines.map((line) => `${words.quantity(line.quantity, line.productId)} ${words.productName(line.productId)}`).join(', ')} due ${format.dateTime(order.dueAt)} from ${words.locationName(order.locationId)}; ${order.priority} priority`, order.evidence))
   const laterOrders: AssistantFact[] = unaffected.length === 0 ? [] : [{
-    id: 'orders-after-arrival',
-    label: 'Orders due after the delayed shipment arrives',
-    value: `${unaffected.length} orders, ${unaffected.reduce((total, order) => total + order.cases, 0)} cases; not part of this shortage`,
+    id: 'orders-not-affected',
+    label: 'Orders not part of this shortage',
+    value: `${unaffected.length} orders; due after the delayed stock arrives, or for other products or locations`,
     evidenceStatus: 'confirmed',
     source: 'Counted by the planner',
   }]
 
-  const all = [...essential, ...affectedOrders, ...laterOrders]
+  const all = [...essential, ...conflicts, ...affectedOrders, ...laterOrders]
   const fits = all.length <= MAX_ASSISTANT_FACTS
   const kept = fits ? all : all.slice(0, MAX_ASSISTANT_FACTS - 1)
   const omittedCount = all.length - kept.length
@@ -58,14 +84,20 @@ export function buildAssistantContext(data: DistributorData, rehearsal: Rehearsa
     source: 'Rehearsal',
   }]
 
-  const options = rehearsal.plans.slice(0, MAX_ASSISTANT_OPTIONS).map((plan) => ({
-    id: plan.id,
-    title: plan.title.slice(0, 140),
-    status: plan.status,
-    reason: `${plan.detail}${plan.unverifiedFacts.length ? ` Relies on typed-in, unverified details: ${plan.unverifiedFacts.map((item) => item.label).join(', ')}.` : ''}`.slice(0, 500),
-    outcome: plan.impact.slice(0, 300),
-    cost: plan.cost.slice(0, 120),
-  }))
+  const shown = rehearsal.plans.slice(0, MAX_ASSISTANT_OPTIONS)
+  const options = shown.map((plan, index) => {
+    const text = words.planText(plan)
+    const unverified = plan.unverified.map((item) => words.unverifiedText(item).label)
+    return {
+      // Planner ids can be long; short ids keep within the API's limit.
+      id: `option-${index + 1}`,
+      title: text.title.slice(0, 140),
+      status: plan.status,
+      reason: `${text.detail}${unverified.length ? ` Relies on typed-in, unverified details: ${unverified.join(', ')}.` : ''}`.slice(0, 500),
+      outcome: text.impact.slice(0, 300),
+      cost: text.cost.slice(0, 120),
+    }
+  })
 
   return { facts, options, omittedFacts: omittedCount, omittedOptions: Math.max(0, rehearsal.plans.length - MAX_ASSISTANT_OPTIONS) }
 }

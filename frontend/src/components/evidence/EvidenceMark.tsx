@@ -1,8 +1,10 @@
 import { CircleHelp, Database, FileCheck2, PencilLine } from 'lucide-react'
-import type { Evidence } from '../../data/distributorDemo'
-import { formatDateTime } from '../../lib/istTime'
+import type { Evidence } from '../../../../shared/planner/model'
+import { useWorkspaceView } from '../../presentation/workspaceView'
 
 export function EvidenceMark({ evidence }: { evidence: Evidence | null }) {
+  const { format } = useWorkspaceView()
+  const formatDateTime = format.dateTime
   if (!evidence) return <span className="evidence-mark evidence-unknown"><CircleHelp aria-hidden="true" size={12} /> Unknown</span>
   if (evidence.kind === 'document') {
     return <span className="evidence-mark evidence-document" title={`${evidence.source} · ${formatDateTime(evidence.recordedAt)}`}><FileCheck2 aria-hidden="true" size={12} /> Verified by document</span>

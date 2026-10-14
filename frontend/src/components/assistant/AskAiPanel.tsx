@@ -2,10 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Bot, CheckCircle2, CircleAlert, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import type { DistributorData } from '../../data/distributorDemo'
 import { buildAssistantContext } from '../../domain/assistantContext'
-import type { Rehearsal } from '../../domain/rehearseDistributor'
 import { useEscapeKey } from '../../lib/useEscapeKey'
+import { useWorkspaceView } from '../../presentation/workspaceView'
 
 type ServiceState = 'checking' | 'ready' | 'missing-key' | 'offline'
 
@@ -16,19 +15,19 @@ type AssistantReply = {
 }
 
 type AskAiPanelProps = {
-  data: DistributorData
-  rehearsal: Rehearsal
   onClose: () => void
   onViewOptions: () => void
 }
 
-const suggestions = [
-  "Why can't I transfer all 14 cases today?",
-  'How can I protect Common Ground Cafe’s order?',
-]
-
-export function AskAiPanel({ data, rehearsal, onClose, onViewOptions }: AskAiPanelProps) {
-  const { facts, options, omittedFacts, omittedOptions } = buildAssistantContext(data, rehearsal)
+export function AskAiPanel({ onClose, onViewOptions }: AskAiPanelProps) {
+  const { workspace, rehearsal, format, words } = useWorkspaceView()
+  const { facts, options, omittedFacts, omittedOptions } = buildAssistantContext(workspace, rehearsal, format, words)
+  const bulk = rehearsal.plans.find((plan) => plan.kind === 'bulk-transfer')
+  const priorityOrder = workspace.orders.find((order) => order.priority === 'protected' && rehearsal.impact.affectedOrderIds.includes(order.id))
+  const suggestions = [
+    bulk?.quantity ? `Why can't I move all ${words.quantity(bulk.quantity, bulk.productId)} at once?` : 'What is the best option right now?',
+    priorityOrder ? `How can I protect ${priorityOrder.customer}’s order?` : 'Which orders are at risk?',
+  ]
   useEscapeKey(onClose)
   const [prompt, setPrompt] = useState('')
   const [serviceState, setServiceState] = useState<ServiceState>('checking')
@@ -64,7 +63,7 @@ export function AskAiPanel({ data, rehearsal, onClose, onViewOptions }: AskAiPan
       const response = await fetch('/api/assistant/ask', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ workspaceName: data.businessName, question, facts, options }),
+        body: JSON.stringify({ workspaceName: workspace.businessName, question, facts, options }),
       })
       const result = await response.json() as AssistantReply | { error?: { code?: string; message?: string } }
       if (!response.ok) {

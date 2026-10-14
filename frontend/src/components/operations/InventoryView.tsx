@@ -1,40 +1,89 @@
-import { ArrowDownToLine, Boxes, FileUp, PencilLine, Warehouse } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowDownToLine, Boxes, FileUp, MapPinPlus, PackagePlus, PencilLine, Settings2, Truck, Warehouse } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import type { DistributorData } from '../../data/distributorDemo'
-import { formatDateTime } from '../../lib/istTime'
+import type { EditTarget } from '../../presentation/planText'
+import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 
 type InventoryViewProps = {
-  data: DistributorData
-  onEdit: (mode: 'manual' | 'document') => void
+  onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
 }
 
-export function InventoryView({ data, onEdit }: InventoryViewProps) {
-  const { product, shipment, warehouses } = data
-  const { northCases, southUnallocatedCases } = data.inventory
+const kindLabels = { warehouse: 'Warehouse', store: 'Store', 'distribution-centre': 'Distribution centre' }
+
+export function InventoryView({ onEdit }: InventoryViewProps) {
+  const { workspace, rehearsal, format, words } = useWorkspaceView()
+  const [selectedProductId, setSelectedProductId] = useState(workspace.products[0]?.id ?? '')
+  const product = workspace.products.find((item) => item.id === selectedProductId) ?? workspace.products[0]
+  if (!product) return null
+  const pressured = new Set(rehearsal.impact.groups.filter((group) => group.productId === product.id && (group.exposedQuantity ?? 1) > 0).map((group) => group.locationId))
+
   return (
     <section className="data-view" aria-labelledby="inventory-title">
       <div className="section-heading data-view-heading">
-        <div><p className="section-kicker">INVENTORY · {product.name}</p><h2 id="inventory-title">Stock by warehouse</h2><p className="data-view-description">Available stock for {product.pack}.</p></div>
+        <div>
+          <p className="section-kicker">INVENTORY · {product.name}</p>
+          <h2 id="inventory-title">Stock by location</h2>
+          <p className="data-view-description">Available stock for {product.pack}.</p>
+        </div>
         <div className="data-view-actions">
-          <Button icon={<PencilLine size={14} />} onClick={() => onEdit('manual')} variant="secondary">Edit counts</Button>
-          <Button icon={<FileUp size={14} />} onClick={() => onEdit('document')} variant="secondary">Attach count sheet</Button>
+          {workspace.products.length > 1 && <label className="product-picker"><span className="visually-hidden">Product</span>
+            <select onChange={(event) => setSelectedProductId(event.target.value)} value={product.id}>
+              {workspace.products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>}
+          <Button icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'product', productId: product.id }, 'manual')} variant="quiet">Edit product</Button>
+          <Button icon={<PackagePlus size={14} />} onClick={() => onEdit({ type: 'new-product' }, 'manual')} variant="secondary">Add product</Button>
+          <Button icon={<MapPinPlus size={14} />} onClick={() => onEdit({ type: 'new-location' }, 'manual')} variant="secondary">Add location</Button>
         </div>
       </div>
       <div className="inventory-grid">
-        <article className="inventory-location">
-          <div className="location-heading"><span className="location-icon"><Warehouse size={17} /></span><div><h3>{warehouses.north.name}</h3><p>Primary distribution hub</p></div><StatusBadge tone="warning" dot>Under pressure</StatusBadge></div>
-          <div className="inventory-quantity"><strong>{northCases.value}</strong><span>cases on hand</span><EvidenceMark evidence={northCases.evidence} /></div>
-          <div className="inventory-inbound"><ArrowDownToLine size={15} /><span><strong>{shipment.cases} cases inbound</strong><small>From {shipment.supplier} · {formatDateTime(shipment.confirmedArrivalAt)}</small></span></div>
-          <div className="inventory-capacity"><span>Transfer receiving limit</span><strong>{warehouses.north.receivingLimitPerDay} cases / day</strong></div>
-        </article>
-        <article className="inventory-location">
-          <div className="location-heading"><span className="location-icon"><Warehouse size={17} /></span><div><h3>{warehouses.south.name}</h3><p>Secondary distribution hub</p></div><StatusBadge tone={southUnallocatedCases.value > 0 ? 'success' : 'neutral'} dot>{southUnallocatedCases.value > 0 ? 'Available' : 'Empty'}</StatusBadge></div>
-          <div className="inventory-quantity"><strong>{southUnallocatedCases.value}</strong><span>unallocated cases</span><EvidenceMark evidence={southUnallocatedCases.evidence} /></div>
-          <div className="inventory-inbound inventory-inbound-neutral"><Boxes size={15} /><span><strong>Available to transfer</strong><small>No orders currently allocated to these cases.</small></span></div>
-          <div className="inventory-capacity"><span>Product</span><strong>{product.name} · {product.pack}</strong></div>
-        </article>
+        {workspace.locations.map((location) => {
+          const record = workspace.stock.find((item) => item.locationId === location.id && item.productId === product.id)
+          const inbound = workspace.shipments.filter((shipment) => shipment.locationId === location.id && shipment.lines.some((line) => line.productId === product.id))
+          const routesIn = workspace.routes.filter((route) => route.toLocationId === location.id)
+          const target = { type: 'stock' as const, locationId: location.id, productId: product.id }
+          return (
+            <article className="inventory-location" key={location.id}>
+              <div className="location-heading">
+                <span className="location-icon"><Warehouse size={17} /></span>
+                <div><h3>{location.name}</h3><p>{kindLabels[location.kind]}</p></div>
+                {pressured.has(location.id)
+                  ? <StatusBadge tone="warning" dot>Under pressure</StatusBadge>
+                  : record ? <StatusBadge tone={record.available.value > 0 ? 'success' : 'neutral'} dot>{record.available.value > 0 ? 'Available' : 'Empty'}</StatusBadge>
+                    : <StatusBadge tone="neutral" dot>Not counted</StatusBadge>}
+              </div>
+              <div className="inventory-quantity">
+                {record
+                  ? <><strong>{format.number(record.available.value)}</strong><span>{record.available.value === 1 ? product.unit : `${product.unit}s`} available</span><EvidenceMark evidence={record.available.evidence} /></>
+                  : <span>No stock count yet — unknown, not zero.</span>}
+              </div>
+              <div className="inventory-card-actions">
+                <Button icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="quiet">{record ? 'Edit count' : 'Add count'}</Button>
+                <Button icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="quiet">Attach count sheet</Button>
+              </div>
+              {inbound.map((shipment) => (
+                <div className="inventory-inbound" key={shipment.id}><ArrowDownToLine size={15} /><span>
+                  <strong>{words.quantity(shipment.lines.filter((line) => line.productId === product.id).reduce((total, line) => total + line.quantity, 0), product.id)} inbound</strong>
+                  <small>From {shipment.supplierName} · {format.dateTime(shipment.confirmedArrivalAt)}</small>
+                </span></div>
+              ))}
+              {routesIn.map((route) => (
+                <div className="inventory-inbound inventory-inbound-neutral" key={route.id}><Truck size={15} /><span>
+                  <strong>Transfer from {words.locationName(route.fromLocationId)}</strong>
+                  <small>{route.arrivalAt.value ? `Arrives ${format.dateTime(route.arrivalAt.value)}` : 'Arrival time unknown'}</small>
+                </span><Button onClick={() => onEdit({ type: 'route', routeId: route.id }, 'manual')} variant="quiet">Edit</Button></div>
+              ))}
+              {inbound.length === 0 && routesIn.length === 0 && <div className="inventory-inbound inventory-inbound-neutral"><Boxes size={15} /><span><strong>Nothing inbound</strong><small>No shipments or transfers to this location.</small></span></div>}
+              <div className="inventory-capacity">
+                <span>Receiving limit</span>
+                <strong>{location.receivingLimitPerDay === null ? 'No limit set' : `${words.quantity(location.receivingLimitPerDay, product.id)} / day`}</strong>
+                <Button onClick={() => onEdit({ type: 'location', locationId: location.id }, 'manual')} variant="quiet">Edit location</Button>
+              </div>
+            </article>
+          )
+        })}
       </div>
       <p className="sample-data-note">Stock you type in is marked unverified. Attach a count sheet or goods receipt to verify it.</p>
     </section>

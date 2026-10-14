@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { Evidence } from '../../data/distributorDemo'
+import type { Evidence } from '../../../../shared/planner/model'
+import { sampleWorkspace } from '../../../../shared/planner/sample'
+import { settingsForCountry } from '../../../../shared/planner/countries'
+import { createFormat } from '../../presentation/format'
 import { editorFor, type FieldSpec } from './editorConfigs'
 import { changedFieldKeys, originAfterTyping, resolveEvidence } from './editorRules'
-import { distributorDemo } from '../../data/distributorDemo'
 
 const now = '2026-10-15T09:00:00+05:30'
 const typedBefore: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-14T09:00:00+05:30' }
@@ -42,21 +44,22 @@ describe('what the review step lists as a change', () => {
 })
 
 describe('order proof', () => {
-  const editor = editorFor({ type: 'order', orderId: 'ORD-1082' }, distributorDemo)
-  const original = distributorDemo.orders[0]
+  const editor = editorFor({ type: 'order', orderId: 'ORD-1082' }, sampleWorkspace, createFormat(settingsForCountry('IN')))
+  const original = sampleWorkspace.orders[0]
+  const quantity = 'line:harbor-blend'
 
   it('one typed-in detail makes the whole order unverified', () => {
     const next = editor?.apply(
-      { customer: original.customer, cases: 20, dueAt: original.dueAt, priority: original.priority },
-      { customer: original.evidence, cases: { kind: 'manual', source: 'Entered manually', recordedAt: now }, dueAt: original.evidence, priority: null },
+      { customer: original.customer, [quantity]: 20, dueAt: original.dueAt, locationId: 'north', priority: original.priority },
+      { customer: original.evidence, [quantity]: { kind: 'manual', source: 'Entered manually', recordedAt: now }, dueAt: original.evidence, locationId: null, priority: null },
     )
-    expect(next?.orders[0].evidence.kind).toBe('manual')
+    expect(next?.orders[0]).toMatchObject({ lines: [{ productId: 'harbor-blend', quantity: 20 }], evidence: { kind: 'manual' } })
   })
 
   it('changing only the priority does not make the order unverified; it is the user’s own choice', () => {
     const next = editor?.apply(
-      { customer: original.customer, cases: original.cases, dueAt: original.dueAt, priority: 'standard' },
-      { customer: original.evidence, cases: original.evidence, dueAt: original.evidence, priority: { kind: 'manual', source: 'Entered manually', recordedAt: now } },
+      { customer: original.customer, [quantity]: 18, dueAt: original.dueAt, locationId: 'north', priority: 'standard' },
+      { customer: original.evidence, [quantity]: original.evidence, dueAt: original.evidence, locationId: null, priority: { kind: 'manual', source: 'Entered manually', recordedAt: now } },
     )
     expect(next?.orders[0]).toMatchObject({ priority: 'standard', evidence: original.evidence })
   })
