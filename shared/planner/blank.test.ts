@@ -51,10 +51,10 @@ describe('the data a plan check needs', () => {
   })
   const bigger: Workspace = {
     ...sampleWorkspace,
-    products: [...sampleWorkspace.products, { id: 'oat', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }],
-    locations: [...sampleWorkspace.locations.map((item) => item.id === 'north' ? { ...item, storageLimit: 40 } : item), { id: 'east', name: 'East Store', kind: 'store', receivingLimitPerDay: 4 }],
+    products: [sampleWorkspace.products[0], { id: 'oat', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }],
+    locations: [...sampleWorkspace.locations, { id: 'east', name: 'East Store', kind: 'store', receivingLimitPerDay: 4 }],
     stock: [...sampleWorkspace.stock, { locationId: 'east', productId: 'harbor-blend', available: { value: 2, evidence: sampleEvidence } }],
-    storageLimits: [{ locationId: 'north', productId: 'harbor-blend', limit: 20 }, { locationId: 'east', productId: 'harbor-blend', limit: 5 }],
+    storageLimits: [{ locationId: 'east', productId: 'harbor-blend', limit: 5 }],
     orders: [
       ...sampleWorkspace.orders,
       order('E1', 'east', 'harbor-blend', '2026-10-15T10:00:00+05:30', 9),

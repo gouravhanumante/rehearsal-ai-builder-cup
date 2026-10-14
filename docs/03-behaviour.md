@@ -77,15 +77,20 @@ Agreed with the user: both paths exist, and the difference is always visible.
   room, needed by the first order that is short (`plan.request`). Copy the message, or email
   one / all waiting suppliers (BCC). Only a plain email address becomes a link (`emailOf`).
   The app does not send anything itself.
-- **Storage limits** (user decision 2026-10-14): a location can have a limit for each product
-  (`storageLimit`), and a product can have its own limit there (`storageLimits`, set on the
-  stock count). The lower applies; neither set means no limit (`storageCap`). Room = limit minus
+- **Storage limits** (user decision 2026-10-14): set an optional limit for one product at one
+  location on that stock count (`storageLimits`). A different warehouse can have a different
+  limit; blank means unlimited for that pair (`storageCap`). Room = limit minus
   today's count (stock leaving for orders before arrival is not credited). Transfers and
   supplier options are capped to the room; a full location rejects them as **Can't be done**.
-  The warehouse limit is per product, not a total across products, because bags and units
-  can't be added up.
 - "Transfer all … in one day" is only shown when it would break the receiving limit;
   otherwise it is the same move as the normal transfer.
+- **Every order is checked, delay or not** (user decision 2026-10-14, `orderCoverage`): stock on
+  hand at its warehouse plus deliveries arriving by its due time, shared with orders due first.
+  Covered / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows
+  deliveries the user entered) / Stock unknown when the warehouse was never counted.
+- **Repeating deliveries** (`repeatEveryDays`: 7, 14 or 28): the next delivery is
+  `confirmedArrivalAt`, later ones follow the original schedule (`arrivalsOf`). Reporting one late
+  moves only that delivery; later ones still count for the delay plan.
 - The Overview shows one ready plan: the one that protects the priority order, then leaves the
   least exposed, then costs less (unknown cost last), then relies on fewer typed-in details
   (`recommendPlan`). If none is ready it says so instead of recommending something.

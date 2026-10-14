@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { settingsForCountry } from '../../../shared/planner/countries'
-import { createFormat } from './format'
+import { createFormat, pluralUnit } from './format'
 
 describe('money and time follow the workspace country', () => {
   it('shows rupees for India and dollars for the US', () => {
@@ -21,5 +21,15 @@ describe('money and time follow the workspace country', () => {
   it('shows a stored time back as the same local time it was typed', () => {
     const newYork = createFormat(settingsForCountry('US'))
     expect(newYork.toInput(newYork.fromInput('2026-11-02T09:00') as string)).toBe('2026-11-02T09:00')
+  })
+})
+
+describe('product units read naturally in quantities', () => {
+  it('uses common plurals and keeps measurement abbreviations unchanged', () => {
+    expect(pluralUnit('box', 2)).toBe('boxes')
+    expect(pluralUnit('packet', 2)).toBe('packets')
+    expect(pluralUnit('case', 2)).toBe('cases')
+    expect(pluralUnit('kg', 2)).toBe('kg')
+    expect(pluralUnit('mL', 2)).toBe('mL')
   })
 })

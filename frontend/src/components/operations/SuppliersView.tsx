@@ -1,10 +1,11 @@
-import { ArrowRight, CircleCheck, FileUp, PencilLine, Plus, Truck } from 'lucide-react'
+import { FileUp, LifeBuoy, PencilLine, Plus, Repeat, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Fact } from '../../../../shared/planner/model'
 import { LIMITS } from '../../../../shared/planner/validate'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
+import { repeatLabel } from '../editing/editorConfigs'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { EmptyState } from '../layout/EmptyState'
 
@@ -31,28 +32,56 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
   const manyPlaces = workspace.products.length > 1 || workspace.locations.length > 2
 
   return (
-    <section className="data-view" aria-labelledby="suppliers-title">
-      <div className="section-heading data-view-heading">
-        <div><p className="section-kicker">SUPPLIERS · INBOUND UPDATES</p><h2 id="suppliers-title">Supplier commitments</h2><p className="data-view-description">Confirmed dates are separate from details that still need an answer.</p></div>
-        <div className="data-view-actions">
-          <Button disabled={atLimit} icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="primary">Add supplier</Button>
+    <div className="suppliers-page">
+      <section className="data-view" aria-labelledby="deliveries-title">
+        <div className="section-heading data-view-heading">
+          <div><p className="section-kicker">STOCK ON ITS WAY</p><h2 id="deliveries-title">Incoming deliveries</h2><p className="data-view-description">What you are expecting, once or on a schedule. Orders count these when checking if they are covered.</p></div>
+          <div className="data-view-actions">
+            <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-shipment' }, 'manual')} variant="primary">Add delivery</Button>
+          </div>
         </div>
-      </div>
-      {workspace.shipments.length === 0 && workspace.suppliers.length === 0 && <EmptyState body="Add the shipments you are waiting for, and any backup suppliers you could buy from in a shortage." icon={<Truck size={20} />} title="No suppliers or shipments yet">
-        <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="primary">Add supplier</Button>
-      </EmptyState>}
-      <div className="supplier-list">
-        {workspace.shipments.map((shipment) => (
-          <article className={`supplier-row ${delayed.has(shipment.id) ? 'supplier-confirmed' : ''}`} key={shipment.id}>
-            <div className="supplier-icon"><Truck size={18} /></div>
-            <div className="supplier-main">
-              <div className="supplier-title"><h3>{shipment.supplierName}</h3><StatusBadge tone="success" dot>Update confirmed</StatusBadge></div>
-              <p>{shipment.id} · {shipment.lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')} · to {words.locationName(shipment.locationId)}</p>
-            </div>
-            <div className="supplier-dates"><span>Previous arrival</span><strong>{format.dateTime(shipment.originalArrivalAt)}</strong><ArrowRight size={15} /><span>Confirmed arrival</span><strong className={delayed.has(shipment.id) ? 'supplier-late-date' : ''}>{format.dateTime(shipment.confirmedArrivalAt)}</strong></div>
-            <div className="supplier-source"><CircleCheck size={15} /><span>{shipment.updateSource}<small>{format.dateTime(shipment.evidence.recordedAt)}</small></span></div>
-          </article>
-        ))}
+        {workspace.shipments.length === 0
+          ? <EmptyState body="Without deliveries recorded, orders only count the stock already in each warehouse." icon={<Truck size={20} />} title="No deliveries recorded">
+            <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-shipment' }, 'manual')} variant="primary">Add delivery</Button>
+          </EmptyState>
+          : <div className="supplier-list">
+            {workspace.shipments.map((shipment) => {
+              const late = delayed.has(shipment.id)
+              return (
+                <article className={`supplier-row delivery-row ${late ? 'delivery-late' : ''}`} key={shipment.id}>
+                  <div className="supplier-icon">{shipment.repeatEveryDays ? <Repeat size={18} /> : <Truck size={18} />}</div>
+                  <div className="supplier-main">
+                    <div className="supplier-title"><h3>{shipment.supplierName}</h3>
+                      {late ? <StatusBadge tone="danger" dot>Late</StatusBadge> : shipment.repeatEveryDays ? <StatusBadge tone="success" dot>Regular delivery</StatusBadge> : <StatusBadge tone="neutral" dot>Expected</StatusBadge>}
+                    </div>
+                    <p>{shipment.lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')} · to {words.locationName(shipment.locationId)} · {shipment.id}</p>
+                    <EvidenceMark evidence={shipment.evidence} />
+                  </div>
+                  <div className="delivery-when">
+                    {shipment.repeatEveryDays && <span>{repeatLabel(shipment.repeatEveryDays)}</span>}
+                    <strong className={late ? 'supplier-late-date' : ''}>{shipment.repeatEveryDays ? 'Next ' : 'Arrives '}{format.dateTime(shipment.confirmedArrivalAt)}</strong>
+                    {late && <small>Was {format.dateTime(shipment.originalArrivalAt)} · {shipment.updateSource}</small>}
+                  </div>
+                  <div className="supplier-actions">
+                    <Button aria-label={`Report ${shipment.id} late`} icon={<TriangleAlert size={14} />} onClick={() => onEdit({ type: 'report-delay', shipmentId: shipment.id }, 'manual')} variant="secondary">{late ? 'Update delay' : 'Report late'}</Button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>}
+      </section>
+
+      <section className="data-view suppliers-backup" aria-labelledby="suppliers-title">
+        <div className="section-heading data-view-heading">
+          <div><p className="section-kicker">WHEN THINGS GO WRONG</p><h2 id="suppliers-title">Backup suppliers</h2><p className="data-view-description">Who you can ask for stock when a delivery is late. You ask them, and record their reply, from Recovery options.</p></div>
+          <div className="data-view-actions">
+            <Button disabled={atLimit} icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="secondary">Add backup supplier</Button>
+          </div>
+        </div>
+        {workspace.suppliers.length === 0 && <EmptyState body="Add anyone you could buy from in a shortage. You only need their name, contact, product and warehouse." icon={<LifeBuoy size={20} />} title="No backup suppliers yet">
+          <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="secondary">Add backup supplier</Button>
+        </EmptyState>}
+        <div className="supplier-list">
         {workspace.suppliers.flatMap((supplier) => supplier.offers.map((offer, offerIndex) => {
           const plan = rehearsal.plans.find((item) => item.supplierId === supplier.id && item.productId === offer.productId && item.locationId === offer.locationId)
           const text = plan ? words.planText(plan) : null
@@ -76,8 +105,9 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
             </article>
           )
         }))}
-      </div>
-      <p className="sample-data-note">Typed-in details are usable but marked unverified. Attach a quote or receipt to verify them.</p>
-    </section>
+        </div>
+        <p className="sample-data-note">Typed-in details are usable but marked unverified. Attach a quote or receipt to verify them.</p>
+      </section>
+    </div>
   )
 }

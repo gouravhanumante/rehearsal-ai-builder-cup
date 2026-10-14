@@ -5,6 +5,7 @@ import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Location, Product } from '../../../../shared/planner/model'
 import type { EditTarget } from '../../presentation/planText'
 import { searchPage } from '../../presentation/listPage'
+import { pluralUnit } from '../../presentation/format'
 import { storageCap } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
@@ -118,7 +119,7 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
         </div>
         <div className="stock-row-quantity">
           {record
-            ? <><strong>{format.number(record.available.value)}</strong><span>{record.available.value === 1 ? rowProduct.unit : `${rowProduct.unit}s`}{cap !== null && ` of ${format.number(cap)} max`}</span></>
+            ? <><strong>{format.number(record.available.value)}</strong><span>{pluralUnit(rowProduct.unit, record.available.value)}{cap !== null && ` of ${format.number(cap)} max`}</span></>
             : <span className="stock-row-unknown">Not counted · unknown, not zero</span>}
         </div>
         <div className="stock-row-status">
@@ -178,13 +179,13 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
         <div className="inventory-detail">
           {mode === 'product'
             ? <div className="inventory-detail-heading">
-              <div><h3>{product.name}</h3><p>{product.pack} · counted in {product.unit}s</p></div>
+              <div><h3>{product.name}</h3><p>{product.perPackage ? `${product.perPackage} ${product.perPackage === 1 ? 'item' : 'items'} per package` : `${product.pack} · counted in ${pluralUnit(product.unit, 2)}`}</p></div>
               <Button icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'product', productId: product.id }, 'manual')} variant="secondary">Edit product</Button>
             </div>
             : <div className="inventory-detail-heading">
               <div>
                 <h3>{location.name}</h3>
-                <p>{kindLabels[location.kind]} · {location.receivingLimitPerDay === null ? 'No unloading limit set' : `Can unload ${format.number(location.receivingLimitPerDay)} a day`} · {location.storageLimit == null ? 'No storage limit set' : `Stores up to ${format.number(location.storageLimit)} of each product`}</p>
+                <p>{kindLabels[location.kind]} · {location.receivingLimitPerDay === null ? 'No unloading limit set' : `Can unload ${format.number(location.receivingLimitPerDay)} a day`}</p>
               </div>
               <Button icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'location', locationId: location.id }, 'manual')} variant="secondary">Edit location</Button>
             </div>}

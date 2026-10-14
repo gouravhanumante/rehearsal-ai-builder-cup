@@ -1,6 +1,6 @@
 import type { Workspace } from '../../../shared/planner/model'
-import type { Conflict, Plan, UnverifiedFact } from '../../../shared/planner/plan'
-import type { Format } from './format'
+import type { Conflict, OrderCoverage, Plan, UnverifiedFact } from '../../../shared/planner/plan'
+import { pluralUnit, type Format } from './format'
 
 export type EditTarget =
   | { type: 'stock'; locationId: string; productId: string }
@@ -32,12 +32,12 @@ export function createWording(workspace: Workspace, format: Format) {
 
   const quantity = (value: number, productId: string) => {
     const unit = productById.get(productId)?.unit ?? 'unit'
-    return `${format.number(value)} ${value === 1 ? unit : `${unit}s`}`
+    return `${format.number(value)} ${pluralUnit(unit, value)}`
   }
   /** A total across products: in the product's unit when there is only one. */
   const totalUnit = (value: number) => {
     const unit = manyProducts || !workspace.products[0] ? 'unit' : workspace.products[0].unit
-    return value === 1 ? unit : `${unit}s`
+    return pluralUnit(unit, value)
   }
   const totalQuantity = (value: number) => `${format.number(value)} ${totalUnit(value)}`
 
@@ -156,7 +156,15 @@ export function createWording(workspace: Workspace, format: Format) {
     earlier: conflict.earlierOrderIds.map((id) => `${customer(id)} (due ${format.dateTime(orderById.get(id)?.dueAt ?? '')})`).join(', '),
   })
 
-  return { locationName, productName, supplierName, customer, quantity, totalUnit, totalQuantity, planText, unverifiedText, conflictText }
+  /** Why an order line is short, in words: what's missing and whether anything is on its way. */
+  const shortageText = (line: OrderCoverage) => {
+    const due = orderById.get(line.orderId)?.dueAt
+    const by = due ? ` before ${format.dateTime(due)}` : ''
+    return `Short by ${quantity(line.ordered - line.covered, line.productId)} at ${locationName(line.locationId)}`
+      + (line.arriving === 0 ? ` · no incoming shipment recorded${by}` : ` · counts ${quantity(line.arriving, line.productId)} arriving${by}`)
+  }
+
+  return { locationName, productName, supplierName, customer, quantity, totalUnit, totalQuantity, planText, unverifiedText, conflictText, shortageText }
 }
 
 export type Wording = ReturnType<typeof createWording>

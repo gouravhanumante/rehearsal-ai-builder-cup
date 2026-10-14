@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Evidence, Order, Supplier, Workspace } from './model.js'
-import { recommendPlan, rehearse } from './plan.js'
+import { orderCoverage, recommendPlan, rehearse, storageCap } from './plan.js'
 import { sampleEvidence, sampleWorkspace } from './sample.js'
 
 const typed: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-15T09:00:00+05:30' }
@@ -43,6 +43,67 @@ describe('which orders the delay affects', () => {
     expect(impact.groups[0].exposedQuantity).toBeNull()
     expect(impact.unknownGroups).toBe(1)
     expect(plans).toEqual([])
+  })
+})
+
+describe('is every order covered by its warehouse, even with nothing late', () => {
+  // South Hub has 14 cases; nothing is delayed.
+  const order = (id: string, quantity: number, dueAt: string): Order => ({
+    id, customer: id, locationId: 'south', dueAt, priority: 'standard', lines: [{ productId: 'harbor-blend', quantity }], evidence: typed,
+  })
+  const quiet = (orders: Order[], extra: Partial<Workspace> = {}): Workspace => ({ ...sampleWorkspace, disruptions: [], shipments: [], orders, ...extra })
+  const coverageOf = (data: Workspace, id: string) => orderCoverage(data).find((item) => item.orderId === id)
+  const inbound = (arrival: string) => [{ ...sampleWorkspace.shipments[0], locationId: 'south', confirmedArrivalAt: arrival, originalArrivalAt: arrival }]
+
+  it('an order bigger than the stock at its warehouse is short, even when no shipment is late', () => {
+    expect(coverageOf(quiet([order('BIG', 20, thursdayMorning)]), 'BIG')).toMatchObject({ ordered: 20, covered: 14, status: 'short' })
+  })
+
+  it('an empty warehouse with nothing arriving covers nothing', () => {
+    const data = withStock(quiet([order('BROOM', 20, thursdayMorning)]), 'south', 0)
+    expect(coverageOf(data, 'BROOM')).toMatchObject({ covered: 0, status: 'short', arriving: 0 })
+  })
+
+  it('stock arriving before the order is due counts; stock arriving after does not', () => {
+    const early = quiet([order('BIG', 20, thursdayMorning)], { shipments: inbound('2026-10-15T08:00:00+05:30') })
+    const late = quiet([order('BIG', 20, thursdayMorning)], { shipments: inbound('2026-10-15T18:00:00+05:30') })
+    expect(coverageOf(early, 'BIG')).toMatchObject({ status: 'covered', arriving: 24 })
+    expect(coverageOf(late, 'BIG')).toMatchObject({ status: 'short', arriving: 0 })
+  })
+
+  it('two orders share the same stock: the one due first is served first', () => {
+    const data = quiet([order('TUE', 10, '2026-10-20T10:00:00+05:30'), order('MON', 10, '2026-10-19T10:00:00+05:30')])
+    expect(coverageOf(data, 'MON')).toMatchObject({ covered: 10, status: 'covered' })
+    expect(coverageOf(data, 'TUE')).toMatchObject({ covered: 4, status: 'short' })
+  })
+
+  it('a warehouse that was never counted is unknown, not short', () => {
+    const data = quiet([order('BIG', 20, thursdayMorning)], { stock: sampleWorkspace.stock.filter((record) => record.locationId !== 'south') })
+    expect(coverageOf(data, 'BIG')?.status).toBe('unknown')
+  })
+
+  describe('regular deliveries', () => {
+    // South Hub is empty; 10 cases arrive Monday 19 Oct, and again every week if it repeats.
+    const monday = '2026-10-19T09:00:00+05:30'
+    const weekly = (extra: Partial<Workspace['shipments'][number]> = {}) => [{ ...sampleWorkspace.shipments[0], locationId: 'south', lines: [{ productId: 'harbor-blend', quantity: 10 }], originalArrivalAt: monday, confirmedArrivalAt: monday, repeatEveryDays: 7, ...extra }]
+    const dueAfterThird = '2026-11-03T10:00:00+05:30'
+
+    it('a weekly delivery keeps counting: three Mondays cover an order of 25 due after the third', () => {
+      const data = withStock(quiet([order('BIG', 25, dueAfterThird)], { shipments: weekly() }), 'south', 0)
+      expect(coverageOf(data, 'BIG')).toMatchObject({ covered: 25, status: 'covered', arriving: 30 })
+    })
+
+    it('the same delivery entered once (not repeating) covers only 10', () => {
+      const data = withStock(quiet([order('BIG', 25, dueAfterThird)], { shipments: weekly({ repeatEveryDays: undefined }) }), 'south', 0)
+      expect(coverageOf(data, 'BIG')).toMatchObject({ covered: 10, status: 'short' })
+    })
+
+    it('one late delivery moves only that delivery, not the rest of the schedule', () => {
+      // This week's delivery slips to Wednesday; next Monday's still comes on Monday 26 Oct.
+      const late = weekly({ confirmedArrivalAt: '2026-10-21T09:00:00+05:30' })
+      const data = withStock(quiet([order('TUE', 20, '2026-10-27T10:00:00+05:30')], { shipments: late }), 'south', 0)
+      expect(coverageOf(data, 'TUE')).toMatchObject({ covered: 20, status: 'covered' })
+    })
   })
 })
 
@@ -209,35 +270,35 @@ describe('overview recommendation', () => {
 
 describe('storage limits', () => {
   // North Hub has 14 cases and is 24 short before the delayed shipment lands.
-  const withLimits = (location: number | null, product?: number): Workspace => ({
+  const withLimit = (atNorth?: number): Workspace => ({
     ...sampleWorkspace,
-    locations: sampleWorkspace.locations.map((item) => item.id === 'north' ? { ...item, storageLimit: location } : item),
-    storageLimits: product === undefined ? [] : [{ locationId: 'north', productId: 'harbor-blend', limit: product }],
+    storageLimits: atNorth === undefined ? [] : [{ locationId: 'north', productId: 'harbor-blend', limit: atNorth }],
   })
 
   it('asks a backup supplier only for what still fits: holds 20, has 14, so ask for 6 even though 24 are short', () => {
-    expect(planIn(withLimits(20), supplierPlan)?.request).toEqual({ quantity: 6, neededBy: '2026-10-15T14:00:00+05:30' })
+    expect(planIn(withLimit(20), supplierPlan)?.request).toEqual({ quantity: 6, neededBy: '2026-10-15T14:00:00+05:30' })
   })
 
   it('asks for the whole shortage when no storage limit is set', () => {
     expect(planIn(sampleWorkspace, supplierPlan)?.request?.quantity).toBe(24)
   })
 
-  it('uses the lower of the warehouse limit and the product limit there', () => {
-    expect(planIn(withLimits(30, 20), supplierPlan)?.spaceLeft).toBe(6)
-    expect(planIn(withLimits(20, 30), supplierPlan)?.spaceLeft).toBe(6)
+  it('keeps a warehouse limit specific to the selected product and location', () => {
+    const data = withLimit(20)
+    expect(storageCap(data, 'north', 'harbor-blend')).toBe(20)
+    expect(storageCap(data, 'south', 'harbor-blend')).toBeNull()
   })
 
-  it('a product limit applies even when the warehouse has none', () => {
-    expect(planIn(withLimits(null, 18), supplierPlan)?.spaceLeft).toBe(4)
+  it('asks for only the room left at the selected warehouse', () => {
+    expect(planIn(withLimit(18), supplierPlan)?.spaceLeft).toBe(4)
   })
 
   it('moves only what fits in storage, even when the receiving limit would allow more', () => {
-    expect(planIn(withLimits(18), transferPlan)).toMatchObject({ status: 'ready', quantity: 4 })
+    expect(planIn(withLimit(18), transferPlan)).toMatchObject({ status: 'ready', quantity: 4 })
   })
 
   it("rejects transfers and suppliers when the warehouse is already full", () => {
-    const full = withLimits(14)
+    const full = withLimit(14)
     expect(planIn(full, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(planIn(full, supplierPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(recommendPlan(rehearse(full).plans)).toBeUndefined()

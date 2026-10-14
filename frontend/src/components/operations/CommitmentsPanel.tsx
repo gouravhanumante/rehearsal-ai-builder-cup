@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ClipboardPlus, FileUp, PencilLine, Warehouse } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Order } from '../../../../shared/planner/model'
+import { orderCoverage } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { EmptyState } from '../layout/EmptyState'
@@ -29,12 +30,13 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
   const visibleRows = showAll ? affectedRows : affectedRows.slice(0, 2)
   const unaffected = showAll || noDisruption ? workspace.orders.filter((order) => impact.unaffectedOrderIds.includes(order.id)) : []
   const affectedCount = impact.affectedOrderIds.length
+  const coverage = useMemo(() => orderCoverage(workspace), [workspace])
 
-  const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode }) => (
+  const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode; note?: string }) => (
     <div className={`order-row ${editable ? 'order-row--editable' : ''}`} key={key}>
       <div className="order-customer">
         <span className={`customer-avatar avatar-${avatarTones[workspace.orders.indexOf(order) % avatarTones.length]}`}>{initialsOf(order.customer)}</span>
-        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{showAll && <EvidenceMark evidence={order.evidence} />}</span>
+        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{cells.note && <small className="order-shortage">{cells.note}</small>}{showAll && <EvidenceMark evidence={order.evidence} />}</span>
       </div>
       <div className="order-due">{format.day(order.dueAt)}<small>{format.time(order.dueAt)}</small></div>
       <strong className="order-quantity">{cells.quantity}</strong>
@@ -88,11 +90,20 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
       {unaffected.length > 0 && <>
         {!noDisruption && <p className="orders-subheading">Not part of this shortage · due after the delayed stock arrives, or for other products and locations</p>}
         <div className="orders-table">
-          {unaffected.map((order) => row(order.id, order, {
-            quantity: order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', '),
-            covered: '—',
-            badge: <StatusBadge tone="neutral" dot>{noDisruption ? 'Watching' : 'Not affected'}</StatusBadge>,
-          }))}
+          {unaffected.map((order) => {
+            const lines = coverage.filter((line) => line.orderId === order.id)
+            const short = lines.filter((line) => line.status === 'short')
+            const unknown = lines.some((line) => line.status === 'unknown')
+            return row(order.id, order, {
+              quantity: order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', '),
+              covered: lines.map((line) => (line.status === 'unknown' ? 'Unknown' : words.quantity(line.covered, line.productId))).join(', ') || '—',
+              badge: short.length > 0
+                ? <StatusBadge tone="danger" dot>Short</StatusBadge>
+                : unknown ? <StatusBadge tone="warning" dot>Stock unknown</StatusBadge>
+                : <StatusBadge tone="success" dot>Covered</StatusBadge>,
+              note: short.map(words.shortageText).join(' · ') || undefined,
+            })
+          })}
         </div>
       </>}
       {routesIn.length > 0 && <div className="capacity-note"><Warehouse size={16} />

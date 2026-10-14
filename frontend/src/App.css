@@ -440,6 +440,9 @@
 .order-due { color: #526257; }
 .order-quantity { color: #415247; font-weight: 700; }
 .order-available { color: #77847b; }
+.order-shortage { display: block; margin-top: 3px; color: #944b33 !important; font-weight: 650; }
+.editor-shortages li { padding: 8px 10px; border-left: 3px solid #c97a5a; border-radius: 4px; background: #fbf1ec; }
+.editor-shortages li small { color: #944b33 !important; }
 
 .capacity-note {
   display: flex;
@@ -652,6 +655,13 @@
 .sample-data-note { margin: 13px 0 0; color: #65736a; font-size: 10px; }
 
 .supplier-list { display: grid; gap: 12px; }
+.suppliers-backup { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); }
+.delivery-row { grid-template-columns: 38px minmax(180px, 1.4fr) minmax(170px, 1fr) auto; }
+.delivery-late { border-left: 4px solid #c97a5a; }
+.delivery-when { display: grid; gap: 3px; color: #607066; font-size: 10px; }
+.delivery-when strong { color: #3d5145; font-size: 11px; font-weight: 700; }
+.delivery-when small { color: #8a5a3e; font-size: 10px; }
+.delivery-row .supplier-main .evidence-mark { margin-top: 6px; }
 .supplier-row { display: grid; grid-template-columns: 38px minmax(180px, 1.1fr) minmax(220px, 1.1fr) minmax(125px, 0.7fr); align-items: center; gap: 15px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .supplier-confirmed { border-left: 4px solid #6a986f; }
 .supplier-unconfirmed { border-left: 4px solid #c29a4e; }
@@ -727,6 +737,9 @@
 .editor-field { display: grid; gap: 5px; }
 .editor-field label { color: #3a5043; font-size: 11px; font-weight: 750; }
 .editor-field label small { color: #8a968e; font-weight: 500; }
+.editor-input-wrap { display: flex; align-items: center; gap: 8px; }
+.editor-input-wrap input { flex: 1; min-width: 0; }
+.editor-suffix { flex: 0 0 auto; color: #5d6d63; font-size: 12px; font-weight: 600; }
 .editor-hint { margin-top: -2px; color: #66766b; font-size: 10px; line-height: 1.45; }
 .editor-field input,
 .editor-field select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid #d9e1da; border-radius: 6px; color: #2f4437; background: #fff; font: inherit; font-size: 13px; }

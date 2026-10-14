@@ -1,5 +1,5 @@
 import type { Evidence, InboundShipment, LocationKind, Order, Supplier, SupplierOffer, Workspace } from '../../../../shared/planner/model'
-import type { Format } from '../../presentation/format'
+import { pluralUnit, type Format } from '../../presentation/format'
 import type { EditTarget } from '../../presentation/planText'
 
 export type FieldType = 'integer' | 'money' | 'datetime' | 'text' | 'select'
@@ -14,6 +14,10 @@ export type FieldSpec = {
   options?: { value: string; label: string }[]
   /** A short example shown under the label. */
   hint?: string
+  /** Shown inside the empty box, e.g. an example value or "No limit (∞)". Defaults to "Unknown" for optional fields. */
+  placeholder?: string
+  /** Unit shown after the box, e.g. "packages" or "per day". */
+  suffix?: string
 }
 export type ParsedValue = number | string | null
 
@@ -83,6 +87,8 @@ const kindOptions: { value: LocationKind; label: string }[] = [
   { value: 'warehouse', label: 'Warehouse' }, { value: 'store', label: 'Store' }, { value: 'distribution-centre', label: 'Distribution centre' },
 ]
 const priorityOptions = [{ value: 'protected', label: 'High priority' }, { value: 'standard', label: 'Standard' }]
+const repeatOptions = [{ value: '', label: 'Doesn’t repeat' }, { value: '7', label: 'Every week' }, { value: '14', label: 'Every 2 weeks' }, { value: '28', label: 'Every 4 weeks' }]
+export const repeatLabel = (days: number) => repeatOptions.find((option) => option.value === String(days))?.label ?? `Every ${days} days`
 
 export function editorFor(target: EditTarget, workspace: Workspace, format: Format): EditorConfig | null {
   const productOptions = workspace.products.map((product) => ({ value: product.id, label: product.name }))
@@ -94,16 +100,15 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
   if (target.type === 'stock') {
     const record = workspace.stock.find((item) => item.locationId === target.locationId && item.productId === target.productId)
     const ownLimit = workspace.storageLimits?.find((item) => item.locationId === target.locationId && item.productId === target.productId)
-    const locationLimit = workspace.locations.find((item) => item.id === target.locationId)?.storageLimit ?? null
     const unit = unitOf(target.productId)
     return {
       title: `Stock at ${locationName(target.locationId)}`,
       subtitle: productName(target.productId),
       documentHint: 'Stock count sheet or goods receipt',
       fields: [
-        { key: 'available', label: `${capitalize(unit)}s available`, type: 'integer', required: true, extractable: true, isFact: true },
-        { key: 'storageLimit', label: `Most ${unit}s it can store here`, type: 'integer', required: false, extractable: false, isFact: false,
-          hint: locationLimit === null ? 'Leave blank for no limit.' : `Leave blank to use the warehouse limit of ${format.number(locationLimit)}. The lower of the two applies.` },
+        { key: 'available', label: `${capitalize(pluralUnit(unit, 2))} available`, type: 'integer', required: true, extractable: true, isFact: true, placeholder: 'e.g. 40', suffix: pluralUnit(unit, 2) },
+        { key: 'storageLimit', label: `Most ${pluralUnit(unit, 2)} it can store here`, type: 'integer', required: false, extractable: false, isFact: false, placeholder: 'No limit (∞)', suffix: pluralUnit(unit, 2),
+          hint: 'For this product at this location only. Leave blank for no limit.' },
       ],
       initial: { available: record ? String(record.available.value) : '', storageLimit: ownLimit ? String(ownLimit.limit) : '' },
       initialEvidence: { available: record?.available.evidence ?? null, storageLimit: null },
@@ -132,7 +137,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       documentHint: 'Purchase order or order confirmation',
       fields: [
         { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true },
-        ...order.lines.map((line): FieldSpec => ({ key: lineKey(line.productId), label: `${productName(line.productId)} (${unitOf(line.productId)}s)`, type: 'integer', required: true, extractable: true, isFact: true })),
+        ...order.lines.map((line): FieldSpec => ({ key: lineKey(line.productId), label: `${productName(line.productId)} (${pluralUnit(unitOf(line.productId), 2)})`, type: 'integer', required: true, extractable: true, isFact: true })),
         { key: 'dueAt', label: `Due (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
         { key: 'locationId', label: 'Ships from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: priorityOptions },
@@ -167,22 +172,22 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     const firstGroup = workspace.disruptions.length ? workspace.shipments.find((item) => item.id === workspace.disruptions[0].shipmentId) : undefined
     const isNew = !supplier
     const unit = unitOf(offer?.productId ?? '')
-    const contactField: FieldSpec = { key: 'contact', label: 'Email or phone', type: 'text', required: false, extractable: false, isFact: false, hint: 'Used to send them a request when you are short.' }
+    const contactField: FieldSpec = { key: 'contact', label: 'Email or phone', type: 'text', required: false, extractable: false, isFact: false, placeholder: 'e.g. orders@supplier.in or +91 98200 12345', hint: 'Used to send them a request when you are short.' }
     return {
       title: isNew ? 'Add supplier' : `Reply from ${supplier.name}`,
       subtitle: isNew ? 'Someone you could buy from in a shortage. You ask them for stock when a delay happens.' : `${productName(offer?.productId ?? '')} to ${locationName(offer?.locationId ?? '')} · blank means they haven’t said`,
       documentHint: 'Their reply, quote, pro-forma invoice, or delivery confirmation',
       isNew,
       fields: isNew ? [
-        { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: false, isFact: false },
+        { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Vibgyor Mines' },
         contactField,
         { key: 'productId', label: 'Product they can supply', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
         { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
       ] : [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: true, isFact: false },
         contactField,
-        { key: 'available', label: `How many ${unit}s they can send`, type: 'integer', required: false, extractable: true, isFact: true },
-        { key: 'pricePerUnit', label: `Their price per ${unit} (${format.currencySymbol})`, type: 'money', required: false, extractable: true, isFact: true },
+        { key: 'available', label: `How many ${pluralUnit(unit, 2)} they can send`, type: 'integer', required: false, extractable: true, isFact: true, suffix: pluralUnit(unit, 2) },
+        { key: 'pricePerUnit', label: `Their price per ${unit} (${format.currencySymbol})`, type: 'money', required: false, extractable: true, isFact: true, suffix: `per ${unit}` },
         { key: 'arrivalAt', label: `When it would arrive (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
       ],
       initial: {
@@ -242,9 +247,9 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       documentHint: 'Purchase order or order confirmation',
       isNew: true,
       fields: [
-        { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true },
+        { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true, placeholder: 'e.g. Shiva Kirana' },
         { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
-        { key: 'quantity', label: 'Quantity', type: 'integer', required: true, extractable: true, isFact: true },
+        { key: 'quantity', label: 'Quantity', type: 'integer', required: true, extractable: true, isFact: true, placeholder: 'e.g. 20', suffix: 'packages' },
         { key: 'dueAt', label: `Due (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
         { key: 'locationId', label: 'Ships from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: priorityOptions },
@@ -268,19 +273,21 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
 
   if (target.type === 'new-shipment') {
     return {
-      title: 'Add incoming shipment',
-      subtitle: 'Stock a supplier is sending you',
+      title: 'Add incoming delivery',
+      subtitle: 'Stock a supplier is sending you, once or on a schedule',
       documentHint: 'Dispatch note, invoice or delivery confirmation',
       isNew: true,
       fields: [
-        { key: 'supplierName', label: 'Supplier', type: 'text', required: true, extractable: true, isFact: false },
+        { key: 'supplierName', label: 'Supplier', type: 'text', required: true, extractable: true, isFact: false, placeholder: 'e.g. Vibgyor Mines' },
         { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
-        { key: 'quantity', label: 'Quantity', type: 'integer', required: true, extractable: true, isFact: true },
+        { key: 'quantity', label: 'Packages', type: 'integer', required: true, extractable: true, isFact: true, placeholder: 'e.g. 50', suffix: 'packages' },
         { key: 'locationId', label: 'Arriving at', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
-        { key: 'arrivalAt', label: `Expected arrival (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
+        { key: 'arrivalAt', label: `Arrives (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true, hint: 'If it repeats, this is the first delivery.' },
+        { key: 'repeat', label: 'Repeats', type: 'select', required: false, extractable: false, isFact: false, options: repeatOptions,
+          hint: 'For a regular delivery, the same amount arrives on this schedule. Orders count each one.' },
       ],
-      initial: { supplierName: '', productId: workspace.products[0]?.id ?? '', quantity: '', locationId: workspace.locations[0]?.id ?? '', arrivalAt: '' },
-      initialEvidence: { supplierName: null, productId: null, quantity: null, locationId: null, arrivalAt: null },
+      initial: { supplierName: '', productId: workspace.products[0]?.id ?? '', quantity: '', locationId: workspace.locations[0]?.id ?? '', arrivalAt: '', repeat: '' },
+      initialEvidence: { supplierName: null, productId: null, quantity: null, locationId: null, arrivalAt: null, repeat: null },
       apply: (values, evidence) => {
         const proof = recordEvidence([evidence.quantity, evidence.arrivalAt], evidence.arrivalAt as Evidence)
         const shipment: InboundShipment = {
@@ -292,6 +299,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
           confirmedArrivalAt: values.arrivalAt as string,
           updateSource: proof.source,
           evidence: proof,
+          ...(values.repeat ? { repeatEveryDays: Number(values.repeat) } : {}),
         }
         return { ...workspace, shipments: [...workspace.shipments, shipment] }
       },
@@ -300,15 +308,16 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
 
   if (target.type === 'report-delay') {
     const preselected = workspace.shipments.find((item) => item.id === target.shipmentId)
-    const describe = (shipment: InboundShipment) => `${shipment.id} · ${shipment.supplierName} · ${shipment.lines.map((line) => productName(line.productId)).join(', ')} to ${locationName(shipment.locationId)}, due ${format.dateTime(shipment.originalArrivalAt)}`
+    const describe = (shipment: InboundShipment) => `${shipment.id} · ${shipment.supplierName} · ${shipment.lines.map((line) => productName(line.productId)).join(', ')} to ${locationName(shipment.locationId)}, `
+      + (shipment.repeatEveryDays ? `next delivery ${format.dateTime(shipment.confirmedArrivalAt)} (${repeatLabel(shipment.repeatEveryDays).toLowerCase()})` : `due ${format.dateTime(shipment.originalArrivalAt)}`)
     return {
       title: 'Report a delay',
-      subtitle: 'Which shipment is late, and when will it now arrive?',
+      subtitle: 'Which delivery is late, and when will it now arrive? For a regular delivery, only the next one moves.',
       documentHint: 'Supplier message, email or delivery update',
       fields: [
         { key: 'shipmentId', label: 'Shipment', type: 'select', required: true, extractable: false, isFact: false, options: workspace.shipments.map((shipment) => ({ value: shipment.id, label: describe(shipment) })) },
         { key: 'arrivalAt', label: `New arrival (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
-        { key: 'updateSource', label: 'Who told you? (e.g. a call with the supplier)', type: 'text', required: false, extractable: false, isFact: false },
+        { key: 'updateSource', label: 'Who told you?', type: 'text', required: false, extractable: false, isFact: false, placeholder: 'e.g. a call with the supplier' },
       ],
       initial: { shipmentId: preselected?.id ?? workspace.shipments[0]?.id ?? '', arrivalAt: '', updateSource: '' },
       initialEvidence: { shipmentId: null, arrivalAt: null, updateSource: null },
@@ -363,15 +372,14 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       documentHint: 'Site details',
       isNew: !location,
       fields: [
-        { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false },
+        { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Warehouse A' },
         { key: 'kind', label: 'Type', type: 'select', required: true, extractable: false, isFact: false, options: kindOptions },
-        { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, hint: 'How much can arrive here in one day, not how much it can store. Leave blank for no limit.' },
-        { key: 'storageLimit', label: 'Most it can store of each product', type: 'integer', required: false, extractable: false, isFact: false, hint: 'Applies to every product here; a product can have its own lower limit in Inventory. Leave blank for no limit.' },
+        { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, placeholder: 'No limit (∞)', suffix: 'per day', hint: 'Caps transfers from another location per day. It does not limit supplier deliveries. Leave blank for no limit.' },
       ],
-      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', storageLimit: location?.storageLimit?.toString() ?? '' },
-      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null, storageLimit: null },
+      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '' },
+      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null },
       apply: (values) => {
-        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay), storageLimit: asNumber(values.storageLimit) }
+        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay) }
         return {
           ...workspace,
           locations: location ? workspace.locations.map((item) => item.id === location.id ? next : item) : [...workspace.locations, next],
@@ -388,14 +396,17 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     documentHint: 'Product sheet',
     isNew: !product,
     fields: [
-      { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false },
-      { key: 'pack', label: 'How it is packed', type: 'text', required: true, extractable: false, isFact: false, hint: 'Describe one pack, e.g. “20 kg bag” or “12 bottles per box”.' },
-      { key: 'unit', label: 'Unit you count stock in', type: 'text', required: true, extractable: false, isFact: false, hint: 'One word for a single thing you count, e.g. “bag” or “box”. Stock and orders use this unit.' },
+      { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Red pen or Teddy bear' },
+      { key: 'perPackage', label: 'Items in one package', type: 'integer', required: true, extractable: false, isFact: false, placeholder: 'e.g. 10', suffix: 'items',
+        hint: 'A package is how it is shipped: a box, packet or bag. Enter 1 if each item ships on its own. Stock counts and orders are in packages.' },
     ],
-    initial: { name: product?.name ?? '', pack: product?.pack ?? '', unit: product?.unit ?? '' },
-    initialEvidence: { name: null, pack: null, unit: null },
+    initial: { name: product?.name ?? '', perPackage: product?.perPackage?.toString() ?? '' },
+    initialEvidence: { name: null, perPackage: null },
+    validate: (values) => (typeof values.perPackage === 'number' && values.perPackage < 1 ? 'A package holds at least 1 item.' : null),
     apply: (values) => {
-      const next = { id: product?.id ?? newId('product'), name: values.name as string, pack: values.pack as string, unit: values.unit as string }
+      const unit = product?.unit ?? 'package'
+      const perPackage = values.perPackage as number
+      const next = { id: product?.id ?? newId('product'), name: values.name as string, unit, perPackage, pack: `${perPackage} per ${unit}` }
       return {
         ...workspace,
         products: product ? workspace.products.map((item) => item.id === product.id ? next : item) : [...workspace.products, next],

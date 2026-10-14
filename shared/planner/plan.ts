@@ -1,4 +1,4 @@
-import type { Evidence, Money, Order, Workspace } from './model.js'
+import type { Evidence, InboundShipment, Money, Order, Workspace } from './model.js'
 
 export type PlanStatus = 'ready' | 'conditional' | 'rejected'
 
@@ -110,13 +110,66 @@ function allocate(demands: Demand[], batches: Batch[], firstServed: Set<string>)
 
 const shortfall = (allocations: Allocation[]) => allocations.reduce((total, item) => total + item.ordered - item.covered, 0)
 
-/** Most of a product a location can hold: the lower of its own limit and the product's limit there. Null means no limit. */
+const DAY_MS = 86_400_000
+/** Every arrival up to `until`: the next delivery, then, if it repeats, each date on the original schedule. */
+export function arrivalsOf(shipment: InboundShipment, until: number): string[] {
+  const dates = [shipment.confirmedArrivalAt]
+  if (!shipment.repeatEveryDays) return dates
+  const start = Date.parse(shipment.originalArrivalAt)
+  for (let step = 1; step <= 520; step += 1) {
+    const at = start + step * shipment.repeatEveryDays * DAY_MS
+    if (at > until) break
+    dates.push(new Date(at).toISOString())
+  }
+  return dates
+}
+
+/** Most of a product this location can hold. Null means no limit for this product-location pair. */
 export function storageCap(workspace: Workspace, locationId: string, productId: string): number | null {
-  const limits = [
-    workspace.locations.find((location) => location.id === locationId)?.storageLimit,
-    workspace.storageLimits?.find((item) => item.locationId === locationId && item.productId === productId)?.limit,
-  ].filter((value): value is number => typeof value === 'number')
-  return limits.length ? Math.min(...limits) : null
+  const own = workspace.storageLimits?.find((item) => item.locationId === locationId && item.productId === productId)
+  return own?.limit ?? null
+}
+
+export type OrderCoverage = {
+  orderId: string
+  productId: string
+  locationId: string
+  ordered: number
+  covered: number
+  /** Arriving at this warehouse by the order's due time, from incoming shipments (before other orders take any). */
+  arriving: number
+  status: 'covered' | 'short' | 'unknown'
+}
+
+/**
+ * Every order line against its own warehouse, delay or not: stock on hand plus shipments that
+ * arrive by the due time, shared with other orders due first. No stock count means unknown.
+ */
+export function orderCoverage(workspace: Workspace): OrderCoverage[] {
+  const result: OrderCoverage[] = []
+  const pairs = new Set(workspace.orders.flatMap((order) => order.lines.map((line) => `${order.locationId}|${line.productId}`)))
+  for (const pair of pairs) {
+    const [locationId, productId] = pair.split('|')
+    const stock = workspace.stock.find((record) => record.locationId === locationId && record.productId === productId)
+    const demands: Demand[] = workspace.orders
+      .filter((order) => order.locationId === locationId)
+      .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+      .filter((demand) => demand.quantity > 0)
+    const horizon = Math.max(...demands.map((demand) => time(demand.order.dueAt)))
+    const inbound: Batch[] = workspace.shipments
+      .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
+      .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
+    const allocations = allocate(demands, [{ at: null, quantity: stock?.available.value ?? 0 }, ...inbound], new Set())
+    for (const allocation of allocations) {
+      const dueAt = demands.find((demand) => demand.order.id === allocation.orderId)?.order.dueAt ?? null
+      const arriving = inbound.filter((batch) => time(batch.at) <= time(dueAt)).reduce((total, batch) => total + batch.quantity, 0)
+      result.push({
+        orderId: allocation.orderId, productId, locationId, ordered: allocation.ordered, covered: allocation.covered, arriving,
+        status: !stock ? 'unknown' : allocation.covered < allocation.ordered ? 'short' : 'covered',
+      })
+    }
+  }
+  return result
 }
 
 export function rehearse(workspace: Workspace) {
@@ -144,10 +197,14 @@ export function rehearse(workspace: Workspace) {
         .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
         .filter((demand) => demand.quantity > 0)
       demands.forEach((demand) => affected.add(demand.order.id))
+      // The delayed delivery itself is excluded; later deliveries of a repeating schedule still count.
       const otherInbound: Batch[] = workspace.shipments
-        .filter((other) => other.id !== shipment.id && other.locationId === locationId && time(other.confirmedArrivalAt) < time(delayedUntil))
-        .map((other) => ({ at: other.confirmedArrivalAt, quantity: lineQuantity(other, productId) }))
-        .filter((batch) => batch.quantity > 0)
+        .filter((other) => other.locationId === locationId && lineQuantity(other, productId) > 0)
+        .flatMap((other) => {
+          const dates = arrivalsOf(other, time(delayedUntil))
+          return (other.id === shipment.id ? dates.slice(1) : dates).map((at) => ({ at, quantity: lineQuantity(other, productId) }))
+        })
+        .filter((batch) => time(batch.at) < time(delayedUntil))
       const onHand: Batch[] = [{ at: null, quantity: stock?.available.value ?? 0 }, ...otherInbound]
 
       // Conflicts: a priority order left short while earlier standard orders were served.

@@ -29,8 +29,8 @@ const isWorkspaceShape = shape({
   mode: oneOf('demo', 'real'),
   businessName: isText(80),
   settings: shape({ country: isText(2), currency: isText(3), timeZone: isText(64), locale: isText(16) }),
-  products: listOf(shape({ id: isText(64), name: isText(80), unit: isText(24), pack: isText(80) }), LIMITS.products),
-  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount), storageLimit: optional(nullable(isCount)) }), LIMITS.locations),
+  products: listOf(shape({ id: isText(64), name: isText(80), unit: isText(24), pack: isText(80), perPackage: optional((value) => isCount(value) && (value as number) >= 1) }), LIMITS.products),
+  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount) }), LIMITS.locations),
   stock: listOf(shape({ locationId: isText(64), productId: isText(64), available: recorded(isCount) }), LIMITS.stock),
   storageLimits: optional(listOf(shape({ locationId: isText(64), productId: isText(64), limit: isCount }), LIMITS.stock)),
   orders: listOf(shape({
@@ -40,6 +40,7 @@ const isWorkspaceShape = shape({
   shipments: listOf(shape({
     id: isText(64), supplierName: isText(80), locationId: isText(64), lines: listOf(isLine, LIMITS.lines),
     originalArrivalAt: isTime, confirmedArrivalAt: isTime, updateSource: isText(80), evidence: isEvidence,
+    repeatEveryDays: optional((value) => value === 7 || value === 14 || value === 28),
   }), LIMITS.shipments),
   disruptions: listOf(shape({ id: isText(64), kind: oneOf('shipment-delay'), shipmentId: isText(64) }), LIMITS.shipments),
   routes: listOf(shape({

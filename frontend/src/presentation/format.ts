@@ -1,6 +1,16 @@
 import type { WorkspaceSettings } from '../../../shared/planner/model'
 import { localToIso } from '../../../shared/planner/time'
 
+const pluralUnits: Record<string, string> = {
+  unit: 'units', piece: 'pieces', pair: 'pairs', box: 'boxes', case: 'cases', bag: 'bags',
+  pack: 'packs', packet: 'packets', bottle: 'bottles', pallet: 'pallets', kg: 'kg', g: 'g', L: 'L', mL: 'mL',
+}
+
+export function pluralUnit(unit: string, quantity: number) {
+  if (quantity === 1) return unit
+  return pluralUnits[unit] ?? `${unit}s`
+}
+
 /** Formats numbers, money and times the way the workspace's country expects. */
 export function createFormat(settings: WorkspaceSettings) {
   const { locale, timeZone, currency } = settings

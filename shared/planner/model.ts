@@ -9,14 +9,14 @@ export type Fact<T> = { value: T | null; evidence: Evidence | null }
 
 export type WorkspaceSettings = { country: string; currency: string; timeZone: string; locale: string }
 
-export type Product = { id: string; name: string; unit: string; pack: string }
+/** perPackage: how many items one package holds. Optional because older saves don't have it. */
+export type Product = { id: string; name: string; unit: string; pack: string; perPackage?: number }
 
 export type LocationKind = 'warehouse' | 'store' | 'distribution-centre'
-/** storageLimit: most of any one product it can hold. Optional because older saves don't have it. */
-export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; storageLimit?: number | null }
+export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null }
 
 export type StockRecord = { locationId: string; productId: string; available: Recorded<number> }
-/** Most of one product a location can hold. When the location also has a storageLimit, the lower one applies. */
+/** Most of one product this location can hold. */
 export type StorageLimit = { locationId: string; productId: string; limit: number }
 
 export type OrderLine = { productId: string; quantity: number }
@@ -39,6 +39,8 @@ export type InboundShipment = {
   confirmedArrivalAt: string
   updateSource: string
   evidence: Evidence
+  /** Repeats every N days from originalArrivalAt; confirmedArrivalAt is only the next delivery. */
+  repeatEveryDays?: number
 }
 
 export type Disruption = { id: string; kind: 'shipment-delay'; shipmentId: string }

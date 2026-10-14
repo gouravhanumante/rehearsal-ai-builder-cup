@@ -2,7 +2,7 @@ import { useMemo, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, ShieldCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { Workspace } from '../../../../shared/planner/model'
-import { rehearse } from '../../../../shared/planner/plan'
+import { orderCoverage, rehearse } from '../../../../shared/planner/plan'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { createWording } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
@@ -70,6 +70,15 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
 
   const after = useMemo(() => (next ? rehearse(next) : null), [next])
   const nextWords = useMemo(() => (next ? createWording(next, format) : null), [next, format])
+  // Order lines this change leaves short that weren't short before (e.g. a new order for an empty warehouse).
+  const newShortages = useMemo(() => {
+    if (!next) return []
+    const before = new Map(orderCoverage(workspace).map((line) => [`${line.orderId}|${line.productId}`, line]))
+    return orderCoverage(next).filter((line) => {
+      const earlier = before.get(`${line.orderId}|${line.productId}`)
+      return line.status === 'short' && (!earlier || earlier.status !== 'short' || earlier.covered > line.covered)
+    })
+  }, [next, workspace])
 
   const updateValue = (key: string, value: string) => {
     setValues((previous) => ({ ...previous, [key]: value }))
@@ -178,7 +187,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                   {field.hint && <small className="editor-hint" id={`${inputId}-hint`}>{field.hint}</small>}
                   {field.type === 'select'
                     ? <select id={inputId} onChange={(event) => updateValue(field.key, event.target.value)} value={values[field.key]}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-                    : <input aria-describedby={field.hint ? `${inputId}-hint` : undefined} id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.required ? '' : 'Unknown'} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />}
+                    : <span className="editor-input-wrap"><input aria-describedby={field.hint ? `${inputId}-hint` : undefined} id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.placeholder ?? (field.required ? '' : 'Unknown')} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />{field.suffix && <span className="editor-suffix">{field.suffix}</span>}</span>}
                   <div className="editor-field-meta">
                     {field.isFact && (values[field.key] ?? '').trim() !== '' && <EvidenceMark evidence={evidenceFor(field.key, values[field.key])} />}
                     {fieldOrigin === 'document' && quotes[field.key] && <small className="editor-quote">“{quotes[field.key]}”</small>}
@@ -209,8 +218,11 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
             </ul>}
           {after && <div className="editor-impact">
             <p className="reply-label">WHAT THIS CHANGES</p>
+            {nextWords && newShortages.length > 0 && <ul className="editor-shortages">{newShortages.map((line) => (
+              <li key={`${line.orderId}-${line.productId}`}><strong>{nextWords.customer(line.orderId)} · {nextWords.productName(line.productId)}</strong><small>{nextWords.shortageText(line)}</small></li>
+            ))}</ul>}
             {workspace.disruptions.length === 0 && next && next.disruptions.length === 0
-              ? <small>Nothing is late right now, so this only updates what Rehearsal is watching.</small>
+              ? newShortages.length === 0 && <small>Nothing is late right now, and every order is still covered.</small>
               : exposedBefore === exposedAfter && atRiskBefore === atRiskAfter
               ? <small>The shortage stays at {words.totalQuantity(exposedBefore)} across {atRiskBefore} orders until you approve a plan.</small>
               : <div className="editor-impact-stats">

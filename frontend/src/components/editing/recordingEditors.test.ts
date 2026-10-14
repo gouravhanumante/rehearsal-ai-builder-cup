@@ -26,7 +26,7 @@ function enter(workspace: Workspace, target: EditTarget, typedValues: Record<str
 function smallBusiness() {
   let workspace = createBlankWorkspace('Priya Traders', 'IN')
   workspace = enter(workspace, { type: 'new-location' }, { name: 'North Hub', kind: 'warehouse' }).workspace
-  workspace = enter(workspace, { type: 'new-product' }, { name: 'Beans', pack: '1 kg case', unit: 'case' }).workspace
+  workspace = enter(workspace, { type: 'new-product' }, { name: 'Beans', perPackage: '1' }).workspace
   const location = workspace.locations[0].id
   const product = workspace.products[0].id
   workspace = enter(workspace, { type: 'stock', locationId: location, productId: product }, { available: '5' }).workspace
@@ -36,6 +36,35 @@ function smallBusiness() {
 }
 
 describe('a distributor builds a business by hand, then a shipment is late', () => {
+  it('a product asks only for its name and how many items one package holds; stock is counted in packages', () => {
+    const { workspace, config } = enter(createBlankWorkspace('Priya Traders', 'IN'), { type: 'new-product' }, { name: 'Red pen', perPackage: '10' })
+    expect(config.fields.map((field) => field.key)).toEqual(['name', 'perPackage'])
+    expect(workspace.products[0]).toMatchObject({ name: 'Red pen', unit: 'package', perPackage: 10, pack: '10 per package' })
+  })
+
+  it('a package holds at least one item', () => {
+    const workspace = createBlankWorkspace('Priya Traders', 'IN')
+    const config = editorFor({ type: 'new-product' }, workspace, createFormat(workspace.settings))
+    expect(config?.validate?.({ name: 'Teddy', perPackage: 0 })).toMatch(/at least 1/)
+    expect(config?.validate?.({ name: 'Teddy', perPackage: 1 })).toBeNull()
+  })
+
+  it('sets storage capacity on a product count for one warehouse, not on the product', () => {
+    const workspace = createBlankWorkspace('Priya Traders', 'IN')
+    const format = createFormat(workspace.settings)
+    const product = editorFor({ type: 'new-product' }, workspace, format)
+    expect(product?.fields.some((field) => field.key === 'storageLimit')).toBe(false)
+
+    const withItems = enter(workspace, { type: 'new-location' }, { name: 'North Hub', kind: 'warehouse' }).workspace
+    const withProduct = enter(withItems, { type: 'new-product' }, { name: 'Beans', perPackage: '20' }).workspace
+    const location = withProduct.locations[0]
+    const item = withProduct.products[0]
+    const stock = enter(withProduct, { type: 'stock', locationId: location.id, productId: item.id }, { available: '5', storageLimit: '20' }).workspace
+
+    expect(stock.products[0]).not.toHaveProperty('storageLimit')
+    expect(stock.storageLimits).toEqual([{ locationId: location.id, productId: item.id, limit: 20 }])
+  })
+
   it('watches the order without raising an alarm while every shipment is on time', () => {
     const workspace = smallBusiness()
     expect(workspace.orders).toHaveLength(1)
@@ -74,7 +103,7 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     try {
       let workspace = createBlankWorkspace('Priya Traders', 'IN')
       workspace = enter(workspace, { type: 'new-location' }, { name: 'North Hub' }).workspace
-      workspace = enter(workspace, { type: 'new-product' }, { name: 'Beans', pack: '1 kg', unit: 'case' }).workspace
+      workspace = enter(workspace, { type: 'new-product' }, { name: 'Beans', perPackage: '1' }).workspace
       spy.mockClear()
       codes.splice(0, codes.length, 'AAAA0000-x', 'AAAA0000-x', 'BBBB1111-x')
       for (const customer of ['One', 'Two']) {
