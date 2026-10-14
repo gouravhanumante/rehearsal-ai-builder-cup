@@ -11,9 +11,9 @@
 - [x] add stateless Ask AI API route, server-held key, schema validation, and ready-option filtering
 - [x] configure local `GEMINI_API_KEY` and verify a live Gemini response
 - [x] label AI service status and show referenced planner-checked options in the drawer
-- [ ] implement disruption intake flow (report a delay on a shipment; optional supplier-message reading)
+- [x] implement disruption intake flow (report a delay on a shipment; optional supplier-message reading)
 - [x] blank workspace: start screen, empty Real workspace in the browser, Setup guide, empty states, backup/restore/delete
-- [ ] add orders (with lines) and shipments by hand in a Real workspace
+- [x] add orders and shipments by hand in a Real workspace (one product per order/shipment; several lines per order still to do)
 - [ ] spreadsheet import (CSV and Excel): column matching with Gemini suggestions, preview, confirm, saved as "Imported from file"
 - [ ] cloud save for Real workspaces (Google sign-in, Firestore, owner-only rules); fallback is local save + backup
 - [ ] search and paging for hundreds of locations/orders

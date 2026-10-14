@@ -2,13 +2,16 @@ import { ArrowRight, CircleCheck, Package, ShieldCheck, TriangleAlert } from 'lu
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import { useWorkspaceView } from '../../presentation/workspaceView'
+import { EvidenceMark } from '../evidence/EvidenceMark'
 
 type IncidentOverviewProps = {
   onReportDelay?: () => void
   onAddShipment?: () => void
+  /** Takes a delay off the list once the shipment has arrived. */
+  onResolve?: (disruptionId: string) => void
 }
 
-export function IncidentOverview({ onReportDelay, onAddShipment }: IncidentOverviewProps) {
+export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: IncidentOverviewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
 
@@ -49,7 +52,9 @@ export function IncidentOverview({ onReportDelay, onAddShipment }: IncidentOverv
               <p>{shipment.supplierName} · {shipment.id} · {products} · to {words.locationName(shipment.locationId)}</p>
             </div>
             <div className="incident-arrival"><span>{format.day(shipment.originalArrivalAt)}</span><ArrowRight size={15} /><strong>{format.dateTime(shipment.confirmedArrivalAt)}</strong></div>
-            <div className="source-confirmed"><CircleCheck size={15} /><span>Confirmed</span></div>
+            {shipment.evidence.kind === 'manual'
+              ? <EvidenceMark evidence={shipment.evidence} />
+              : <div className="source-confirmed"><CircleCheck size={15} /><span>Confirmed</span></div>}
           </div>
         )
       })}
@@ -62,6 +67,10 @@ export function IncidentOverview({ onReportDelay, onAddShipment }: IncidentOverv
             : 'The delayed stock arrives after these commitments are due.'}
         </p>
       </div>
+      {(onReportDelay || onResolve) && <div className="incident-actions">
+        {onReportDelay && <Button icon={<TriangleAlert size={14} />} onClick={onReportDelay} variant="secondary">Report another delay</Button>}
+        {onResolve && workspace.disruptions.map((disruption) => <Button icon={<CircleCheck size={14} />} key={disruption.id} onClick={() => onResolve(disruption.id)} variant="quiet">Mark {disruption.id} resolved</Button>)}
+      </div>}
     </section>
   )
 }

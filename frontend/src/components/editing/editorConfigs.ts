@@ -1,4 +1,4 @@
-import type { Evidence, LocationKind, Order, Supplier, SupplierOffer, Workspace } from '../../../../shared/planner/model'
+import type { Evidence, InboundShipment, LocationKind, Order, Supplier, SupplierOffer, Workspace } from '../../../../shared/planner/model'
 import type { Format } from '../../presentation/format'
 import type { EditTarget } from '../../presentation/planText'
 
@@ -22,6 +22,8 @@ export type EditorConfig = {
   fields: FieldSpec[]
   initial: Record<string, string>
   initialEvidence: Record<string, Evidence | null>
+  /** A rule that spans several fields (e.g. a transfer cannot go from a place to itself). Returns a message, or null if fine. */
+  validate?: (values: Record<string, ParsedValue>) => string | null
   apply: (values: Record<string, ParsedValue>, evidence: Record<string, Evidence | null>) => Workspace
 }
 
@@ -62,6 +64,13 @@ export function recordEvidence(evidence: (Evidence | null)[], fallback: Evidence
 }
 
 const newId = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`
+/** A short readable code (SH-4F2A) that is not already taken. */
+const uniqueId = (prefix: string, taken: string[]) => {
+  for (;;) {
+    const id = `${prefix}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
+    if (!taken.includes(id)) return id
+  }
+}
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const asNumber = (value: ParsedValue) => (typeof value === 'number' ? value : null)
 const asText = (value: ParsedValue) => (typeof value === 'string' ? value : null)
@@ -202,6 +211,122 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       apply: (values, evidence) => ({
         ...workspace,
         routes: workspace.routes.map((item) => item.id === route.id ? { ...item, arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt) } : item),
+      }),
+    }
+  }
+
+  if (target.type === 'new-order') {
+    return {
+      title: 'Add order',
+      subtitle: 'A customer order you have promised to deliver',
+      documentHint: 'Purchase order or order confirmation',
+      fields: [
+        { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true },
+        { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
+        { key: 'quantity', label: 'Quantity', type: 'integer', required: true, extractable: true, isFact: true },
+        { key: 'dueAt', label: `Due (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
+        { key: 'locationId', label: 'Ships from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
+        { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: [{ value: 'protected', label: 'Priority' }, { value: 'standard', label: 'Standard' }] },
+      ],
+      initial: { customer: '', productId: workspace.products[0]?.id ?? '', quantity: '', dueAt: '', locationId: workspace.locations[0]?.id ?? '', priority: 'standard' },
+      initialEvidence: { customer: null, productId: null, quantity: null, dueAt: null, locationId: null, priority: null },
+      apply: (values, evidence) => {
+        const order: Order = {
+          id: uniqueId('ORD', workspace.orders.map((item) => item.id)),
+          customer: values.customer as string,
+          locationId: values.locationId as string,
+          dueAt: values.dueAt as string,
+          priority: values.priority as Order['priority'],
+          lines: [{ productId: values.productId as string, quantity: values.quantity as number }],
+          evidence: recordEvidence([evidence.customer, evidence.quantity, evidence.dueAt], evidence.dueAt as Evidence),
+        }
+        return { ...workspace, orders: [...workspace.orders, order] }
+      },
+    }
+  }
+
+  if (target.type === 'new-shipment') {
+    return {
+      title: 'Add incoming shipment',
+      subtitle: 'Stock a supplier is sending you',
+      documentHint: 'Dispatch note, invoice or delivery confirmation',
+      fields: [
+        { key: 'supplierName', label: 'Supplier', type: 'text', required: true, extractable: true, isFact: false },
+        { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
+        { key: 'quantity', label: 'Quantity', type: 'integer', required: true, extractable: true, isFact: true },
+        { key: 'locationId', label: 'Arriving at', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
+        { key: 'arrivalAt', label: `Expected arrival (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
+      ],
+      initial: { supplierName: '', productId: workspace.products[0]?.id ?? '', quantity: '', locationId: workspace.locations[0]?.id ?? '', arrivalAt: '' },
+      initialEvidence: { supplierName: null, productId: null, quantity: null, locationId: null, arrivalAt: null },
+      apply: (values, evidence) => {
+        const proof = recordEvidence([evidence.quantity, evidence.arrivalAt], evidence.arrivalAt as Evidence)
+        const shipment: InboundShipment = {
+          id: uniqueId('SH', workspace.shipments.map((item) => item.id)),
+          supplierName: values.supplierName as string,
+          locationId: values.locationId as string,
+          lines: [{ productId: values.productId as string, quantity: values.quantity as number }],
+          originalArrivalAt: values.arrivalAt as string,
+          confirmedArrivalAt: values.arrivalAt as string,
+          updateSource: proof.source,
+          evidence: proof,
+        }
+        return { ...workspace, shipments: [...workspace.shipments, shipment] }
+      },
+    }
+  }
+
+  if (target.type === 'report-delay') {
+    const preselected = workspace.shipments.find((item) => item.id === target.shipmentId)
+    const describe = (shipment: InboundShipment) => `${shipment.id} · ${shipment.supplierName} · ${shipment.lines.map((line) => productName(line.productId)).join(', ')} to ${locationName(shipment.locationId)}, due ${format.dateTime(shipment.originalArrivalAt)}`
+    return {
+      title: 'Report a delay',
+      subtitle: 'Which shipment is late, and when will it now arrive?',
+      documentHint: 'Supplier message, email or delivery update',
+      fields: [
+        { key: 'shipmentId', label: 'Shipment', type: 'select', required: true, extractable: false, isFact: false, options: workspace.shipments.map((shipment) => ({ value: shipment.id, label: describe(shipment) })) },
+        { key: 'arrivalAt', label: `New arrival (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
+        { key: 'updateSource', label: 'Who told you? (e.g. a call with the supplier)', type: 'text', required: false, extractable: false, isFact: false },
+      ],
+      initial: { shipmentId: preselected?.id ?? workspace.shipments[0]?.id ?? '', arrivalAt: '', updateSource: '' },
+      initialEvidence: { shipmentId: null, arrivalAt: null, updateSource: null },
+      apply: (values, evidence) => {
+        const shipmentId = values.shipmentId as string
+        const proof = evidence.arrivalAt as Evidence
+        const shipments = workspace.shipments.map((shipment) => shipment.id === shipmentId
+          ? { ...shipment, confirmedArrivalAt: values.arrivalAt as string, updateSource: (values.updateSource as string | null) ?? proof.source, evidence: proof }
+          : shipment)
+        const alreadyReported = workspace.disruptions.some((disruption) => disruption.shipmentId === shipmentId)
+        const disruptions = alreadyReported
+          ? workspace.disruptions
+          : [...workspace.disruptions, { id: uniqueId('INC', workspace.disruptions.map((item) => item.id)), kind: 'shipment-delay' as const, shipmentId }]
+        return { ...workspace, shipments, disruptions }
+      },
+    }
+  }
+
+  if (target.type === 'new-route') {
+    return {
+      title: 'Add transfer route',
+      subtitle: 'Moving stock from one of your locations to another',
+      documentHint: 'Carrier booking or dispatch confirmation',
+      fields: [
+        { key: 'fromLocationId', label: 'Move from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
+        { key: 'toLocationId', label: 'Move to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
+        { key: 'arrivalAt', label: `Arrival if booked now (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
+      ],
+      initial: { fromLocationId: workspace.locations[0]?.id ?? '', toLocationId: workspace.locations[1]?.id ?? '', arrivalAt: '' },
+      initialEvidence: { fromLocationId: null, toLocationId: null, arrivalAt: null },
+      validate: (values) => values.fromLocationId === values.toLocationId ? 'A transfer needs two different locations.' : null,
+      apply: (values, evidence) => ({
+        ...workspace,
+        routes: [...workspace.routes, {
+          id: uniqueId('route', workspace.routes.map((item) => item.id)),
+          fromLocationId: values.fromLocationId as string,
+          toLocationId: values.toLocationId as string,
+          arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt),
+          quotes: [],
+        }],
       }),
     }
   }

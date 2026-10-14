@@ -5,7 +5,8 @@ import { StatusBadge } from '../../design-system/StatusBadge'
 import { setupProgress, type SetupStepId } from '../../presentation/setup'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
-export type SetupAction = { label: string; icon?: ReactNode; onClick: () => void; primary?: boolean }
+/** `blockedBy` explains what must be added first; the button is then disabled. */
+export type SetupAction = { label: string; icon?: ReactNode; onClick: () => void; primary?: boolean; blockedBy?: string }
 
 type SetupViewProps = {
   actions: Partial<Record<SetupStepId, SetupAction[]>>
@@ -40,11 +41,11 @@ export function SetupView({ actions }: SetupViewProps) {
                 {progress.next?.id === step.id && <StatusBadge tone="warning" dot>Next</StatusBadge>}
               </div>
               <p>{step.description}</p>
-              <small>{step.count === 0 ? 'Nothing added yet' : `${format.number(step.count)} added`}</small>
+              <small>{step.count === 0 ? 'Nothing added yet' : `${format.number(step.count)} added`}{(actions[step.id] ?? []).filter((action) => action.blockedBy).map((action) => ` · ${action.blockedBy}`)}</small>
             </div>
             <div className="setup-step-actions">
               {(actions[step.id] ?? []).map((action) => (
-                <Button icon={action.icon} key={action.label} onClick={action.onClick} variant={action.primary ? 'primary' : 'secondary'}>{action.label}</Button>
+                <Button disabled={Boolean(action.blockedBy)} icon={action.icon} key={action.label} onClick={action.onClick} title={action.blockedBy} variant={action.primary ? 'primary' : 'secondary'}>{action.label}</Button>
               ))}
             </div>
           </li>

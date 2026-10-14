@@ -907,6 +907,7 @@
 .navigation-count--soft { color: #3f5a49; background: #dfe9dc; }
 
 /* Empty states and calm overview */
+.incident-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 14px; }
 .empty-state { display: grid; justify-items: center; gap: 8px; padding: 34px 20px; border: 1px dashed #c4d0c5; border-radius: 10px; background: #fafcf9; text-align: center; }
 .empty-state-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; color: var(--green); background: #e4ede3; }
 .empty-state h3 { margin: 4px 0 0; color: var(--ink); font-size: 15px; font-weight: 800; }

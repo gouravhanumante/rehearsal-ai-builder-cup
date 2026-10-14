@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Boxes, Info, MapPinPlus, PackagePlus, X } from 'lucide-react'
+import { Boxes, ClipboardPlus, Info, MapPinPlus, PackagePlus, Route, TriangleAlert, Truck, X } from 'lucide-react'
 import { Topbar } from './components/layout/Topbar'
 import { SectionNavigation, type SectionName } from './components/layout/SectionNavigation'
 import { AskAiPanel } from './components/assistant/AskAiPanel'
@@ -86,11 +86,23 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
 
   const openEditor = (target: EditTarget, mode: 'manual' | 'document' = 'manual') => setEditor({ target, mode })
 
+  const needsBoth = workspace.products.length === 0 || workspace.locations.length === 0 ? 'Add a product and a location first' : undefined
   const setupActions: Partial<Record<SetupStepId, SetupAction[]>> = {
     locations: [{ label: 'Add location', icon: <MapPinPlus size={14} />, onClick: () => openEditor({ type: 'new-location' }), primary: progress.next?.id === 'locations' }],
     products: [{ label: 'Add product', icon: <PackagePlus size={14} />, onClick: () => openEditor({ type: 'new-product' }), primary: progress.next?.id === 'products' }],
     stock: [{ label: 'Open Inventory', icon: <Boxes size={14} />, onClick: () => setActiveSection('Inventory'), primary: progress.next?.id === 'stock' }],
+    orders: [{ label: 'Add order', icon: <ClipboardPlus size={14} />, onClick: () => openEditor({ type: 'new-order' }), primary: progress.next?.id === 'orders', blockedBy: needsBoth }],
+    shipments: [
+      { label: 'Add shipment', icon: <Truck size={14} />, onClick: () => openEditor({ type: 'new-shipment' }), primary: progress.next?.id === 'shipments', blockedBy: needsBoth },
+      { label: 'Report a delay', icon: <TriangleAlert size={14} />, onClick: () => openEditor({ type: 'report-delay' }), blockedBy: progress.canReportDelay ? undefined : 'Add a shipment first' },
+    ],
+    sources: [
+      { label: 'Add supplier', icon: <Truck size={14} />, onClick: () => openEditor({ type: 'new-supplier' }), blockedBy: needsBoth },
+      { label: 'Add transfer route', icon: <Route size={14} />, onClick: () => openEditor({ type: 'new-route' }), blockedBy: workspace.locations.length < 2 ? 'Add two locations first' : undefined },
+    ],
   }
+  const reportDelay = () => openEditor({ type: 'report-delay' })
+  const resolveDelay = (disruptionId: string) => saveChange({ ...workspace, disruptions: workspace.disruptions.filter((item) => item.id !== disruptionId) })
 
   const sectionCopy: Record<SectionName, { title: string; subtitle: string }> = {
     Setup: { title: 'Set up your business', subtitle: 'Add your locations, products, stock, orders and shipments at your own pace.' },
@@ -122,15 +134,15 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
             {activeSection === 'Setup' && <SetupView actions={setupActions} />}
             {activeSection === 'Overview' && (noDisruption
               ? <>
-                <IncidentOverview onAddShipment={() => setActiveSection('Setup')} />
+                <IncidentOverview onAddShipment={() => setActiveSection('Setup')} onReportDelay={reportDelay} />
                 {isReal && progress.next && <div className="setup-nudge"><div><strong>Next: {progress.next.title.toLowerCase()}</strong><span>{progress.next.description}</span></div><button onClick={() => setActiveSection('Setup')} type="button">Open setup</button></div>}
               </>
               : <>
-                <IncidentOverview />
+                <IncidentOverview onReportDelay={isReal ? reportDelay : undefined} onResolve={isReal ? resolveDelay : undefined} />
                 <CommitmentsPanel onToggleAll={() => setActiveSection('Orders')} showAll={false} />
                 <OverviewRecommendation onApprove={requestApproval} onViewOptions={() => setActiveSection('Rehearsals')} />
               </>)}
-            {activeSection === 'Orders' && <CommitmentsPanel onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
+            {activeSection === 'Orders' && <CommitmentsPanel onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} />}
             {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={(target) => openEditor(target)} onApprove={requestApproval} onDecideConflict={decideConflict} />}

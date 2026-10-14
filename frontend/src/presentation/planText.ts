@@ -12,6 +12,10 @@ export type EditTarget =
   | { type: 'new-supplier' }
   | { type: 'new-location' }
   | { type: 'new-product' }
+  | { type: 'new-order' }
+  | { type: 'new-shipment' }
+  | { type: 'new-route' }
+  | { type: 'report-delay'; shipmentId?: string }
 
 const fieldLabels = { available: 'Stock available', pricePerUnit: 'Price per unit', arrivalAt: 'Arrival time' } as const
 const missingLabels = { available: 'stock available', pricePerUnit: 'price per unit', arrivalAt: 'arrival time' } as const

@@ -187,8 +187,14 @@ Two separate choices:
   Rehearsal does not persist those requests or files on its server.
 - The UI identifies the active workspace ("Sample workspace" / "Your workspace"), so sample facts cannot be mistaken
   for the user's own.
-- Not built yet: spreadsheet import, adding orders/shipments/routes, reporting a delay on a shipment, and
-  cloud save/sign-in (see `TODO.md`).
+- A Real workspace can add orders (one product per order for now), incoming shipments, suppliers and transfer
+  routes by hand (`components/editing/editorConfigs.ts`). A transfer must go between two different locations.
+  Anything typed in is marked unverified; attaching a document makes it verified, as everywhere else.
+- **Report a delay** picks a shipment and its new arrival. It keeps the original promised date, creates one
+  problem per shipment (reporting the same shipment again moves the date, it does not add a second problem), and
+  the Overview then shows the orders at risk. **Mark resolved** takes the problem off once the shipment arrives.
+  The delay arrival can be read from a supplier message or email the same way other documents are.
+- Not built yet: spreadsheet import, several products on one order, and cloud save/sign-in (see `TODO.md`).
 
 ## 10. Objectives
 - User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or

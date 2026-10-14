@@ -48,7 +48,12 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   useEscapeKey(onClose)
 
   const parsed = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, parseField(field, values[field.key] ?? '', format)])), [config.fields, values, format])
-  const hasErrors = Object.values(parsed).some((result) => 'error' in result)
+  const fieldErrors = Object.values(parsed).some((result) => 'error' in result)
+  const crossError = useMemo(() => {
+    if (fieldErrors || !config.validate) return null
+    return config.validate(Object.fromEntries(Object.entries(parsed).map(([key, result]) => [key, 'value' in result ? result.value : null])))
+  }, [fieldErrors, config, parsed])
+  const hasErrors = fieldErrors || crossError !== null
 
   const evidenceFor = (key: string, value: ParsedValue) => resolveEvidence(origin[key], value, config.initialEvidence[key], documentName, recordedAt)
 
@@ -182,6 +187,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
               )
             })}
           </div>}
+          {showErrors && crossError && <p className="editor-error" role="alert">{crossError}</p>}
         </div>}
 
         {step === 'review' && <div className="assistant-body editor-body">
@@ -199,13 +205,15 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
             </ul>}
           {after && <div className="editor-impact">
             <p className="reply-label">WHAT THIS CHANGES</p>
-            {exposedBefore === exposedAfter && atRiskBefore === atRiskAfter
+            {workspace.disruptions.length === 0 && next && next.disruptions.length === 0
+              ? <small>Nothing is late right now, so this only updates what Rehearsal is watching.</small>
+              : exposedBefore === exposedAfter && atRiskBefore === atRiskAfter
               ? <small>The shortage stays at {words.totalQuantity(exposedBefore)} across {atRiskBefore} orders until you approve a plan.</small>
               : <div className="editor-impact-stats">
                 <span>Exposed <strong>{words.totalQuantity(exposedBefore)} → {words.totalQuantity(exposedAfter ?? 0)}</strong></span>
                 <span>Orders at risk <strong>{atRiskBefore} → {atRiskAfter}</strong></span>
               </div>}
-            {planChanges.length === 0
+            {workspace.disruptions.length === 0 && next && next.disruptions.length === 0 ? null : planChanges.length === 0
               ? <small>No recovery option changes.</small>
               : <ul>{planChanges.map(({ now, previous, id }) => (
                 <li key={id}><strong>{now.title}</strong><span>{previous ? `${previous.statusLabel} → ` : 'New option · '}{now.statusLabel}</span><small>{now.impact}</small></li>
