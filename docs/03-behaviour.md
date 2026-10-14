@@ -89,12 +89,14 @@ Agreed with the user: both paths exist, and the difference is always visible.
   The Suppliers page shows one card per supplier, with a row per product, plus **Edit supplier**
   (name, contact, products, deliver to: replies stay for products kept at the same place; removed
   products lose theirs; a new product starts waiting) and **Remove** (confirm first).
-- **Ask your backup suppliers** (Recovery options, `AskSuppliers.tsx`, user decision 2026-10-14):
-  each supplier gets **one message listing every missing product they supply** — each item is the
-  shortage capped by storage room, needed by the first order that is short (`plan.request`).
-  Items already answered drop out of the message. Copy it, or email that supplier; **Email all**
-  (BCC) appears only when every waiting supplier would get the same list. Only a plain email
-  address becomes a link (`emailOf`). The app does not send anything itself.
+- **Ask suppliers, per problem** (`AskSuppliers.tsx`, user decision 2026-10-15, replacing one
+  message per supplier): each problem block has its own "Ask suppliers for {product}" panel with
+  one message for that product — the shortage capped by storage room, needed by the first order
+  that is short (`plan.request`). A supplier missing two products gets two emails. Copy it, email
+  one supplier, or **Email all N waiting** (BCC, when 2+ waiting suppliers have an email). Each
+  supplier row has **Record reply** and **Attach reply**; the panel folds once everyone has
+  replied. Only a plain email address becomes a link (`emailOf`). The app does not send anything
+  itself.
 - **Storage limits** (user decision 2026-10-14): set an optional limit for one product at one
   location on that stock count (`storageLimits`). A different warehouse can have a different
   limit; blank means unlimited for that pair (`storageCap`). Room = limit minus
@@ -139,7 +141,7 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - Recovery options are **grouped by problem** (user decision 2026-10-15): one block per late
   delivery or shortage (one product at one place) titled e.g. "Not enough Broom at Warehouse A ·
   1 package short · SHIVA KIRANA", with that problem's options ranked and the first ready one marked
-  **Best for this problem**. Questions and the supplier ask panel stay shared above and below.
+  **Best for this problem**. Questions stay shared above; asking suppliers is inside each problem.
   Options that can't be done fold into one "Ruled out (n)" line with their reasons. When nothing
   workable is left, the problem lists next steps instead: **Add backup supplier**, **Does
   {existing supplier} sell {product}?** (opens that supplier with the product added) and **Add

@@ -149,6 +149,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
               </span>
             </div>}
             {workable.length > 0 && <div className="recovery-options">{workable.map(card)}</div>}
+            <AskSuppliers onRecordReply={onAddDetails} plans={options} />
             {onlyWaitingOnSuppliers && <div className="no-options-note">
               <LifeBuoy size={14} />
               <span><strong>Only {waitingSuppliers.length === 1 ? `${words.supplierName(waitingSuppliers[0].supplierId)} is` : `${waitingSuppliers.length} suppliers are`} left to ask.</strong>{' '}
@@ -168,7 +169,6 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
           </section>
         )
       })}
-      <AskSuppliers onRecordReply={onAddDetails} />
     </section>
   )
 }
