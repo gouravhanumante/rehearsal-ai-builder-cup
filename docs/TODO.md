@@ -1,5 +1,9 @@
 # Rehearsal — TODO and Priority Backlog
 
+## Open gaps found while testing (2026-10-15)
+- [ ] **Mark a delivery received**: approved transfers and purchases become incoming deliveries; when one arrives the user must recount stock and delete the delivery by hand, or it counts twice.
+- [ ] **Shipping cost**: transfers only know a cost for quoted quantities; supplier price is per unit with no delivery charge; ship-from has no cost. Options can't be compared on total cost yet.
+
 ## Priority P0 — must have for V1
 - [ ] confirm theme and hero demo business
 - [x] define first sample distributor scenario (assumptions still need user review)
