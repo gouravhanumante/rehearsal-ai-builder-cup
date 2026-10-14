@@ -3,6 +3,7 @@ import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import { recommendPlan, type Plan } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
+import { openQuestions } from '../../presentation/questions'
 
 type OverviewRecommendationProps = {
   onApprove: (plan: Plan) => void
@@ -14,6 +15,9 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
   const plan = recommendPlan(rehearsal.plans)
   const openConflicts = rehearsal.conflicts.filter((conflict) => !conflict.decided).length
   const approval = workspace.approval
+  const pending = openQuestions(workspace, rehearsal)
+  const questionCount = pending.routes.length + pending.deliveries.length
+  const questionsLine = questionCount > 0 && <p className="recommendation-conflicts"><CircleHelp size={13} /> {questionCount} {questionCount === 1 ? 'question' : 'questions'} could unlock more options. <button onClick={onViewOptions} type="button">Answer</button></p>
 
   if (!plan) {
     return (
@@ -21,8 +25,9 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
         <div className="recommendation-icon"><CircleHelp size={19} /></div>
         <div className="recommendation-main">
           <p className="section-kicker">NO OPTION IS READY YET</p>
-          <h2 id="recommendation-title">Add the missing details to check more options</h2>
+          <h2 id="recommendation-title">{questionCount > 0 ? 'Answer a question to check more options' : 'Add the missing details to check more options'}</h2>
           <p>None of the recovery options can be confirmed with the details we have.</p>
+          {questionsLine}
         </div>
         <div className="recommendation-actions"><Button icon={<ArrowRight size={14} />} onClick={onViewOptions} variant="primary">See options</Button></div>
       </section>
@@ -40,6 +45,7 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
         <p>{text.detail}</p>
         <div className="recommendation-outcome"><strong>{text.impact}</strong><span>{text.cost}</span></div>
         {openConflicts > 0 && <p className="recommendation-conflicts"><TriangleAlert size={13} /> {openConflicts} stock conflict{openConflicts === 1 ? ' needs' : 's need'} your answer. <button onClick={onViewOptions} type="button">Answer now</button></p>}
+        {questionsLine}
       </div>
       <div className="recommendation-actions">
         {approval?.planId === plan.id

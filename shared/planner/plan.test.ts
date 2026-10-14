@@ -355,7 +355,7 @@ describe('storage limits', () => {
   })
 
   it("rejects transfers and suppliers when the warehouse is already full, but shipping an order from elsewhere still works", () => {
-    const full = withLimit(14)
+    const full = { ...withLimit(14), deliveryAnswers: [{ fromLocationId: 'south', forLocationId: 'north', canDeliver: true }] }
     expect(planIn(full, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(planIn(full, supplierPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(recommendPlan(rehearse(full).plans)?.kind).toBe('ship-from')
@@ -408,8 +408,19 @@ describe('ship a short order from another warehouse instead', () => {
   const friday = '2026-10-16T22:00:00+05:30'
   const shiva: Order = { id: 'SK-1', customer: 'Shiva Kirana', locationId: 'north', dueAt: friday, priority: 'protected', lines: [{ productId: 'harbor-blend', quantity: 3 }], evidence: typed }
   const southOrder = (quantity: number): Order => ({ id: 'S-1', customer: 'South buyer', locationId: 'south', dueAt: '2026-10-17T09:00:00+05:30', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity }], evidence: typed })
-  const data = (orders: Order[], extra: Partial<Workspace> = {}): Workspace => withStock({ ...sampleWorkspace, disruptions: [], shipments: [], routes: [], orders, ...extra }, 'north', 0)
+  const southDelivers = [{ fromLocationId: 'south', forLocationId: 'north', canDeliver: true }]
+  const data = (orders: Order[], extra: Partial<Workspace> = {}): Workspace => withStock({ ...sampleWorkspace, disruptions: [], shipments: [], routes: [], orders, deliveryAnswers: southDelivers, ...extra }, 'north', 0)
   const shipPlan = 'ship:SK-1:south:harbor-blend'
+
+  it('until you say South Hub can deliver to North Hub\'s customers, it is a question, never the best option', () => {
+    const unanswered = data([shiva], { deliveryAnswers: [] })
+    expect(planIn(unanswered, shipPlan)).toMatchObject({ status: 'conditional', reason: { code: 'ship-from-ask' }, outcome: null })
+    expect(recommendPlan(rehearse(unanswered).plans)).toBeUndefined()
+  })
+
+  it('after you say No (e.g. a Delhi warehouse for Bangalore customers), it is never suggested', () => {
+    expect(planIn(data([shiva], { deliveryAnswers: [{ fromLocationId: 'south', forLocationId: 'north', canDeliver: false }] }), shipPlan)).toBeUndefined()
+  })
 
   it('South Hub can send the order itself, even with no transfer route', () => {
     const { plans } = rehearse(data([shiva]))

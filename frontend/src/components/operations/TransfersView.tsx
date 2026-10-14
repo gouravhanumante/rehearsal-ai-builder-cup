@@ -13,13 +13,18 @@ type TransfersViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
   onRemoveRoute: (routeId: string) => void
   onAskAgain: (fromLocationId: string, toLocationId: string) => void
+  onAnswerDelivery: (fromLocationId: string, forLocationId: string, canDeliver: boolean) => void
+  onForgetDelivery: (fromLocationId: string, forLocationId: string) => void
 }
 
-/** Which locations can move stock to which, and pairs the user said can't. */
-export function TransfersView({ onEdit, onRemoveRoute, onAskAgain }: TransfersViewProps) {
+/** Which locations can move stock to which, who can deliver to whose customers, and pairs the user said can't. */
+export function TransfersView({ onEdit, onRemoveRoute, onAskAgain, onAnswerDelivery, onForgetDelivery }: TransfersViewProps) {
   const { workspace, format, words } = useWorkspaceView()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
+  const [askFrom, setAskFrom] = useState(workspace.locations[1]?.id ?? '')
+  const [askFor, setAskFor] = useState(workspace.locations[0]?.id ?? '')
+  const answers = workspace.deliveryAnswers ?? []
   const nameOf = (from: string, to: string) => `${words.locationName(from)} ${words.locationName(to)}`
   const routes = searchPage(workspace.routes, (route) => nameOf(route.fromLocationId, route.toLocationId), query, page)
   const blocked = workspace.noTransfers ?? []
@@ -68,6 +73,38 @@ export function TransfersView({ onEdit, onRemoveRoute, onAskAgain }: TransfersVi
             <Pager noun="route" onPage={setPage} page={routes.page} pageCount={routes.pageCount} total={routes.total} />
           </>}
       </section>
+
+      {twoLocations && <section className="data-view" aria-labelledby="deliveries-title">
+        <div className="section-heading data-view-heading">
+          <div>
+            <p className="section-kicker">DELIVERING FOR ANOTHER LOCATION</p>
+            <h2 id="deliveries-title">Who can deliver to whose customers</h2>
+            <p className="data-view-description">Rehearsal only suggests &quot;ship the order from another warehouse&quot; where you said Yes. It asks when it matters; you can also answer here ahead of time.</p>
+          </div>
+        </div>
+        {answers.length > 0 && <ul className="route-list">
+          {answers.map((answer) => (
+            <li className={`route-row route-row--blocked ${answer.canDeliver ? '' : 'route-row--no'}`} key={`${answer.fromLocationId}|${answer.forLocationId}`}>
+              <div className="route-pair">
+                <strong>{words.placeName(answer.fromLocationId)}</strong><ArrowRight aria-hidden="true" size={16} /><span>{words.placeName(answer.forLocationId)}&apos;s customers</span>
+                <StatusBadge dot tone={answer.canDeliver ? 'success' : 'neutral'}>{answer.canDeliver ? 'Can deliver' : 'Cannot deliver'}</StatusBadge>
+              </div>
+              <div className="route-actions">
+                <Button onClick={() => onAnswerDelivery(answer.fromLocationId, answer.forLocationId, !answer.canDeliver)} variant="secondary">{answer.canDeliver ? 'Change to No' : 'Change to Yes'}</Button>
+                <Button icon={<RotateCcw size={14} />} onClick={() => onForgetDelivery(answer.fromLocationId, answer.forLocationId)} variant="quiet">Ask me again</Button>
+              </div>
+            </li>
+          ))}
+        </ul>}
+        <div className="delivery-ask">
+          <label>Can<select aria-label="Delivering location" onChange={(event) => setAskFrom(event.target.value)} value={askFrom}>{workspace.locations.map((location) => <option key={location.id} value={location.id}>{words.placeName(location.id)}</option>)}</select></label>
+          <label>deliver to<select aria-label="Whose customers" onChange={(event) => setAskFor(event.target.value)} value={askFor}>{workspace.locations.map((location) => <option key={location.id} value={location.id}>{words.placeName(location.id)}</option>)}</select>&apos;s customers?</label>
+          <span className="route-actions">
+            <Button disabled={askFrom === askFor} onClick={() => onAnswerDelivery(askFrom, askFor, true)} variant="secondary">Yes</Button>
+            <Button disabled={askFrom === askFor} onClick={() => onAnswerDelivery(askFrom, askFor, false)} variant="quiet">No</Button>
+          </span>
+        </div>
+      </section>}
 
       {blocked.length > 0 && <section className="data-view" aria-labelledby="blocked-title">
         <div className="section-heading data-view-heading">

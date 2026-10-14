@@ -416,7 +416,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       validate: (values) => values.fromLocationId === values.toLocationId
         ? 'A transfer needs two different locations.'
         : workspace.routes.some((route) => route.fromLocationId === values.fromLocationId && route.toLocationId === values.toLocationId)
-          ? 'This route already exists. Edit it in Transfers.'
+          ? 'This route already exists. Edit it in Between locations.'
           : null,
       apply: (values, evidence) => ({
         ...workspace,
@@ -447,13 +447,14 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       fields: [
         { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Warehouse A' },
         { key: 'kind', label: 'Type', type: 'select', required: true, extractable: false, isFact: false, options: kindOptions },
+        { key: 'area', label: 'City or area', type: 'text', required: false, extractable: false, isFact: false, placeholder: 'e.g. Whitefield, Bangalore', hint: 'Shown when Rehearsal asks which places can deliver where. It never decides on its own.' },
         { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, placeholder: 'No limit (∞)', suffix: 'per day', hint: 'Caps transfers from another location per day. It does not limit supplier deliveries. Leave blank for no limit.' },
         { key: 'deliveryCostPerOrder', label: `Cost to deliver one order from here (${format.currencySymbol})`, type: 'money', required: false, extractable: false, isFact: false, placeholder: 'e.g. 150', suffix: 'per order', hint: 'Used to compare shipping an order from a different warehouse. Leave blank if you don’t know.' },
       ],
-      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', deliveryCostPerOrder: location?.deliveryCostPerOrder?.toString() ?? '' },
-      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null, deliveryCostPerOrder: null },
+      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', area: location?.area ?? '', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', deliveryCostPerOrder: location?.deliveryCostPerOrder?.toString() ?? '' },
+      initialEvidence: { name: null, kind: null, area: null, receivingLimitPerDay: null, deliveryCostPerOrder: null },
       apply: (values) => {
-        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay), deliveryCostPerOrder: asNumber(values.deliveryCostPerOrder) }
+        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, area: asText(values.area), receivingLimitPerDay: asNumber(values.receivingLimitPerDay), deliveryCostPerOrder: asNumber(values.deliveryCostPerOrder) }
         return {
           ...workspace,
           locations: location ? workspace.locations.map((item) => item.id === location.id ? next : item) : [...workspace.locations, next],

@@ -23,6 +23,7 @@ export type PlanReason =
   | { code: 'no-space'; limit: number }
   | { code: 'ship-from-ok' }
   | { code: 'ship-from-short' }
+  | { code: 'ship-from-ask' }
 
 export type Plan = {
   id: string
@@ -438,23 +439,27 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
         if (!order) continue
         for (const source of sources) {
           const from = source.locationId
+          // Only the user knows whether this place can reach that place's customers: No hides it, no answer asks.
+          const answer = workspace.deliveryAnswers?.find((item) => item.fromLocationId === from && item.forLocationId === locationId)
+          if (answer && !answer.canDeliver) continue
           const moved = { ...workspace, orders: workspace.orders.map((item) => item.id === order.id ? { ...item, locationId: from } : item) }
           const before = new Map(orderCoverage(workspace, from).map((line) => [`${line.orderId}|${line.productId}`, line.status]))
           const covers = orderCoverage(moved, from).every((line) => line.orderId === order.id
             ? line.status === 'covered'
             : line.status === 'covered' || line.status === before.get(`${line.orderId}|${line.productId}`))
-          const result = covers ? outcome([], order.id) : null
+          const ready = covers && answer?.canDeliver === true
+          const result = ready ? outcome([], order.id) : null
           // The extra cost of delivering this order from the other location instead of its own.
           const fromCost = locationById.get(from)?.deliveryCostPerOrder ?? null
           const ownCost = locationById.get(locationId)?.deliveryCostPerOrder ?? null
           const extra = fromCost === null || ownCost === null ? null : { amount: Math.max(0, fromCost - ownCost), currency: settings.currency }
           plans.push({
             ...common, id: `ship:${order.id}:${from}:${productId}`, kind: 'ship-from', orderId: order.id, sourceLocationId: from,
-            status: covers ? 'ready' : 'rejected',
-            reason: { code: covers ? 'ship-from-ok' : 'ship-from-short' },
+            status: !covers ? 'rejected' : ready ? 'ready' : 'conditional',
+            reason: { code: !covers ? 'ship-from-short' : ready ? 'ship-from-ok' : 'ship-from-ask' },
             quantity: short.ordered, arrivalAt: null, cost: extra,
             outcome: result && { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
-            unverified: covers
+            unverified: ready
               ? [...baseUnverified, ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: from, productId, quantity: source.available.value }] : [])]
               : [],
           })

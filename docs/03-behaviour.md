@@ -121,6 +121,14 @@ Agreed with the user: both paths exist, and the difference is always visible.
   transfer route and no storage room at the short warehouse. Its cost is the **extra delivery
   cost**: the other location's cost to deliver an order minus the usual one's
   (`deliveryCostPerOrder` on each location); unknown unless both are set.
+- **Can it deliver to those customers?** (user decision 2026-10-15, `deliveryAnswers`): Rehearsal
+  never guesses from city or state. Until the user answers "Can Warehouse B deliver to Warehouse A's
+  customers?", a ship-from option that would work is **Needs your answer** (Yes / No on the card and
+  at the top of Recovery options; the Overview says how many questions could unlock options). It
+  is asked only when B can cover a short order. **No** hides B for A's orders for good (e.g. a Delhi
+  warehouse for Bangalore customers); answers are listed and changeable in **Between locations**,
+  where they can also be given ahead of time. A location's **City or area** is shown in these
+  questions to help answer them, and is never used to decide.
 - The best option is picked by: covers priority orders → fewest left short → **lowest total cost**
   (unknown cost last) → fewest typed-in details (`rankPlans`).
 - **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
@@ -132,7 +140,7 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - **Can stock move between them?** (`RecoveryPlans.tsx`): when another location can spare a short
   product and there is no transfer route from it, Recovery options asks. **Yes, add transfer**
   opens the route form prefilled; **No** saves the pair (`noTransfers`) and stops asking.
-- **Transfers** section (`TransfersView.tsx`, user decision 2026-10-14): lists every route
+- **Between locations** section (formerly Transfers; `TransfersView.tsx`, user decision 2026-10-14): lists every route
   (from → to, arrival if booked now, quotes) with **Edit** and **Remove** (confirm first). Removing
   a route records the pair as "can't move this way" so the question doesn't come straight back.
   Pairs answered **No** are listed under "Can't move stock this way" with **It can, add route** and

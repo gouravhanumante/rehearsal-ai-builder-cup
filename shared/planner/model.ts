@@ -13,8 +13,8 @@ export type WorkspaceSettings = { country: string; currency: string; timeZone: s
 export type Product = { id: string; name: string; unit: string; pack: string; perPackage?: number }
 
 export type LocationKind = 'warehouse' | 'store' | 'distribution-centre'
-/** deliveryCostPerOrder: what it costs to send one customer order out of this location. */
-export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; deliveryCostPerOrder?: number | null }
+/** deliveryCostPerOrder: what it costs to send one customer order out of this location. area: city or region, shown to help the user answer questions; never used to decide anything. */
+export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; deliveryCostPerOrder?: number | null; area?: string | null }
 
 export type StockRecord = { locationId: string; productId: string; available: Recorded<number> }
 /** Most of one product this location can hold. */
@@ -96,6 +96,8 @@ export type Workspace = {
   routes: TransferRoute[]
   /** Location pairs the user said stock can't move between, so Rehearsal stops asking. */
   noTransfers?: { fromLocationId: string; toLocationId: string }[]
+  /** The user's answer to "can this location deliver to that location's customers?". Unanswered pairs are asked, never guessed. */
+  deliveryAnswers?: { fromLocationId: string; forLocationId: string; canDeliver: boolean }[]
   suppliers: Supplier[]
   conflictDecisions: ConflictDecision[]
   approval: Approval | null

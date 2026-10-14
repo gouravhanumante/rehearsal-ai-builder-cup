@@ -1,8 +1,9 @@
-import { Check, CircleHelp, CircleX, LifeBuoy, PackagePlus, PencilLine, ShieldCheck, TriangleAlert, Truck } from 'lucide-react'
+import { Check, CircleHelp, CircleX, LifeBuoy, MapPin, PackagePlus, PencilLine, ShieldCheck, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import { rankPlans, spareStock, type Plan } from '../../../../shared/planner/plan'
+import { rankPlans, type Plan } from '../../../../shared/planner/plan'
 import type { EditTarget } from '../../presentation/planText'
+import { openQuestions } from '../../presentation/questions'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { AskSuppliers } from './AskSuppliers'
 import { ConflictCards } from './ConflictCards'
@@ -12,6 +13,7 @@ type RecoveryPlansProps = {
   onAddDetails: (target: EditTarget, mode?: 'manual' | 'document') => void
   onDecideConflict: (conflictId: string, winner: 'earliest-due' | 'priority') => void
   onRuleOutTransfer: (fromLocationId: string, toLocationId: string) => void
+  onAnswerDelivery: (fromLocationId: string, forLocationId: string, canDeliver: boolean) => void
 }
 
 const toneForStatus = (plan: Plan) => {
@@ -34,7 +36,7 @@ function detailsTarget(plan: Plan, offerIndexOf: (supplierId: string, plan: Plan
   return null
 }
 
-export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRuleOutTransfer }: RecoveryPlansProps) {
+export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRuleOutTransfer, onAnswerDelivery }: RecoveryPlansProps) {
   const { workspace, rehearsal, words } = useWorkspaceView()
   const { plans } = rehearsal
   const approval = workspace.approval
@@ -42,17 +44,10 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
   const offerIndexOf = (supplierId: string, plan: Plan) => Math.max(0, workspace.suppliers.find((item) => item.id === supplierId)?.offers
     .findIndex((offer) => offer.productId === plan.productId && offer.locationId === plan.locationId) ?? 0)
   const shortGroups = rehearsal.impact.groups.filter((group) => (group.exposedQuantity ?? 0) > 0)
-  // Another location holds the product but nobody has said whether stock can move from it.
-  const routeQuestions = new Map<string, { from: string; to: string; productId: string; quantity: number }>()
-  for (const group of shortGroups) {
-    for (const record of workspace.stock.filter((item) => item.productId === group.productId && item.locationId !== group.locationId && item.available.value > 0)) {
-      const from = record.locationId
-      const to = group.locationId
-      const spare = spareStock(workspace, from, group.productId)
-      const answered = workspace.routes.some((route) => route.fromLocationId === from && route.toLocationId === to)
-        || (workspace.noTransfers ?? []).some((pair) => pair.fromLocationId === from && pair.toLocationId === to)
-      if (spare > 0 && !answered && !routeQuestions.has(`${from}|${to}`)) routeQuestions.set(`${from}|${to}`, { from, to, productId: group.productId, quantity: spare })
-    }
+  const questions = openQuestions(workspace, rehearsal)
+  const customers = (orderIds: string[]) => {
+    const names = orderIds.map((id) => words.customer(id))
+    return names.length <= 2 ? names.join(' and ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`
   }
 
   return (
@@ -62,10 +57,22 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         <p className="check-note"><ShieldCheck size={16} /> We checked stock, delivery times, receiving and storage limits</p>
       </div>
       <ConflictCards onDecide={onDecideConflict} />
-      {[...routeQuestions.values()].map(({ from, to, productId, quantity }) => (
+      {questions.deliveries.map(({ from, forLocation, orderIds }) => (
+        <div className="no-options-note route-question" key={`deliver|${from}|${forLocation}`}>
+          <MapPin size={20} />
+          <span><strong>Can {words.placeName(from)} deliver to {words.placeName(forLocation)}'s customers?</strong>{' '}
+            It has enough to send {customers(orderIds)}'s {orderIds.length === 1 ? 'order' : 'orders'} instead. Only you know if it can reach them.
+          </span>
+          <span className="no-options-actions">
+            <Button icon={<Check size={14} />} onClick={() => onAnswerDelivery(from, forLocation, true)} variant="primary">Yes, it can</Button>
+            <Button onClick={() => onAnswerDelivery(from, forLocation, false)} variant="secondary">No</Button>
+          </span>
+        </div>
+      ))}
+      {questions.routes.map(({ from, to, productId, quantity }) => (
         <div className="no-options-note route-question" key={`${from}|${to}`}>
           <Truck size={20} />
-          <span><strong>Can you move stock from {words.locationName(from)} to {words.locationName(to)}?</strong>{' '}
+          <span><strong>Can you move stock from {words.placeName(from)} to {words.placeName(to)}?</strong>{' '}
             {words.locationName(from)} can spare {words.quantity(quantity, productId)} of {words.productName(productId)} after its own orders. If you can, add how long it takes and Rehearsal will check it.
           </span>
           <span className="no-options-actions">
@@ -109,6 +116,11 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
                   ? <span className="approved-label">{approval.withWarning ? <TriangleAlert size={15} /> : <Check size={15} />} Approved</span>
                   : plan.status === 'ready'
                     ? <Button onClick={() => onApprove(plan)} variant="primary">Approve</Button>
+                    : plan.reason.code === 'ship-from-ask' && plan.sourceLocationId
+                      ? <span className="option-answer">
+                        <Button onClick={() => onAnswerDelivery(plan.sourceLocationId!, plan.locationId, true)} variant="primary">Yes, it can</Button>
+                        <Button onClick={() => onAnswerDelivery(plan.sourceLocationId!, plan.locationId, false)} variant="secondary">No</Button>
+                      </span>
                     : target
                       ? <Button icon={<PencilLine size={14} />} onClick={() => onAddDetails(target)} variant="secondary">{plan.kind === 'supplier' ? 'Record reply' : 'Add details'}</Button>
                       : <Button disabled variant="secondary">Can&apos;t be done</Button>}

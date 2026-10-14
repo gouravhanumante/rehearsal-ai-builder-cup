@@ -25,6 +25,11 @@ const missingLabels = { available: 'stock available', pricePerUnit: 'price per u
 export function createWording(workspace: Workspace, format: Format) {
   const productById = new Map(workspace.products.map((product) => [product.id, product]))
   const locationName = (id: string) => workspace.locations.find((location) => location.id === id)?.name ?? 'Unknown location'
+  /** "Warehouse B (Delhi)" when an area is set: helps the user answer where-can-it-deliver questions. */
+  const placeName = (id: string) => {
+    const location = workspace.locations.find((item) => item.id === id)
+    return location?.area ? `${location.name} (${location.area})` : locationName(id)
+  }
   const productName = (id: string) => productById.get(id)?.name ?? 'Unknown product'
   const supplierName = (id: string | undefined) => workspace.suppliers.find((supplier) => supplier.id === id)?.name ?? 'Supplier'
   const orderById = new Map(workspace.orders.map((order) => [order.id, order]))
@@ -45,6 +50,7 @@ export function createWording(workspace: Workspace, format: Format) {
   const statusLabel = (plan: Plan) =>
     plan.status === 'ready' ? (plan.unverified.length ? 'Ready · unverified' : 'Ready to use')
       : plan.reason.code === 'supplier-missing' ? 'Waiting for reply'
+      : plan.reason.code === 'ship-from-ask' ? 'Needs your answer'
       : plan.status === 'conditional' ? 'Needs information' : "Can't be done"
 
   const impactOf = (plan: Plan) => {
@@ -56,6 +62,7 @@ export function createWording(workspace: Workspace, format: Format) {
       return plan.outcome.protectsPriority ? `Priority orders covered; ${quantity(left, plan.productId)} still short` : `${quantity(left, plan.productId)} still short, including a priority order`
     }
     if (plan.kind === 'bulk-transfer') return 'Would cover more near-term demand if receiving capacity allowed'
+    if (plan.reason.code === 'ship-from-ask') return 'Answer Yes to check what it covers'
     if (plan.status === 'conditional') return 'Cannot be checked yet'
     return 'Does not reduce the shortage'
   }
@@ -105,6 +112,7 @@ export function createWording(workspace: Workspace, format: Format) {
       case 'no-space': return `${destination} is full: it holds at most ${quantity(reason.limit, plan.productId)} of ${productName(plan.productId)} and already has that many.`
       case 'ship-from-ok': return `${locationName(plan.sourceLocationId ?? '')} has enough for the whole order and still covers its own orders.`
       case 'ship-from-short': return `${locationName(plan.sourceLocationId ?? '')} doesn't have enough for the whole order once its own orders are covered.`
+      case 'ship-from-ask': return `${locationName(plan.sourceLocationId ?? '')} has enough. Can it deliver to ${locationName(plan.locationId)}'s customers? Only you know.`
     }
   }
 
@@ -195,7 +203,7 @@ export function createWording(workspace: Workspace, format: Format) {
     return { text, known: true, evidence: arrival.evidence }
   }
 
-  return { locationName, productName, supplierName, customer, quantity, totalUnit, totalQuantity, planText, unverifiedText, conflictText, shortageText, routeTime }
+  return { locationName, placeName, productName, supplierName, customer, quantity, totalUnit, totalQuantity, planText, unverifiedText, conflictText, shortageText, routeTime }
 }
 
 export type Wording = ReturnType<typeof createWording>

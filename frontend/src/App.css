@@ -704,6 +704,11 @@
 .route-pair { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #304639; font-size: 14px; }
 .route-pair svg { color: #6d8a74; }
 .route-row--blocked .route-pair svg:first-child { color: #a1452c; }
+.route-row--blocked:not(.route-row--no) .route-pair svg:first-child, .route-row--no .route-pair svg { color: #6d8a74; }
+.delivery-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; padding: 12px 14px; border: 1px dashed #cfdcd2; border-radius: 8px; color: #3a5043; font-size: 13px; }
+.delivery-ask label { display: inline-flex; align-items: center; gap: 6px; }
+.delivery-ask select { min-height: 34px; padding: 4px 8px; border: 1px solid #d9e1da; border-radius: 6px; background: #fff; font: inherit; }
+.option-answer { display: flex; flex-wrap: wrap; gap: 6px; }
 .route-when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: #4d6155; font-size: 12px; }
 .route-when small { color: #66766b; font-size: 11px; }
 .route-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
