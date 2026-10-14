@@ -1,0 +1,8 @@
+PO Number,Account,Item,Qty Ordered,Need By,Branch,VIP
+PO-88101,TechNest Austin,65W GaN Charger,60,10/16/2026 15:00,Dallas Warehouse,Yes
+PO-88101,TechNest Austin,Wireless Mouse,40,10/16/2026 15:00,Dallas Warehouse,Yes
+PO-88102,Campus Bookstore,USB-C Cable 2m,120,10/17/2026 10:00,Dallas Warehouse,No
+PO-88103,Lone Star Office Supply,65W GaN Charger,50,10/19/2026 12:00,Dallas Warehouse,No
+PO-88103,Lone Star Office Supply,HDMI Cable 3m,60,10/19/2026 12:00,Dallas Warehouse,No
+PO-88104,CityBank IT,Wireless Mouse,90,10/20/2026 09:00,Dallas Warehouse,Yes
+PO-88105,Grad Dorm Housing,USB-C Cable 2m,60,10/22/2026 16:00,Dallas Warehouse,No
