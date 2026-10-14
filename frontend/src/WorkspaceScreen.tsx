@@ -18,7 +18,8 @@ import { ImportDialog } from './components/import/ImportDialog'
 import { SetupView, type SetupAction } from './components/setup/SetupView'
 import type { ImportKind } from '../../shared/import/fields'
 import type { Workspace } from '../../shared/planner/model'
-import { rehearse, type Plan } from '../../shared/planner/plan'
+import { planningNow, rehearse, type Plan } from '../../shared/planner/plan'
+import { applyPlan } from '../../shared/planner/apply'
 import { checkPlanOnServer } from './data/planCheck'
 import { createFormat } from './presentation/format'
 import { createWording, type EditTarget } from './presentation/planText'
@@ -63,17 +64,28 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   }
 
   const approve = (plan: Plan, withWarning: boolean) => {
-    if (plan.kind === 'ship-from' && plan.orderId && plan.sourceLocationId) {
-      const from = plan.sourceLocationId
-      const order = workspace.orders.find((item) => item.id === plan.orderId)
-      saveChange({ ...workspace, orders: workspace.orders.map((item) => item.id === plan.orderId ? { ...item, locationId: from } : item) })
-      onNotice(`${order?.customer ?? plan.orderId}'s order ${plan.orderId} now ships from ${words.locationName(from)}.`)
+    const next = applyPlan(workspace, plan, planningNow(workspace))
+    if (next !== workspace) {
+      saveChange(next)
+      onNotice(approvedNotice(plan))
       setPendingApproval(null)
       return
     }
     const defaultedConflicts = rehearsal.conflicts.filter((conflict) => !conflict.decided).length
     onChange({ ...workspace, approval: { planId: plan.id, withWarning, approvedAt: new Date().toISOString(), defaultedConflicts } })
     setPendingApproval(null)
+  }
+
+  const approvedNotice = (plan: Plan) => {
+    const what = words.quantity(plan.quantity ?? 0, plan.productId)
+    const to = words.locationName(plan.locationId)
+    const when = plan.arrivalAt ? format.dateTime(plan.arrivalAt) : ''
+    if (plan.kind === 'ship-from') {
+      const order = workspace.orders.find((item) => item.id === plan.orderId)
+      return `${order?.customer ?? plan.orderId}'s order ${plan.orderId} now ships from ${words.locationName(plan.sourceLocationId ?? '')}.`
+    }
+    if (plan.kind === 'transfer') return `Recorded: ${what} leave ${words.locationName(plan.sourceLocationId ?? '')} now and arrive at ${to} ${when}. It is listed under Suppliers → Incoming deliveries.`
+    return `Recorded: buying ${what} from ${words.supplierName(plan.supplierId)}, arriving at ${to} ${when}. It is listed under Suppliers → Incoming deliveries.`
   }
 
   const requestApproval = async (plan: Plan) => {
@@ -182,7 +194,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
             {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />}
             <footer className="page-footer">
               <span>{isReal ? 'Your data is saved in this browser. Download a backup from the menu.' : 'Illustrative distributor data · edits stay in this browser until Reset'}</span>
-              <span>Approving only changes records when it moves an order to another warehouse</span>
+              <span>Approving records the change: stock moves, and transfers and purchases become incoming deliveries</span>
             </footer>
           </main>
         </div>

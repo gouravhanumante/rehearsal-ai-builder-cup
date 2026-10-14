@@ -66,9 +66,11 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - Each transfer route into the delayed location is its own option. It moves **only what is
   short**, and only what the source can **spare** after covering its own orders (`spareStock`,
   user decision 2026-10-14), capped by the destination's daily receiving limit and storage room,
-  and checked against the
-  destination's daily receiving limit and against the priority order's due time. Its cost is
-  shown only when someone quoted a price for exactly that quantity. A route with unknown arrival
+  and checked against the priority order's due time. A route stores **how long a transfer takes**
+  (`travelHours`, user decision 2026-10-15); arrival = now + that time (`routeArrival`), so it never
+  goes stale. The sample uses a fixed morning (`SAMPLE_NOW`); older saves with a fixed arrival time
+  still work until edited. Its cost is
+  shown only when someone quoted a price for exactly that quantity. A route with unknown travel time
   is **Needs information** with **Add details** (no dead end).
 - Each supplier offer for that product and location is its own option. At setup a backup
   supplier is only who / contact / products / where; **Add backup supplier** ticks every product
@@ -107,8 +109,13 @@ Agreed with the user: both paths exist, and the difference is always visible.
   `shared/planner/plan.ts`): for each short order, every other location holding the product is an
   option. It is ready only if, with the order moved there, the whole order (every product in it)
   is covered and none of that location's own orders becomes short (`orderCoverage`). It needs no
-  transfer route and no storage room at the short warehouse. Approving it **changes the order's
-  warehouse** (`approve` in `WorkspaceScreen.tsx`); other approvals still only record the choice.
+  transfer route and no storage room at the short warehouse.
+- **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
+  `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
+  out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a
+  **purchase** adds the supplier's delivery and lowers what they still offer; **ship from another
+  warehouse** moves the order. Changed counts are marked typed-in until recounted. Still missing:
+  marking a delivery as received (see docs/TODO.md).
 - **Can stock move between them?** (`RecoveryPlans.tsx`): when another location can spare a short
   product and there is no transfer route from it, Recovery options asks. **Yes, add transfer**
   opens the route form prefilled; **No** saves the pair (`noTransfers`) and stops asking.
