@@ -45,6 +45,7 @@ const isWorkspaceShape = shape({
   disruptions: listOf(shape({ id: isText(64), kind: oneOf('shipment-delay'), shipmentId: isText(64) }), LIMITS.shipments),
   routes: listOf(shape({
     id: isText(64), fromLocationId: isText(64), toLocationId: isText(64), arrivalAt: fact(isTime),
+    travelHours: optional(fact((value) => isCount(value) && (value as number) <= 24 * 90)),
     quotes: listOf(shape({ quantity: isCount, amount: isAmount }), 20),
   }), LIMITS.routes),
   noTransfers: optional(listOf(shape({ fromLocationId: isText(64), toLocationId: isText(64) }), LIMITS.routes)),

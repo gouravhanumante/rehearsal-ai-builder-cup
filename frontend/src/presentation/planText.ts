@@ -1,5 +1,5 @@
-import type { Workspace } from '../../../shared/planner/model'
-import type { Conflict, OrderCoverage, Plan, UnverifiedFact } from '../../../shared/planner/plan'
+import type { TransferRoute, Workspace } from '../../../shared/planner/model'
+import { planningNow, routeArrival, type Conflict, type OrderCoverage, type Plan, type UnverifiedFact } from '../../../shared/planner/plan'
 import { pluralUnit, type Format } from './format'
 
 export type EditTarget =
@@ -150,8 +150,8 @@ export function createWording(workspace: Workspace, format: Format) {
     if (fact.type === 'route') {
       const route = workspace.routes.find((item) => item.id === fact.routeId)
       return {
-        label: `Transfer ${locationName(route?.fromLocationId ?? '')} → ${locationName(route?.toLocationId ?? '')} arrival`,
-        value: format.dateTime(fact.arrivalAt),
+        label: `Transfer ${locationName(route?.fromLocationId ?? '')} → ${locationName(route?.toLocationId ?? '')} travel time`,
+        value: route?.travelHours?.value != null ? `${route.travelHours.value} hours (arrives ${format.dateTime(fact.arrivalAt)})` : format.dateTime(fact.arrivalAt),
         target: { type: 'route', routeId: fact.routeId },
       }
     }
@@ -174,7 +174,18 @@ export function createWording(workspace: Workspace, format: Format) {
       + (line.arriving === 0 ? ` · no incoming shipment recorded${by}` : ` · counts ${quantity(line.arriving, line.productId)} arriving${by}`)
   }
 
-  return { locationName, productName, supplierName, customer, quantity, totalUnit, totalQuantity, planText, unverifiedText, conflictText, shortageText }
+  /** "Takes 6 hours · arrives Thu 3:00 pm if booked now", or why the time is unknown. */
+  const routeTime = (route: TransferRoute) => {
+    const arrival = routeArrival(route, planningNow(workspace))
+    const hours = route.travelHours?.value
+    if (arrival.at === null) return { text: 'Travel time unknown', known: false, evidence: null }
+    const text = hours != null
+      ? `Takes ${hours} ${hours === 1 ? 'hour' : 'hours'} · arrives ${format.dateTime(arrival.at)} if booked now`
+      : `Arrives ${format.dateTime(arrival.at)} (fixed time from an older save; edit to set a travel time)`
+    return { text, known: true, evidence: arrival.evidence }
+  }
+
+  return { locationName, productName, supplierName, customer, quantity, totalUnit, totalQuantity, planText, unverifiedText, conflictText, shortageText, routeTime }
 }
 
 export type Wording = ReturnType<typeof createWording>

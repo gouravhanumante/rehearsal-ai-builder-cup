@@ -50,7 +50,10 @@ export type TransferRoute = {
   id: string
   fromLocationId: string
   toLocationId: string
+  /** Older saves: a fixed arrival time. Used only when travelHours is not set. */
   arrivalAt: Fact<string>
+  /** How long a transfer takes from booking to arrival, so the arrival never goes stale. */
+  travelHours?: Fact<number>
   quotes: { quantity: number; amount: number }[]
 }
 

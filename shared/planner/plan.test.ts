@@ -190,14 +190,28 @@ describe('warehouse transfer options', () => {
     expect(planIn(withStock(sampleWorkspace, 'south', 6), 'bulk:south-to-north:harbor-blend')).toBeUndefined()
   })
 
-  it('rejects a capacity-valid transfer that arrives after the priority promise', () => {
-    const data = { ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], arrivalAt: { value: '2026-10-16T15:00:00+05:30', evidence: sampleEvidence } }] }
-    expect(planIn(data, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
+  // The sample morning is Thu 15 Oct, 9:00; the priority order is due at 2:00 pm the same day.
+  const withTravel = (hours: number | null, evidence: Evidence = sampleEvidence) =>
+    ({ ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], travelHours: hours === null ? { value: null, evidence: null } : { value: hours, evidence } }] })
+
+  it('rejects a capacity-valid transfer that arrives after the priority promise: 30 hours is too slow', () => {
+    expect(planIn(withTravel(30), transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
   })
 
-  it('needs information when the transfer arrival time is unknown', () => {
-    const data = { ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], arrivalAt: { value: null, evidence: null } }] }
-    expect(planIn(data, transferPlan)).toMatchObject({ status: 'conditional', reason: { code: 'transfer-arrival-unknown' } })
+  it('needs information when nobody knows how long the transfer takes', () => {
+    expect(planIn(withTravel(null), transferPlan)).toMatchObject({ status: 'conditional', reason: { code: 'transfer-arrival-unknown' } })
+  })
+
+  it('counts the arrival from now, so a route saved last week is not stale: 3 hours from 9:00 is noon', () => {
+    expect(planIn(withTravel(3), transferPlan)?.arrivalAt).toBe(new Date('2026-10-15T12:00:00+05:30').toISOString())
+    const nextWeek = rehearse(withTravel(3), '2026-10-22T09:00:00+05:30').plans.find((plan) => plan.id === transferPlan)
+    expect(nextWeek?.arrivalAt).toBe(new Date('2026-10-22T12:00:00+05:30').toISOString())
+  })
+
+  it('still reads a fixed arrival time from older saves that have no travel time', () => {
+    const { travelHours: _drop, ...old } = sampleWorkspace.routes[0]
+    const data = { ...sampleWorkspace, routes: [{ ...old, arrivalAt: { value: '2026-10-16T15:00:00+05:30', evidence: sampleEvidence } }] }
+    expect(planIn(data, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
   })
 
   it('does not reuse the 8-case price when a different quantity is moved', () => {
@@ -209,9 +223,8 @@ describe('warehouse transfer options', () => {
       { type: 'stock', locationId: 'south', productId: 'harbor-blend', quantity: 14 },
     ])
   })
-  it('flags the transfer as unverified when its arrival time was typed in', () => {
-    const data = { ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], arrivalAt: { value: '2026-10-15T11:00:00+05:30', evidence: typed } }] }
-    expect(planIn(data, transferPlan)?.unverified).toEqual([{ type: 'route', routeId: 'south-to-north', arrivalAt: '2026-10-15T11:00:00+05:30' }])
+  it('flags the transfer as unverified when its travel time was typed in', () => {
+    expect(planIn(withTravel(2, typed), transferPlan)?.unverified).toEqual([{ type: 'route', routeId: 'south-to-north', arrivalAt: new Date('2026-10-15T11:00:00+05:30').toISOString() }])
   })
 })
 

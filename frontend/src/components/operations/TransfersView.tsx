@@ -17,7 +17,7 @@ type TransfersViewProps = {
 
 /** Which locations can move stock to which, and pairs the user said can't. */
 export function TransfersView({ onEdit, onRemoveRoute, onAskAgain }: TransfersViewProps) {
-  const { workspace, format, words } = useWorkspaceView()
+  const { workspace, words } = useWorkspaceView()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const nameOf = (from: string, to: string) => `${words.locationName(from)} ${words.locationName(to)}`
@@ -50,9 +50,9 @@ export function TransfersView({ onEdit, onRemoveRoute, onAskAgain }: TransfersVi
                   <li className="route-row" key={route.id}>
                     <div className="route-pair"><strong>{from}</strong><ArrowRight aria-hidden="true" size={16} /><strong>{to}</strong></div>
                     <div className="route-when">
-                      {route.arrivalAt.value
-                        ? <><span>Arrives {format.dateTime(route.arrivalAt.value)} if booked now</span><EvidenceMark evidence={route.arrivalAt.evidence} /></>
-                        : <StatusBadge dot tone="warning">Arrival time unknown</StatusBadge>}
+                      {words.routeTime(route).known
+                        ? <><span>{words.routeTime(route).text}</span><EvidenceMark evidence={words.routeTime(route).evidence} /></>
+                        : <StatusBadge dot tone="warning">Travel time unknown</StatusBadge>}
                       {route.quotes.length > 0 && <small>{route.quotes.length} price {route.quotes.length === 1 ? 'quote' : 'quotes'}</small>}
                     </div>
                     <div className="route-actions">

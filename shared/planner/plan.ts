@@ -1,4 +1,5 @@
-import type { Evidence, InboundShipment, Money, Order, Workspace } from './model.js'
+import type { Evidence, InboundShipment, Money, Order, TransferRoute, Workspace } from './model.js'
+import { SAMPLE_NOW } from './sample.js'
 
 export type PlanStatus = 'ready' | 'conditional' | 'rejected'
 
@@ -208,7 +209,19 @@ export function spareStock(workspace: Workspace, locationId: string, productId: 
   return low
 }
 
-export function rehearse(workspace: Workspace) {
+/** The moment a transfer would be booked: the sample's fixed morning, or the real clock. */
+export const planningNow = (workspace: Workspace) => (workspace.mode === 'demo' ? SAMPLE_NOW : new Date().toISOString())
+
+/** When stock moved along this route would arrive if booked at `now`, and where that number came from. */
+export function routeArrival(route: TransferRoute, now: string): { at: string | null; evidence: Evidence | null } {
+  if (route.travelHours) {
+    const hours = route.travelHours.value
+    return hours === null ? { at: null, evidence: null } : { at: new Date(Date.parse(now) + hours * 3_600_000).toISOString(), evidence: route.travelHours.evidence }
+  }
+  return { at: route.arrivalAt.value, evidence: route.arrivalAt.evidence }
+}
+
+export function rehearse(workspace: Workspace, now: string = planningNow(workspace)) {
   const { settings } = workspace
   const stockKey = (locationId: string, productId: string) => `${locationId}|${productId}`
   const stockByKey = new Map(workspace.stock.map((record) => [stockKey(record.locationId, record.productId), record]))
@@ -328,12 +341,13 @@ export function rehearse(workspace: Workspace) {
           const quote = route.quotes.find((item) => item.quantity === amount)
           return quote ? { amount: quote.amount, currency: settings.currency } : null
         }
+        const arrival = routeArrival(route, now)
         const unverified: UnverifiedFact[] = [
           ...baseUnverified,
           ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: route.fromLocationId, productId, quantity: sourceQuantity }] : []),
-          ...(route.arrivalAt.value !== null && isManual(route.arrivalAt.evidence) ? [{ type: 'route' as const, routeId: route.id, arrivalAt: route.arrivalAt.value }] : []),
+          ...(arrival.at !== null && isManual(arrival.evidence) ? [{ type: 'route' as const, routeId: route.id, arrivalAt: arrival.at }] : []),
         ]
-        const arrivalAt = route.arrivalAt.value
+        const arrivalAt = arrival.at
         const base = { ...common, sourceLocationId: route.fromLocationId, routeId: route.id, arrivalAt, unverified }
 
         if (cap !== null && spaceLeft === 0) {

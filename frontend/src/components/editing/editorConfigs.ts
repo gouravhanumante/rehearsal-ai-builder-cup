@@ -112,6 +112,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
   const unitOf = (productId: string) => workspace.products.find((product) => product.id === productId)?.unit ?? 'unit'
   const productName = (productId: string) => workspace.products.find((product) => product.id === productId)?.name ?? productId
   const locationName = (locationId: string) => workspace.locations.find((location) => location.id === locationId)?.name ?? locationId
+  const travelField: FieldSpec = { key: 'travelHours', label: 'How long it takes', type: 'integer', required: false, extractable: true, isFact: true, placeholder: 'e.g. 6', suffix: 'hours', hint: 'From booking until the stock arrives. Rehearsal counts from the moment you plan, so this never goes out of date.' }
 
   if (target.type === 'stock') {
     const record = workspace.stock.find((item) => item.locationId === target.locationId && item.productId === target.productId)
@@ -275,14 +276,16 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     if (!route) return null
     return {
       title: `Transfer ${locationName(route.fromLocationId)} → ${locationName(route.toLocationId)}`,
-      subtitle: 'When would a transfer booked now arrive? Blank means unknown.',
+      subtitle: 'How long from booking a transfer until the stock arrives? Blank means unknown.',
       documentHint: 'Carrier booking or dispatch confirmation',
-      fields: [{ key: 'arrivalAt', label: `Arrival (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true }],
-      initial: { arrivalAt: route.arrivalAt.value ? format.toInput(route.arrivalAt.value) : '' },
-      initialEvidence: { arrivalAt: route.arrivalAt.evidence },
+      fields: [travelField],
+      initial: { travelHours: route.travelHours?.value?.toString() ?? '' },
+      initialEvidence: { travelHours: route.travelHours?.evidence ?? null },
       apply: (values, evidence) => ({
         ...workspace,
-        routes: workspace.routes.map((item) => item.id === route.id ? { ...item, arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt) } : item),
+        routes: workspace.routes.map((item) => item.id === route.id
+          ? { ...item, travelHours: fact(asNumber(values.travelHours), evidence.travelHours), arrivalAt: fact<string>(null, null) }
+          : item),
       }),
     }
   }
@@ -392,10 +395,10 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       fields: [
         { key: 'fromLocationId', label: 'Move from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         { key: 'toLocationId', label: 'Move to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
-        { key: 'arrivalAt', label: `Arrival if booked now (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
+        travelField,
       ],
-      initial: { fromLocationId: target.fromLocationId ?? workspace.locations[0]?.id ?? '', toLocationId: target.toLocationId ?? workspace.locations[1]?.id ?? '', arrivalAt: '' },
-      initialEvidence: { fromLocationId: null, toLocationId: null, arrivalAt: null },
+      initial: { fromLocationId: target.fromLocationId ?? workspace.locations[0]?.id ?? '', toLocationId: target.toLocationId ?? workspace.locations[1]?.id ?? '', travelHours: '' },
+      initialEvidence: { fromLocationId: null, toLocationId: null, travelHours: null },
       validate: (values) => values.fromLocationId === values.toLocationId
         ? 'A transfer needs two different locations.'
         : workspace.routes.some((route) => route.fromLocationId === values.fromLocationId && route.toLocationId === values.toLocationId)
@@ -407,7 +410,8 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
           id: uniqueId('route', workspace.routes.map((item) => item.id)),
           fromLocationId: values.fromLocationId as string,
           toLocationId: values.toLocationId as string,
-          arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt),
+          arrivalAt: fact<string>(null, null),
+          travelHours: fact(asNumber(values.travelHours), evidence.travelHours),
           quotes: [],
         }],
         // Adding the route answers "can stock move this way?" with yes.

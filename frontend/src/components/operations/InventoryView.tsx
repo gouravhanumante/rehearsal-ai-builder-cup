@@ -194,7 +194,7 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
             {routesIn.map((route) => (
               <li key={route.id}>
                 <Truck size={14} />
-                <span><strong>Transfer from {words.locationName(route.fromLocationId)}</strong><small>{route.arrivalAt.value ? `Arrives ${format.dateTime(route.arrivalAt.value)}` : 'Arrival time unknown'}</small></span>
+                <span><strong>Transfer from {words.locationName(route.fromLocationId)}</strong><small>{words.routeTime(route).text}</small></span>
                 <Button aria-label={`Edit transfer from ${words.locationName(route.fromLocationId)}`} onClick={() => onEdit({ type: 'route', routeId: route.id }, 'manual')} variant="quiet">Edit</Button>
               </li>
             ))}

@@ -2,6 +2,8 @@ import { settingsForCountry } from './countries.js'
 import type { Evidence, Workspace } from './model.js'
 
 export const sampleEvidence: Evidence = { kind: 'sample', source: 'Sample data', recordedAt: '2026-10-15T08:42:00+05:30' }
+/** The sample's story happens on this morning, whatever today's real date is. */
+export const SAMPLE_NOW = '2026-10-15T09:00:00+05:30'
 const unknown = { value: null, evidence: null }
 
 export const sampleWorkspace: Workspace = {
@@ -39,7 +41,8 @@ export const sampleWorkspace: Workspace = {
     id: 'south-to-north',
     fromLocationId: 'south',
     toLocationId: 'north',
-    arrivalAt: { value: '2026-10-15T12:00:00+05:30', evidence: sampleEvidence },
+    arrivalAt: unknown,
+    travelHours: { value: 3, evidence: sampleEvidence },
     quotes: [{ quantity: 8, amount: 95 }, { quantity: 14, amount: 165 }],
   }],
   suppliers: [{

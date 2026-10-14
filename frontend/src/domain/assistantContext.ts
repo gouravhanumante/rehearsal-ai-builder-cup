@@ -41,7 +41,7 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
         const source = stockAt(route.fromLocationId)
         return [
           ...once(fact(`stock-${route.fromLocationId}-${group.productId}`, `${words.locationName(route.fromLocationId)} unallocated ${product}`, source ? words.quantity(source.available.value, group.productId) : null, source?.available.evidence ?? null)),
-          ...once(fact(`route-${route.id}`, `Transfer ${words.locationName(route.fromLocationId)} to ${words.locationName(route.toLocationId)} arrival`, route.arrivalAt.value ? format.dateTime(route.arrivalAt.value) : null, route.arrivalAt.evidence)),
+          ...once(fact(`route-${route.id}`, `Transfer ${words.locationName(route.fromLocationId)} to ${words.locationName(route.toLocationId)} travel time`, words.routeTime(route).known ? words.routeTime(route).text : null, words.routeTime(route).evidence)),
         ]
       }),
       ...workspace.suppliers.flatMap((supplier) => supplier.offers
