@@ -43,7 +43,8 @@ The document endpoint `POST /api/documents/extract` (`backend/src/documents.ts`)
 ## V1 stack
 - **Frontend:** React web app, mobile-friendly, on Firebase Hosting. Browser camera and
   microphone for receipt photos and voice.
-- **Backend:** TypeScript/Node on Cloud Run. The deterministic planner remains code-owned; current sample rules are implemented in the frontend domain module and will move to a shared/server-owned boundary before real workspace changes are applied.
+- **Backend:** TypeScript/Node on Cloud Run. The deterministic planner lives in `shared/planner/` (plain TypeScript, no libraries) and is used by both the browser and the API. Before an approval is recorded, `POST /api/plans/check` re-runs it on the submitted workspace (validated by `shared/planner/validate.ts`, with size caps) so the server never takes the browser's word for a plan's status. The Docker image is built from the repository root (`docker build -f backend/Dockerfile .`) so `shared/` is included.
+- **Scale shape:** products, locations, stock records, orders (with line items), shipments, transfer routes and supplier offers are all lists. The planner only calculates (location, product) groups touched by a disruption, so work grows with the disruption, not with the size of the business. Money, times and number formats come from the workspace country.
 - **Gemini provider:** Google AI Studio API key, held only by the backend as `GEMINI_API_KEY`; never exposed in browser code.
 - **Ask AI model:** Gemini 3.5 Flash-Lite with low thinking, a bounded output size, and a 15-second request timeout for interactive latency. Model selection stays configurable through `GEMINI_MODEL`.
 - **Demo data:** resettable sample workspace; planned Firestore use is only for sample/demo state and audit data.

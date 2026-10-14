@@ -27,12 +27,14 @@
 - [ ] persist Real workspace facts and evidence in browser-local storage only
 - [x] add document upload with Gemini extraction and privacy notice (supplier quotes, stock sheets, orders)
 - [ ] add Gemini-backed disruption extraction with proposed-update confirmation
-- [ ] known gaps from the edit pass (2026-10-14), deliberately left out:
-  - the delayed Meridian shipment, transfer arrival, and receiving limit are not editable yet
-  - no Add order / delete order / delete supplier
+- [ ] known gaps (updated 2026-10-14 after the scale-up), deliberately left out:
+  - the delayed shipment itself, transfer quotes, and new transfer routes are not editable on screen yet (transfer arrival and receiving limits are)
+  - no Add order / add order line / delete anything
   - "check for mistakes" is a human review of the listed typed-in details; there is no AI cross-check
-  - an order due after the delayed shipment is shown as "Due after arrival"; whether the late shipment actually covers it is not calculated
+  - orders not affected by the delay are not checked against the late stock that will cover them
   - document names are not mapped to records ("Choc chips 5kg" vs item code)
+  - a quote in a different currency from the workspace is not read (no currency conversion, by design)
+  - Phase 2 (after the hackathon): Firestore per organization, sign-in and roles, server-side planning for large workspaces, paged lists, background document reading via Cloud Storage, shared rate limits, request logs
 - voice input flow
 - document upload / OCR extraction
 - guided questions for missing facts

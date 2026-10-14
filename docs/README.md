@@ -39,6 +39,7 @@ real constraints, and carries the approved response into action.
 6. [Progress.md](Progress.md) — implementation progress and current assumptions
 7. [TODO.md](TODO.md) — prioritized V1 and future-release backlog
 8. [06-ux-guidelines.md](06-ux-guidelines.md) — research-backed content, visual, accessibility, and AI interaction rules
+9. [07-bug-map.md](07-bug-map.md) — per-feature diagrams coloured by what protects each step (proven test, test, manual check, known gap)
 
 ## Folder layout
 ```

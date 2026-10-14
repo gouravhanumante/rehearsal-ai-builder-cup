@@ -28,39 +28,59 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - Every editable value shows where it came from: **Sample data**, **Verified by document**
   (file name and time on hover), or **Unverified · entered manually**. A blank value is
   **Unknown** and is never treated as zero. (`frontend/src/components/evidence/EvidenceMark.tsx`,
-  `Evidence`/`Fact` in `frontend/src/data/distributorDemo.ts`)
+  `Evidence`/`Fact` in `shared/planner/model.ts`)
 - Typed-in details are usable. A plan that relies on them is labelled **Ready · unverified**
-  instead of **Ready to use** (`statusLabel` in `frontend/src/domain/rehearseDistributor.ts`).
+  instead of **Ready to use** (`statusLabel` in `frontend/src/presentation/planText.ts`).
 - Approving such a plan first opens a warning that lists each typed-in detail, offers
   **Attach proof** once per record, or **Approve with warning**. The approval is then shown as
-  "approved with unverified details". (`frontend/src/components/planning/ApprovalWarning.tsx`)
+  "approved with a warning". (`frontend/src/components/planning/ApprovalWarning.tsx`)
 - Changing a value read from a document turns that value back into "entered manually".
-  Order priority and a supplier's name are the user's own choices and need no proof.
-  (`isFact` in `frontend/src/components/editing/editorConfigs.ts`)
+  Order priority, ship-from location and a supplier's name are the user's own choices and need
+  no proof. (`isFact` in `frontend/src/components/editing/editorConfigs.ts`)
 - Every edit is two steps: (1) type it in, or attach a photo/PDF and check what Gemini read,
   with the quoted source text beside each value; (2) review old → new values plus the effect on
   the shortage and on each recovery option, then **Confirm and save**.
   (`frontend/src/components/editing/DetailsEditor.tsx`)
 - Saving any change clears an existing approval, because it was given for the old numbers
-  (`saveData` in `frontend/src/App.tsx`).
+  (`saveChange` in `frontend/src/App.tsx`). Approvals are saved with the edits, so they survive
+  a page reload (user decision 2026-10-14); Reset clears them.
 - Demo edits stay in this browser until **Reset**, which restores the sample
-  (`frontend/src/data/demoStore.ts`). Saved data with a broken shape is ignored, not shown.
+  (`frontend/src/data/demoStore.ts`). Edits saved by the first version are moved to the new
+  format; saved data that cannot be read is replaced by the sample **and the user is told**.
 
-### 1b. Orders and suppliers (implemented 2026-10-14)
-- Only orders due **before** the delayed shipment arrives count as affected. Later orders are
-  listed separately as **Due after arrival** — not "on track", because nothing checks yet
-  whether the late shipment covers them. (`unaffectedOrderIds`, `CommitmentsPanel.tsx`)
-- Stock only counts for an order if it has arrived by that order's due time; orders are served
-  in due-date order, priority first on ties (`allocate` in `rehearseDistributor.ts`).
-- Each backup supplier becomes its own recovery option. Missing stock, price per case, or
-  arrival time → **Needs information**, naming what is missing, with an **Add details** button
-  (no dead end). Arrives after every affected order is due → **Can't be done**.
-- A supplier option buys only what is short (`min(offer, shortage)`) at the quoted price per case.
-- "Transfer all cases in one day" is only shown when it would break the receiving limit;
+### 1b. Orders, locations and suppliers (implemented 2026-10-14)
+- A workspace can hold any number of products, locations (warehouse, store, distribution
+  centre), shipments, transfer routes and supplier offers (`shared/planner/model.ts`).
+- A delayed shipment affects only orders **at the same location, for the same product**, due
+  **before** the delayed stock arrives. An order with several products counts only the delayed
+  product. Everything else is listed as **Not affected**. (`rehearse` in `shared/planner/plan.ts`)
+- A location with no stock count for the product has **unknown** exposure, never zero, and no
+  options are offered for it until a count is added.
+- Stock only counts for an order if it has arrived by that order's due time. By default the
+  order **due first** gets the stock (user decision 2026-10-14: it leaves more time to find stock
+  for the later order).
+- **Conflicts:** when a priority order is left short because an earlier standard order took the
+  stock, the app asks "Who gets the 14 cases?" with **Order due first** / **Priority order**.
+  Until answered, the order due first keeps it. Approving with an unanswered conflict shows a
+  warning and records how many conflicts used the default. (`ConflictCards.tsx`)
+- Each transfer route into the delayed location is its own option, checked against the
+  destination's daily receiving limit and against the priority order's due time. Its cost is
+  shown only when someone quoted a price for exactly that quantity. A route with unknown arrival
+  is **Needs information** with **Add details** (no dead end).
+- Each supplier offer for that product and location is its own option. Missing stock, price per
+  unit, or arrival → **Needs information**, naming what is missing, with **Add details**. Arrives
+  after every affected order is due → **Can't be done**. It buys only what is short
+  (`min(offer, shortage)`) at the quoted price per unit.
+- "Transfer all … in one day" is only shown when it would break the receiving limit;
   otherwise it is the same move as the normal transfer.
 - The Overview shows one ready plan: the one that protects the priority order, then leaves the
-  fewest cases exposed, then relies on fewer typed-in details (`recommendPlan`). If none is
-  ready it says so instead of recommending something.
+  least exposed, then relies on fewer typed-in details (`recommendPlan`). If none is ready it
+  says so instead of recommending something.
+- Money and times follow the workspace country (sample: India → ₹ and India time). A time typed
+  in, or read from a document without a timezone, is taken as the business's local time,
+  including daylight-saving changes (`shared/planner/time.ts`, `countries.ts`).
+- Before an approval is recorded, the server re-runs the same planner on the submitted data. If
+  it disagrees, or cannot be reached, nothing is approved and the user is told why.
 
 ## 2. Reading receipts and documents
 - Gemini reads the document/photo and produces a **proposed update** (e.g. "Shipment #12 from

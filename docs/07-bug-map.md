@@ -1,0 +1,131 @@
+# 07 — Bug map
+
+Small diagrams of each feature, coloured by **what protects each step**, so weak spots are
+easy to see. Updated 2026-10-14 after the Phase 1 scale-up.
+
+| Colour | Tag | Meaning |
+|---|---|---|
+| Green | `[proven]` | A test exists **and** was seen failing against wrong code |
+| Blue | `[test]` | A test exists but was never seen failing — it might not catch anything |
+| Amber | `[manual]` | Only checked by hand in the browser |
+| Red | `[GAP]` | Known missing rule or behaviour, recorded in `TODO.md` |
+
+When a box changes colour, update this file in the same commit.
+
+## 1. Approving a plan
+```mermaid
+flowchart LR
+  a["Click Approve"] --> s{"Server re-runs planner: still ready? [proven]"}
+  s -->|"No or unreachable"| stop["Not approved, user told why [manual]"]
+  s -->|"Yes"| c{"Typed-in details or open conflicts? [test]"}
+  c -->|"No"| ok["Approved [manual]"]
+  c -->|"Yes"| w["Warning lists details and conflicts [manual]"]
+  w -->|"Approve with warning"| ok
+  w -->|"Attach proof"| ed["Opens that record's editor [manual]"]
+  ok --> keep["Saved; survives reload; cleared by edits or Reset [manual]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef manual fill:#FFECBD,stroke:#E8A302
+  classDef gap fill:#FFCDC2,stroke:#DC3009
+  class s proven
+  class c test
+  class stop,ok,w,ed,keep manual
+```
+
+## 2. Adding or editing details
+```mermaid
+flowchart LR
+  o["Editor opens"] --> m{"Type or attach?"}
+  m -->|"Type"| t["Marked unverified [proven]"]
+  m -->|"Attach"| d["Marked verified by document [proven]"]
+  d -->|"User changes a value"| t
+  t & d --> r["Review: old to new, effect on options [manual]"]
+  r --> s["Saved; proof stamped at review time; approval cleared [manual]"]
+  p["Priority, location and names need no proof [proven]"]
+  ed["Delayed shipment, transfer quotes, new routes not editable on screen [GAP]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef manual fill:#FFECBD,stroke:#E8A302
+  classDef gap fill:#FFCDC2,stroke:#DC3009
+  class t,d,p proven
+  class r,s manual
+  class ed gap
+```
+
+## 3. Reading a document (API)
+```mermaid
+flowchart LR
+  f["Upload file"] --> sz["Over 4 MB rejected [test]"]
+  f --> mg["File type faked? Rejected [proven]"]
+  mg --> g["Gemini reads it, nothing stored"]
+  g --> q["Value without a quote dropped [proven]"]
+  g --> n["Unclear number like 12-15 dropped [proven]"]
+  g --> tz["Time without timezone read as business local time [test]"]
+  g --> k["Fields not asked for ignored [test]"]
+  g --> cur["Price in another currency not read [manual]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef manual fill:#FFECBD,stroke:#E8A302
+  class mg,q,n proven
+  class sz,tz,k test
+  class cur manual
+```
+
+## 4. Planner: affected orders and options
+```mermaid
+flowchart LR
+  o["Orders"] --> loc{"Same location and product as the delay? [proven]"}
+  loc -->|"No"| na["Not affected [proven]"]
+  loc -->|"Yes"| due{"Due before the delayed stock arrives? [test]"}
+  due -->|"No"| na
+  due -->|"Yes"| st{"Stock counted? [proven]"}
+  st -->|"No"| unk["Exposure unknown, not zero [proven]"]
+  st -->|"Yes"| al["Stock counts only once arrived [test]"]
+  al --> cf["Conflict: order due first by default, user can switch [proven]"]
+  al --> tr["Transfer: receiving limit, timing, quoted cost only [test]"]
+  al --> sup["Supplier: missing details mean Needs information [test]"]
+  sup --> buy["Buys only what is short, price per unit [test]"]
+  al --> rec["Overview picks best ready plan [test]"]
+  later["Not-affected orders not checked against the late stock [GAP]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef gap fill:#FFCDC2,stroke:#DC3009
+  class loc,na,st,unk,cf proven
+  class due,al,tr,sup,buy,rec test
+  class later gap
+```
+
+## 5. Saving and Reset
+```mermaid
+flowchart LR
+  s["Confirm and save"] --> ls[("Browser storage")]
+  ls --> bad["Unreadable data: sample loaded and user told [proven]"]
+  ls --> ok["Good saved data restored [test]"]
+  v1["First-version saves moved to new format [test]"]
+  tabs["Other open tabs pick up the change [manual]"]
+  rs["Reset"] --> seed["Sample data back [manual]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef manual fill:#FFECBD,stroke:#E8A302
+  class bad proven
+  class ok,v1 test
+  class tabs,seed manual
+```
+
+## 6. Ask AI
+```mermaid
+flowchart LR
+  q["Question plus facts"] --> cut["More than 40 facts: says how many were left out [test]"]
+  q --> money["Prices in the workspace currency [test]"]
+  q --> api["API checks the request [test]"]
+  api --> g["Gemini answers"]
+  g --> num["Numbers not in our facts replaced [test]"]
+  g --> rec["Can only recommend ready options [test]"]
+  h["Health check reports the model actually used [proven]"]
+  esc["Panels and dialogs close with Escape [manual]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef manual fill:#FFECBD,stroke:#E8A302
+  class h proven
+  class cut,money,api,num,rec test
+  class esc manual
+```

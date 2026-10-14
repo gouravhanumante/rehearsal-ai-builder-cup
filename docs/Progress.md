@@ -39,11 +39,17 @@
 - plans relying on typed-in details show "Ready · unverified" and warn before approval, with Attach proof per record
 - Orders view lists orders due after the delayed shipment separately
 - live check: a sample supplier quote PDF was read by Gemini (all 4 fields, with quotes) and moved Supplier B to Ready to use
+- Phase 1 scale-up: any number of products, locations, shipments, transfer routes and supplier offers; planner shared by browser and API (`shared/planner/`)
+- currency and timezone from the workspace country (sample: India, ₹); times correct across daylight saving
+- priority-vs-due-date conflict card (default: order due first) and conflict warning at approval
+- approvals saved with edits; server re-checks a plan before it is approved
+- Add location, Add product, edit transfer arrival (fixes the transfer "Waiting for details" dead end)
+- browser saves from the first version are carried into the new format; unreadable saves are reported, not dropped
+- live check after scale-up: same sample numbers (24 exposed, transfer leaves 16); Gemini read a quote's arrival time in India time and correctly declined a USD price for a ₹ workspace
 
 ## In progress
 - review provisional distributor sample quantities, dates, and estimated costs together
 - finalize the exact V1 demo flow and confirm hackathon theme
-- settle the minimal business data model
 
 ## Pending
 - configure the Gemini key as a Cloud Run secret for deployment
