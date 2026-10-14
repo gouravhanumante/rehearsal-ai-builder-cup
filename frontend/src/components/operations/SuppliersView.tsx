@@ -110,6 +110,7 @@ export function SuppliersView({ onEdit, onRemoveSupplier }: SuppliersViewProps) 
                   <div className="supplier-facts">
                     <FactLine fact={offer.available} label="Can send" show={(value) => words.quantity(value, offer.productId)} />
                     <FactLine fact={offer.pricePerUnit} label="Price" show={(value) => `${format.money(value)} / ${workspace.products.find((item) => item.id === offer.productId)?.unit ?? 'unit'}`} />
+                    <FactLine fact={offer.deliveryCharge ?? { value: null, evidence: null }} label="Delivery" show={(value) => value === 0 ? 'Free' : format.money(value)} />
                     <FactLine fact={offer.arrivalAt} label="Arrives" show={format.dateTime} />
                   </div>
                   <div className="supplier-actions">

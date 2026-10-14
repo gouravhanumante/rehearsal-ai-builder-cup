@@ -69,8 +69,9 @@ Agreed with the user: both paths exist, and the difference is always visible.
   and checked against the priority order's due time. A route stores **how long a transfer takes**
   (`travelHours`, user decision 2026-10-15); arrival = now + that time (`routeArrival`), so it never
   goes stale. The sample uses a fixed morning (`SAMPLE_NOW`); older saves with a fixed arrival time
-  still work until edited. Its cost is
-  shown only when someone quoted a price for exactly that quantity. A route with unknown travel time
+  still work until edited. **Cost** (user decision 2026-10-15) = cost per trip + cost per package ×
+  quantity (`costPerTrip`, `costPerUnit`); an older quote for exactly that quantity wins; neither set
+  → "Transfer cost not set". A route with unknown travel time
   is **Needs information** with **Add details** (no dead end).
 - Each supplier offer for that product and location is its own option. At setup a backup
   supplier is only who / contact / products / where; **Add backup supplier** ticks every product
@@ -78,7 +79,8 @@ Agreed with the user: both paths exist, and the difference is always visible.
   `editorConfigs.ts`). Stock, price and arrival are their **reply**, recorded per product,
   when a delay happens. Until all three are recorded the option is **Waiting for reply**, with
   **Record reply**. Arrives after every affected order is due → **Can't be done**. It buys only
-  what is short and fits (`min(offer, shortage, storage room)`) at the quoted price per unit.
+  what is short and fits (`min(offer, shortage, storage room)`) at the quoted price per unit, plus
+  their **delivery charge** if they gave one (otherwise the card says "delivery charge not given").
   The Suppliers page shows one card per supplier, with a row per product, plus **Edit supplier**
   (name, contact, products, deliver to: replies stay for products kept at the same place; removed
   products lose theirs; a new product starts waiting) and **Remove** (confirm first).
@@ -109,7 +111,11 @@ Agreed with the user: both paths exist, and the difference is always visible.
   `shared/planner/plan.ts`): for each short order, every other location holding the product is an
   option. It is ready only if, with the order moved there, the whole order (every product in it)
   is covered and none of that location's own orders becomes short (`orderCoverage`). It needs no
-  transfer route and no storage room at the short warehouse.
+  transfer route and no storage room at the short warehouse. Its cost is the **extra delivery
+  cost**: the other location's cost to deliver an order minus the usual one's
+  (`deliveryCostPerOrder` on each location); unknown unless both are set.
+- The best option is picked by: covers priority orders → fewest left short → **lowest total cost**
+  (unknown cost last) → fewest typed-in details (`rankPlans`).
 - **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
   `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
   out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a

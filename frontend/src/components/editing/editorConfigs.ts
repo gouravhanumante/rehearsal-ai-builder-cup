@@ -113,6 +113,10 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
   const productName = (productId: string) => workspace.products.find((product) => product.id === productId)?.name ?? productId
   const locationName = (locationId: string) => workspace.locations.find((location) => location.id === locationId)?.name ?? locationId
   const travelField: FieldSpec = { key: 'travelHours', label: 'How long it takes', type: 'integer', required: false, extractable: true, isFact: true, placeholder: 'e.g. 6', suffix: 'hours', hint: 'From booking until the stock arrives. Rehearsal counts from the moment you plan, so this never goes out of date.' }
+  const routeCostFields: FieldSpec[] = [
+    { key: 'costPerTrip', label: `Cost per trip (${format.currencySymbol})`, type: 'money', required: false, extractable: false, isFact: false, placeholder: 'e.g. 500', suffix: 'per trip', hint: 'The truck or courier, whatever the load.' },
+    { key: 'costPerUnit', label: `Extra cost per package (${format.currencySymbol})`, type: 'money', required: false, extractable: false, isFact: false, placeholder: 'e.g. 10', suffix: 'per package', hint: 'Handling or loading per package. Leave blank if none.' },
+  ]
 
   if (target.type === 'stock') {
     const record = workspace.stock.find((item) => item.locationId === target.locationId && item.productId === target.productId)
@@ -205,6 +209,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         contactField,
         { key: 'available', label: `How many ${pluralUnit(unit, 2)} they can send`, type: 'integer', required: false, extractable: true, isFact: true, suffix: pluralUnit(unit, 2) },
         { key: 'pricePerUnit', label: `Their price per ${unit} (${format.currencySymbol})`, type: 'money', required: false, extractable: true, isFact: true, suffix: `per ${unit}` },
+        { key: 'deliveryCharge', label: `Delivery charge (${format.currencySymbol})`, type: 'money', required: false, extractable: true, isFact: true, suffix: 'per delivery', hint: 'On top of the price. Enter 0 if delivery is free.' },
         { key: 'arrivalAt', label: `When it would arrive (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
       ],
       initial: {
@@ -214,12 +219,14 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         locationId: offer?.locationId ?? (target.type === 'new-supplier' ? target.locationId : undefined) ?? firstGroup?.locationId ?? workspace.locations[0]?.id ?? '',
         available: offer?.available.value?.toString() ?? '',
         pricePerUnit: offer?.pricePerUnit.value?.toString() ?? '',
+        deliveryCharge: offer?.deliveryCharge?.value?.toString() ?? '',
         arrivalAt: offer?.arrivalAt.value ? format.toInput(offer.arrivalAt.value) : '',
       },
       initialEvidence: {
         name: null, contact: null, productIds: null, locationId: null,
         available: offer?.available.evidence ?? null,
         pricePerUnit: offer?.pricePerUnit.evidence ?? null,
+        deliveryCharge: offer?.deliveryCharge?.evidence ?? null,
         arrivalAt: offer?.arrivalAt.evidence ?? null,
       },
       apply: (values, evidence) => {
@@ -235,6 +242,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
           locationId: offer!.locationId,
           available: fact(asNumber(values.available), evidence.available),
           pricePerUnit: fact(asNumber(values.pricePerUnit), evidence.pricePerUnit),
+          deliveryCharge: fact(asNumber(values.deliveryCharge), evidence.deliveryCharge),
           arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt),
         }
         const updated: Supplier = { ...supplier, name: values.name as string, contact: asText(values.contact), offers: supplier.offers.map((item) => item === offer ? nextOffer : item) }
@@ -276,15 +284,15 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     if (!route) return null
     return {
       title: `Transfer ${locationName(route.fromLocationId)} → ${locationName(route.toLocationId)}`,
-      subtitle: 'How long from booking a transfer until the stock arrives? Blank means unknown.',
+      subtitle: 'How long a transfer takes and what it costs. Blank means unknown.',
       documentHint: 'Carrier booking or dispatch confirmation',
-      fields: [travelField],
-      initial: { travelHours: route.travelHours?.value?.toString() ?? '' },
-      initialEvidence: { travelHours: route.travelHours?.evidence ?? null },
+      fields: [travelField, ...routeCostFields],
+      initial: { travelHours: route.travelHours?.value?.toString() ?? '', costPerTrip: route.costPerTrip?.toString() ?? '', costPerUnit: route.costPerUnit?.toString() ?? '' },
+      initialEvidence: { travelHours: route.travelHours?.evidence ?? null, costPerTrip: null, costPerUnit: null },
       apply: (values, evidence) => ({
         ...workspace,
         routes: workspace.routes.map((item) => item.id === route.id
-          ? { ...item, travelHours: fact(asNumber(values.travelHours), evidence.travelHours), arrivalAt: fact<string>(null, null) }
+          ? { ...item, travelHours: fact(asNumber(values.travelHours), evidence.travelHours), arrivalAt: fact<string>(null, null), costPerTrip: asNumber(values.costPerTrip), costPerUnit: asNumber(values.costPerUnit) }
           : item),
       }),
     }
@@ -396,9 +404,10 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'fromLocationId', label: 'Move from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         { key: 'toLocationId', label: 'Move to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         travelField,
+        ...routeCostFields,
       ],
-      initial: { fromLocationId: target.fromLocationId ?? workspace.locations[0]?.id ?? '', toLocationId: target.toLocationId ?? workspace.locations[1]?.id ?? '', travelHours: '' },
-      initialEvidence: { fromLocationId: null, toLocationId: null, travelHours: null },
+      initial: { fromLocationId: target.fromLocationId ?? workspace.locations[0]?.id ?? '', toLocationId: target.toLocationId ?? workspace.locations[1]?.id ?? '', travelHours: '', costPerTrip: '', costPerUnit: '' },
+      initialEvidence: { fromLocationId: null, toLocationId: null, travelHours: null, costPerTrip: null, costPerUnit: null },
       validate: (values) => values.fromLocationId === values.toLocationId
         ? 'A transfer needs two different locations.'
         : workspace.routes.some((route) => route.fromLocationId === values.fromLocationId && route.toLocationId === values.toLocationId)
@@ -412,6 +421,8 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
           toLocationId: values.toLocationId as string,
           arrivalAt: fact<string>(null, null),
           travelHours: fact(asNumber(values.travelHours), evidence.travelHours),
+          costPerTrip: asNumber(values.costPerTrip),
+          costPerUnit: asNumber(values.costPerUnit),
           quotes: [],
         }],
         // Adding the route answers "can stock move this way?" with yes.
@@ -432,11 +443,12 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Warehouse A' },
         { key: 'kind', label: 'Type', type: 'select', required: true, extractable: false, isFact: false, options: kindOptions },
         { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, placeholder: 'No limit (∞)', suffix: 'per day', hint: 'Caps transfers from another location per day. It does not limit supplier deliveries. Leave blank for no limit.' },
+        { key: 'deliveryCostPerOrder', label: `Cost to deliver one order from here (${format.currencySymbol})`, type: 'money', required: false, extractable: false, isFact: false, placeholder: 'e.g. 150', suffix: 'per order', hint: 'Used to compare shipping an order from a different warehouse. Leave blank if you don’t know.' },
       ],
-      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '' },
-      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null },
+      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', deliveryCostPerOrder: location?.deliveryCostPerOrder?.toString() ?? '' },
+      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null, deliveryCostPerOrder: null },
       apply: (values) => {
-        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay) }
+        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay), deliveryCostPerOrder: asNumber(values.deliveryCostPerOrder) }
         return {
           ...workspace,
           locations: location ? workspace.locations.map((item) => item.id === location.id ? next : item) : [...workspace.locations, next],

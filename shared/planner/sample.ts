@@ -43,7 +43,9 @@ export const sampleWorkspace: Workspace = {
     toLocationId: 'north',
     arrivalAt: unknown,
     travelHours: { value: 3, evidence: sampleEvidence },
-    quotes: [{ quantity: 8, amount: 95 }, { quantity: 14, amount: 165 }],
+    costPerTrip: 55,
+    costPerUnit: 5,
+    quotes: [],
   }],
   suppliers: [{
     id: 'supplier-b',

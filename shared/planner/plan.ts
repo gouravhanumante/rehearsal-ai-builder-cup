@@ -47,6 +47,8 @@ export type Plan = {
   spaceLeft: number | null
   /** What to ask a supplier for: the shortage, capped by storage space, needed by the first short order. */
   request?: { quantity: number; neededBy: string }
+  /** Supplier cost is goods only: they haven't said what delivery costs. */
+  costExcludesDelivery?: boolean
 }
 
 export type Allocation = { orderId: string; ordered: number; covered: number }
@@ -339,7 +341,11 @@ export function rehearse(workspace: Workspace, now: string = planningNow(workspa
         const quantity = fits(Math.min(spare, baseline.exposedQuantity, destinationLimit ?? spare))
         const costFor = (amount: number): Money | null => {
           const quote = route.quotes.find((item) => item.quantity === amount)
-          return quote ? { amount: quote.amount, currency: settings.currency } : null
+          if (quote) return { amount: quote.amount, currency: settings.currency }
+          const trip = route.costPerTrip ?? null
+          const perUnit = route.costPerUnit ?? null
+          if (trip === null && perUnit === null) return null
+          return { amount: Math.round(((trip ?? 0) + (perUnit ?? 0) * amount) * 100) / 100, currency: settings.currency }
         }
         const arrival = routeArrival(route, now)
         const unverified: UnverifiedFact[] = [
@@ -409,7 +415,8 @@ export function rehearse(workspace: Workspace, now: string = planningNow(workspa
               ? { code: 'supplier-ok', exposedBefore: baseline.exposedQuantity, exposedAfter: result.exposedQuantity, protectsPriority: result.protectsPriority }
               : available <= 0 ? { code: 'supplier-no-stock' } : { code: 'supplier-too-late' },
             quantity, arrivalAt,
-            cost: { amount: Math.round(quantity * price * 100) / 100, currency: settings.currency },
+            cost: { amount: Math.round((quantity * price + (offer.deliveryCharge?.value ?? 0)) * 100) / 100, currency: settings.currency },
+            ...(offer.deliveryCharge?.value == null ? { costExcludesDelivery: true } : {}),
             outcome: helps ? { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority } : null,
             unverified: helps ? [...baseUnverified, ...offerUnverified] : [],
           })
@@ -429,11 +436,15 @@ export function rehearse(workspace: Workspace, now: string = planningNow(workspa
             ? line.status === 'covered'
             : line.status === 'covered' || line.status === before.get(`${line.orderId}|${line.productId}`))
           const result = covers ? outcome([], order.id) : null
+          // The extra cost of delivering this order from the other location instead of its own.
+          const fromCost = locationById.get(from)?.deliveryCostPerOrder ?? null
+          const ownCost = locationById.get(locationId)?.deliveryCostPerOrder ?? null
+          const extra = fromCost === null || ownCost === null ? null : { amount: Math.max(0, fromCost - ownCost), currency: settings.currency }
           plans.push({
             ...common, id: `ship:${order.id}:${from}:${productId}`, kind: 'ship-from', orderId: order.id, sourceLocationId: from,
             status: covers ? 'ready' : 'rejected',
             reason: { code: covers ? 'ship-from-ok' : 'ship-from-short' },
-            quantity: short.ordered, arrivalAt: null, cost: null,
+            quantity: short.ordered, arrivalAt: null, cost: extra,
             outcome: result && { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
             unverified: covers
               ? [...baseUnverified, ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: from, productId, quantity: source.available.value }] : [])]

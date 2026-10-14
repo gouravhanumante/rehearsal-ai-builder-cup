@@ -30,7 +30,7 @@ const isWorkspaceShape = shape({
   businessName: isText(80),
   settings: shape({ country: isText(2), currency: isText(3), timeZone: isText(64), locale: isText(16) }),
   products: listOf(shape({ id: isText(64), name: isText(80), unit: isText(24), pack: isText(80), perPackage: optional((value) => isCount(value) && (value as number) >= 1) }), LIMITS.products),
-  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount) }), LIMITS.locations),
+  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount), deliveryCostPerOrder: optional(nullable(isAmount)) }), LIMITS.locations),
   stock: listOf(shape({ locationId: isText(64), productId: isText(64), available: recorded(isCount) }), LIMITS.stock),
   storageLimits: optional(listOf(shape({ locationId: isText(64), productId: isText(64), limit: isCount }), LIMITS.stock)),
   orders: listOf(shape({
@@ -46,12 +46,13 @@ const isWorkspaceShape = shape({
   routes: listOf(shape({
     id: isText(64), fromLocationId: isText(64), toLocationId: isText(64), arrivalAt: fact(isTime),
     travelHours: optional(fact((value) => isCount(value) && (value as number) <= 24 * 90)),
+    costPerTrip: optional(nullable(isAmount)), costPerUnit: optional(nullable(isAmount)),
     quotes: listOf(shape({ quantity: isCount, amount: isAmount }), 20),
   }), LIMITS.routes),
   noTransfers: optional(listOf(shape({ fromLocationId: isText(64), toLocationId: isText(64) }), LIMITS.routes)),
   suppliers: listOf(shape({
     id: isText(64), name: isText(80), contact: optional(nullable(isText(120))),
-    offers: listOf(shape({ productId: isText(64), locationId: isText(64), available: fact(isCount), pricePerUnit: fact(isAmount), arrivalAt: fact(isTime) }), LIMITS.offers),
+    offers: listOf(shape({ productId: isText(64), locationId: isText(64), available: fact(isCount), pricePerUnit: fact(isAmount), arrivalAt: fact(isTime), deliveryCharge: optional(fact(isAmount)) }), LIMITS.offers),
   }), LIMITS.suppliers),
   conflictDecisions: listOf(shape({ conflictId: isText(200), winner: oneOf('earliest-due', 'priority') }), 1000),
   approval: nullable(shape({ planId: isText(200), withWarning: (value) => typeof value === 'boolean', approvedAt: isTime, defaultedConflicts: isCount })),

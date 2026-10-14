@@ -13,7 +13,8 @@ export type WorkspaceSettings = { country: string; currency: string; timeZone: s
 export type Product = { id: string; name: string; unit: string; pack: string; perPackage?: number }
 
 export type LocationKind = 'warehouse' | 'store' | 'distribution-centre'
-export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null }
+/** deliveryCostPerOrder: what it costs to send one customer order out of this location. */
+export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; deliveryCostPerOrder?: number | null }
 
 export type StockRecord = { locationId: string; productId: string; available: Recorded<number> }
 /** Most of one product this location can hold. */
@@ -54,6 +55,9 @@ export type TransferRoute = {
   arrivalAt: Fact<string>
   /** How long a transfer takes from booking to arrival, so the arrival never goes stale. */
   travelHours?: Fact<number>
+  /** Cost of one transfer = costPerTrip + costPerUnit × quantity. A quote for the exact quantity wins. */
+  costPerTrip?: number | null
+  costPerUnit?: number | null
   quotes: { quantity: number; amount: number }[]
 }
 
@@ -63,6 +67,8 @@ export type SupplierOffer = {
   available: Fact<number>
   pricePerUnit: Fact<number>
   arrivalAt: Fact<string>
+  /** Flat delivery charge on top of the price per unit, from their reply. */
+  deliveryCharge?: Fact<number>
 }
 export type Supplier = { id: string; name: string; contact?: string | null; offers: SupplierOffer[] }
 

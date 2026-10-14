@@ -185,7 +185,7 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
             : <div className="inventory-detail-heading">
               <div>
                 <h3>{location.name}</h3>
-                <p>{kindLabels[location.kind]} · {location.receivingLimitPerDay === null ? 'No unloading limit set' : `Can unload ${format.number(location.receivingLimitPerDay)} a day`}</p>
+                <p>{kindLabels[location.kind]} · {location.receivingLimitPerDay === null ? 'No unloading limit set' : `Can unload ${format.number(location.receivingLimitPerDay)} a day`}{location.deliveryCostPerOrder != null ? ` · ${format.money(location.deliveryCostPerOrder)} to deliver an order` : ''}</p>
               </div>
               <Button icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'location', locationId: location.id }, 'manual')} variant="secondary">Edit location</Button>
             </div>}

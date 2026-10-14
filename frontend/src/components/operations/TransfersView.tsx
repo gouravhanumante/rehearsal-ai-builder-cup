@@ -17,7 +17,7 @@ type TransfersViewProps = {
 
 /** Which locations can move stock to which, and pairs the user said can't. */
 export function TransfersView({ onEdit, onRemoveRoute, onAskAgain }: TransfersViewProps) {
-  const { workspace, words } = useWorkspaceView()
+  const { workspace, format, words } = useWorkspaceView()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const nameOf = (from: string, to: string) => `${words.locationName(from)} ${words.locationName(to)}`
@@ -53,7 +53,9 @@ export function TransfersView({ onEdit, onRemoveRoute, onAskAgain }: TransfersVi
                       {words.routeTime(route).known
                         ? <><span>{words.routeTime(route).text}</span><EvidenceMark evidence={words.routeTime(route).evidence} /></>
                         : <StatusBadge dot tone="warning">Travel time unknown</StatusBadge>}
-                      {route.quotes.length > 0 && <small>{route.quotes.length} price {route.quotes.length === 1 ? 'quote' : 'quotes'}</small>}
+                      <small>{route.costPerTrip != null || route.costPerUnit != null
+                        ? [route.costPerTrip != null ? `${format.money(route.costPerTrip)} per trip` : '', route.costPerUnit != null ? `${format.money(route.costPerUnit)} per package` : ''].filter(Boolean).join(' + ')
+                        : route.quotes.length > 0 ? `${route.quotes.length} price ${route.quotes.length === 1 ? 'quote' : 'quotes'}` : 'Cost not set'}</small>
                     </div>
                     <div className="route-actions">
                       <Button aria-label={`Edit transfer ${from} to ${to}`} icon={<PencilLine size={14} />} onClick={() => onEdit({ type: 'route', routeId: route.id }, 'manual')} variant="secondary">Edit</Button>

@@ -61,15 +61,25 @@ export function createWording(workspace: Workspace, format: Format) {
   }
 
   const costOf = (plan: Plan) => {
-    if (plan.kind === 'ship-from') return 'Nothing to buy or move between warehouses'
+    if (plan.kind === 'ship-from') {
+      if (!plan.cost) return 'Delivery cost per order not set for both warehouses'
+      return plan.cost.amount === 0 ? 'No extra delivery cost' : `Estimated: ${format.money(plan.cost.amount)} more to deliver from ${locationName(plan.sourceLocationId ?? '')}`
+    }
     if (plan.kind === 'supplier') {
       if (!plan.cost || plan.quantity === null) return 'Price unknown'
       const offer = workspace.suppliers.find((item) => item.id === plan.supplierId)?.offers.find((item) => item.productId === plan.productId && item.locationId === plan.locationId)
       const unitPrice = offer?.pricePerUnit.value
-      return `Estimated: ${format.money(plan.cost.amount)}${unitPrice !== null && unitPrice !== undefined ? ` (${format.number(plan.quantity)} × ${format.money(unitPrice)})` : ''}`
+      const delivery = offer?.deliveryCharge?.value
+      const parts = unitPrice != null ? `${format.number(plan.quantity)} × ${format.money(unitPrice)}${delivery != null ? ` + ${format.money(delivery)} delivery` : ''}` : ''
+      return `Estimated: ${format.money(plan.cost.amount)}${parts ? ` (${parts})` : ''}${plan.costExcludesDelivery ? ' · delivery charge not given' : ''}`
     }
-    if (plan.cost) return `Estimated: ${format.money(plan.cost.amount)} transfer cost`
-    return `Transfer cost not quoted for ${quantity(plan.quantity ?? 0, plan.productId)}`
+    if (plan.cost) {
+      const route = workspace.routes.find((item) => item.id === plan.routeId)
+      const quoted = route?.quotes.some((item) => item.quantity === plan.quantity)
+      const parts = !quoted && route ? [route.costPerTrip != null ? `${format.money(route.costPerTrip)} trip` : '', route.costPerUnit != null ? `${format.number(plan.quantity ?? 0)} × ${format.money(route.costPerUnit)}` : ''].filter(Boolean).join(' + ') : ''
+      return `Estimated: ${format.money(plan.cost.amount)} transfer cost${parts ? ` (${parts})` : ''}`
+    }
+    return 'Transfer cost not set'
   }
 
   const detailOf = (plan: Plan) => {

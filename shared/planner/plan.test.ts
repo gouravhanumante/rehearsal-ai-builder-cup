@@ -214,8 +214,9 @@ describe('warehouse transfer options', () => {
     expect(planIn(data, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
   })
 
-  it('does not reuse the 8-case price when a different quantity is moved', () => {
-    expect(planIn(withStock(sampleWorkspace, 'south', 5), transferPlan)).toMatchObject({ quantity: 5, cost: null })
+  it('does not reuse an 8-case quote when a different quantity is moved: 5 cases use the trip rate, ₹55 + 5 × ₹5', () => {
+    const quoted = { ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], quotes: [{ quantity: 8, amount: 70 }] }] }
+    expect(planIn(withStock(quoted, 'south', 5), transferPlan)).toMatchObject({ quantity: 5, cost: { amount: 80 } })
   })
 
   it('flags the transfer as unverified when a stock count it relies on was typed in', () => {
@@ -358,6 +359,47 @@ describe('storage limits', () => {
     expect(planIn(full, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(planIn(full, supplierPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(recommendPlan(rehearse(full).plans)?.kind).toBe('ship-from')
+  })
+})
+
+describe('what each option costs, including getting it there', () => {
+  // North Hub has no coffee; Shiva Kirana wants 3 cases on Friday. South Hub has 14.
+  const shiva: Order = { id: 'SK-1', customer: 'Shiva Kirana', locationId: 'north', dueAt: '2026-10-16T22:00:00+05:30', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity: 3 }], evidence: typed }
+  const quiet = (extra: Partial<Workspace> = {}): Workspace => withStock({ ...sampleWorkspace, disruptions: [], shipments: [], orders: [shiva], suppliers: [], ...extra }, 'north', 0)
+  const route = (costs: { costPerTrip?: number | null; costPerUnit?: number | null }) => [{ ...sampleWorkspace.routes[0], quotes: [], ...costs }]
+  const offer = (price: number, delivery: number | null) => ({
+    productId: 'harbor-blend', locationId: 'north', available: { value: 20, evidence: quote }, pricePerUnit: { value: price, evidence: quote },
+    arrivalAt: { value: '2026-10-16T09:00:00+05:30', evidence: quote }, deliveryCharge: delivery === null ? { value: null, evidence: null } : { value: delivery, evidence: quote },
+  })
+
+  it('a transfer costs the trip plus a price per case: ₹500 + 3 × ₹10 = ₹530', () => {
+    expect(planIn(quiet({ routes: route({ costPerTrip: 500, costPerUnit: 10 }) }), transferPlan)?.cost?.amount).toBe(530)
+  })
+
+  it('a price quoted for the exact quantity still wins over the trip rate', () => {
+    const quoted = { ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], quotes: [{ quantity: 8, amount: 70 }] }] }
+    expect(planIn(quoted, transferPlan)?.cost?.amount).toBe(70)
+  })
+
+  it('a supplier costs their price for each case plus their delivery charge: 3 × ₹40 + ₹200 = ₹320', () => {
+    const data = quiet({ routes: [], suppliers: [{ id: 'b', name: 'B', offers: [offer(40, 200)] }] })
+    expect(planIn(data, 'supplier:b:harbor-blend:north')).toMatchObject({ cost: { amount: 320 } })
+    const noCharge = quiet({ routes: [], suppliers: [{ id: 'b', name: 'B', offers: [offer(40, null)] }] })
+    expect(planIn(noCharge, 'supplier:b:harbor-blend:north')).toMatchObject({ cost: { amount: 120 }, costExcludesDelivery: true })
+  })
+
+  it('the cheaper supplier is the one with the lower total, not the lower price per case', () => {
+    const data = quiet({ routes: [], suppliers: [
+      { id: 'cheap-case', name: 'Cheap per case', offers: [offer(30, 300)] },
+      { id: 'no-delivery', name: 'Free delivery', offers: [offer(40, 0)] },
+    ] })
+    expect(recommendPlan(rehearse(data).plans)?.supplierId).toBe('no-delivery')
+  })
+
+  it('shipping from South Hub costs the difference in delivery: ₹250 there vs ₹100 from North is ₹150 more', () => {
+    const locations = (north: number | null, south: number | null) => sampleWorkspace.locations.map((location) => ({ ...location, deliveryCostPerOrder: location.id === 'north' ? north : south }))
+    expect(planIn(quiet({ routes: [], locations: locations(100, 250) }), 'ship:SK-1:south:harbor-blend')?.cost?.amount).toBe(150)
+    expect(planIn(quiet({ routes: [], locations: locations(null, 250) }), 'ship:SK-1:south:harbor-blend')?.cost).toBeNull()
   })
 })
 
