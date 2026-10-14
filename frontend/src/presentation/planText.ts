@@ -10,6 +10,7 @@ export type EditTarget =
   | { type: 'location'; locationId: string }
   | { type: 'product'; productId: string }
   | { type: 'new-supplier'; productId?: string; locationId?: string }
+  | { type: 'supplier'; supplierId: string }
   | { type: 'new-location' }
   | { type: 'new-product' }
   | { type: 'new-order' }

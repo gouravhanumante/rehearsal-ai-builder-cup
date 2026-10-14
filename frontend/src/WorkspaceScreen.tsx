@@ -52,6 +52,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [importKind, setImportKind] = useState<ImportKind | null>(null)
   const [removingRouteId, setRemovingRouteId] = useState<string | null>(null)
+  const [removingSupplierId, setRemovingSupplierId] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
   const editorConfig = editor ? editorFor(editor.target, workspace, format) : null
 
@@ -106,6 +107,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const askAgain = (fromLocationId: string, toLocationId: string) =>
     saveChange({ ...workspace, noTransfers: (workspace.noTransfers ?? []).filter((pair) => !(pair.fromLocationId === fromLocationId && pair.toLocationId === toLocationId)) })
   const removingRoute = workspace.routes.find((route) => route.id === removingRouteId)
+  const removingSupplier = workspace.suppliers.find((supplier) => supplier.id === removingSupplierId)
   // A removed route is remembered as "can't move this way" so Rehearsal doesn't ask straight back.
   const removeRoute = () => {
     if (!removingRoute) return
@@ -176,7 +178,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
             {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Transfers' && <TransfersView onAskAgain={askAgain} onEdit={openEditor} onRemoveRoute={setRemovingRouteId} />}
-            {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} />}
+            {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} onRemoveSupplier={setRemovingSupplierId} />}
             {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />}
             <footer className="page-footer">
               <span>{isReal ? 'Your data is saved in this browser. Download a backup from the menu.' : 'Illustrative distributor data · edits stay in this browser until Reset'}</span>
@@ -198,6 +200,13 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
           onClose={() => setRemovingRouteId(null)}
           onConfirm={removeRoute}
           title={`Remove ${words.locationName(removingRoute.fromLocationId)} → ${words.locationName(removingRoute.toLocationId)}?`}
+        />}
+        {removingSupplier && <ConfirmDialog
+          body={`Their products and any replies you recorded will be removed. Rehearsal will stop suggesting buying from ${removingSupplier.name}.`}
+          confirmLabel="Remove supplier"
+          onClose={() => setRemovingSupplierId(null)}
+          onConfirm={() => { saveChange({ ...workspace, suppliers: workspace.suppliers.filter((item) => item.id !== removingSupplier.id) }); setRemovingSupplierId(null) }}
+          title={`Remove ${removingSupplier.name}?`}
         />}
         {importKind && <ImportDialog kind={importKind} onApply={(next) => { saveChange(next); setImportKind(null) }} onClose={() => setImportKind(null)} />}
         {editor && editorConfig && <DetailsEditor

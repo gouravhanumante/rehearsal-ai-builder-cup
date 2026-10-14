@@ -87,6 +87,23 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     expect(again?.validate?.({ fromLocationId: south, toLocationId: north, arrivalAt: null })).toMatch(/already exists/)
   })
 
+  it('editing a supplier keeps the reply for a product still ticked, drops an unticked one, and adds a new one waiting', () => {
+    let workspace = smallBusiness()
+    workspace = enter(workspace, { type: 'new-product' }, { name: 'Pens', perPackage: '10' }).workspace
+    workspace = enter(workspace, { type: 'new-product' }, { name: 'Mops', perPackage: '1' }).workspace
+    const [beans, pens, mops] = workspace.products.map((product) => product.id)
+    const location = workspace.locations[0].id
+    workspace = enter(workspace, { type: 'new-supplier' }, { name: 'Vibgyor', productIds: JSON.stringify([beans, pens]), locationId: location }).workspace
+    const supplierId = workspace.suppliers[0].id
+    workspace = enter(workspace, { type: 'offer', supplierId, offerIndex: 0 }, { available: '30', pricePerUnit: '12', arrivalAt: '2026-10-15T09:00' }).workspace
+
+    const { workspace: next } = enter(workspace, { type: 'supplier', supplierId }, { productIds: JSON.stringify([beans, mops]) })
+    const offers = next.suppliers[0].offers
+    expect(offers.map((offer) => offer.productId)).toEqual([beans, mops])
+    expect(offers[0].available.value).toBe(30)
+    expect(offers[1].available.value).toBeNull()
+  })
+
   it('watches the order without raising an alarm while every shipment is on time', () => {
     const workspace = smallBusiness()
     expect(workspace.orders).toHaveLength(1)

@@ -1,4 +1,4 @@
-import { FileUp, LifeBuoy, PencilLine, Plus, Repeat, TriangleAlert, Truck } from 'lucide-react'
+import { FileUp, LifeBuoy, PencilLine, Plus, Repeat, Settings2, Trash2, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Fact } from '../../../../shared/planner/model'
@@ -11,6 +11,7 @@ import { EmptyState } from '../layout/EmptyState'
 
 type SuppliersViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
+  onRemoveSupplier: (supplierId: string) => void
 }
 
 const toneFor = (status: string | undefined) => (status === 'ready' ? 'success' : status === 'rejected' ? 'danger' : 'warning')
@@ -25,7 +26,7 @@ function FactLine<T>({ label, fact, show }: { label: string; fact: Fact<T>; show
   )
 }
 
-export function SuppliersView({ onEdit }: SuppliersViewProps) {
+export function SuppliersView({ onEdit, onRemoveSupplier }: SuppliersViewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const delayed = new Set(workspace.disruptions.map((disruption) => disruption.shipmentId))
   const atLimit = workspace.suppliers.length >= LIMITS.suppliers
@@ -89,6 +90,10 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
               <div className="supplier-main">
                 <div className="supplier-title"><h3>{supplier.name}</h3></div>
                 <p>{supplier.contact || 'No contact saved'} · supplies {supplier.offers.map((offer) => words.productName(offer.productId)).join(', ')}</p>
+              </div>
+              <div className="route-actions">
+                <Button aria-label={`Edit ${supplier.name}`} icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'supplier', supplierId: supplier.id }, 'manual')} variant="secondary">Edit supplier</Button>
+                <Button aria-label={`Remove ${supplier.name}`} icon={<Trash2 size={14} />} onClick={() => onRemoveSupplier(supplier.id)} variant="quiet">Remove</Button>
               </div>
             </header>
             {supplier.offers.map((offer, offerIndex) => {

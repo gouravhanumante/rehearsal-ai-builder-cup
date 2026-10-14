@@ -77,7 +77,9 @@ Agreed with the user: both paths exist, and the difference is always visible.
   when a delay happens. Until all three are recorded the option is **Waiting for reply**, with
   **Record reply**. Arrives after every affected order is due → **Can't be done**. It buys only
   what is short and fits (`min(offer, shortage, storage room)`) at the quoted price per unit.
-  The Suppliers page shows one card per supplier, with a row per product.
+  The Suppliers page shows one card per supplier, with a row per product, plus **Edit supplier**
+  (name, contact, products, deliver to: replies stay for products kept at the same place; removed
+  products lose theirs; a new product starts waiting) and **Remove** (confirm first).
 - **Ask your backup suppliers** (Recovery options, `AskSuppliers.tsx`, user decision 2026-10-14):
   each supplier gets **one message listing every missing product they supply** — each item is the
   shortage capped by storage room, needed by the first order that is short (`plan.request`).

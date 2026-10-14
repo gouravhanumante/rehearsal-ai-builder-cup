@@ -242,6 +242,34 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     }
   }
 
+  if (target.type === 'supplier') {
+    const supplier = workspace.suppliers.find((item) => item.id === target.supplierId)
+    if (!supplier) return null
+    const deliverTo = supplier.offers[0]?.locationId ?? workspace.locations[0]?.id ?? ''
+    return {
+      title: `Edit ${supplier.name}`,
+      subtitle: 'Who they are and what they can supply. Replies you recorded stay with the products you keep.',
+      documentHint: 'Supplier price list or catalogue',
+      fields: [
+        { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: false, isFact: false },
+        { key: 'contact', label: 'Email or phone', type: 'text', required: false, extractable: false, isFact: false, placeholder: 'e.g. orders@supplier.in or +91 98200 12345' },
+        { key: 'productIds', label: 'Products they can supply', type: 'multiselect', required: true, extractable: false, isFact: false, options: productOptions, hint: 'Removing a product also removes any reply recorded for it.' },
+        { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions, hint: 'Changing this clears their replies, since arrival times were for the old place.' },
+      ],
+      initial: { name: supplier.name, contact: supplier.contact ?? '', productIds: JSON.stringify([...new Set(supplier.offers.map((offer) => offer.productId))]), locationId: deliverTo },
+      initialEvidence: { name: null, contact: null, productIds: null, locationId: null },
+      apply: (values) => {
+        const locationId = values.locationId as string
+        const offers: SupplierOffer[] = choicesOf(values.productIds as string).map((productId) => {
+          const kept = supplier.offers.find((offer) => offer.productId === productId && offer.locationId === locationId)
+          return kept ?? { productId, locationId, available: fact(null, null), pricePerUnit: fact(null, null), arrivalAt: fact(null, null) }
+        })
+        const updated: Supplier = { ...supplier, name: values.name as string, contact: asText(values.contact), offers }
+        return { ...workspace, suppliers: workspace.suppliers.map((item) => item.id === supplier.id ? updated : item) }
+      },
+    }
+  }
+
   if (target.type === 'route') {
     const route = workspace.routes.find((item) => item.id === target.routeId)
     if (!route) return null
