@@ -9,12 +9,12 @@ export type EditTarget =
   | { type: 'route'; routeId: string }
   | { type: 'location'; locationId: string }
   | { type: 'product'; productId: string }
-  | { type: 'new-supplier' }
+  | { type: 'new-supplier'; productId?: string; locationId?: string }
   | { type: 'new-location' }
   | { type: 'new-product' }
   | { type: 'new-order' }
-  | { type: 'new-shipment' }
-  | { type: 'new-route' }
+  | { type: 'new-shipment'; productId?: string; locationId?: string }
+  | { type: 'new-route'; fromLocationId?: string; toLocationId?: string }
   | { type: 'report-delay'; shipmentId?: string }
 
 const fieldLabels = { available: 'Stock available', pricePerUnit: 'Price per unit', arrivalAt: 'Arrival time' } as const

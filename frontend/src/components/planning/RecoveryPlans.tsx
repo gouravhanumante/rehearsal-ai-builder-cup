@@ -1,4 +1,4 @@
-import { Check, CircleHelp, CircleX, PencilLine, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Check, CircleHelp, CircleX, LifeBuoy, PackagePlus, PencilLine, ShieldCheck, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Plan } from '../../../../shared/planner/plan'
@@ -52,27 +52,31 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: Rec
       {rehearsal.impact.groups
         .filter((group) => (group.exposedQuantity ?? 0) > 0 && !plans.some((plan) => plan.locationId === group.locationId && plan.productId === group.productId))
         .map((group) => {
-          const holders = workspace.stock
+          const holder = workspace.stock
             .filter((record) => record.productId === group.productId && record.locationId !== group.locationId && record.available.value > 0)
-            .sort((first, second) => second.available.value - first.available.value)
+            .sort((first, second) => second.available.value - first.available.value)[0]
           return (
-            <p className="no-options-note" key={group.disruptionId}>
+            <div className="no-options-note" key={group.disruptionId}>
               <TriangleAlert size={14} />
               <span><strong>No way to fix {words.productName(group.productId)} at {words.locationName(group.locationId)} yet.</strong>{' '}
-                {holders.length > 0
-                  ? `${words.locationName(holders[0].locationId)} has ${words.quantity(holders[0].available.value, group.productId)}: add a transfer route from it in Setup, or add a backup supplier.`
-                  : 'No other warehouse has any. Add a backup supplier for it in Suppliers.'}
+                {holder
+                  ? `${words.locationName(holder.locationId)} has ${words.quantity(holder.available.value, group.productId)}. Add a transfer route from it, or a backup supplier.`
+                  : 'No other warehouse has any. Add a backup supplier for it.'}
+                {' '}Or is a supplier already bringing some? Add that delivery and the order may be covered.
               </span>
-            </p>
+              <span className="no-options-actions">
+                {holder && <Button icon={<Truck size={14} />} onClick={() => onAddDetails({ type: 'new-route', fromLocationId: holder.locationId, toLocationId: group.locationId })} variant="primary">Add transfer from {words.locationName(holder.locationId)}</Button>}
+                <Button icon={<PackagePlus size={14} />} onClick={() => onAddDetails({ type: 'new-shipment', productId: group.productId, locationId: group.locationId })} variant="secondary">Add expected delivery</Button>
+                <Button icon={<LifeBuoy size={14} />} onClick={() => onAddDetails({ type: 'new-supplier', productId: group.productId, locationId: group.locationId })} variant="secondary">Add backup supplier</Button>
+              </span>
+            </div>
           )
         })}
       {approved && approval && <div className={`approval-notice ${approval.withWarning ? 'approval-notice--warning' : ''}`}>
         {approval.withWarning ? <TriangleAlert size={16} /> : <Check size={16} />}
         <span><strong>{words.planText(approved).title} approved for this demo{approval.withWarning ? ' with a warning' : ''}.</strong>{approval.defaultedConflicts > 0 ? ` Earliest due was used for ${approval.defaultedConflicts} unanswered conflict${approval.defaultedConflicts === 1 ? '' : 's'}.` : ''} No business records were changed.</span>
       </div>}
-      {plans.length === 0 && <p className="editor-empty">{rehearsal.impact.groups.length === 0
-        ? 'Nothing to rehearse: no delay reported and every order is covered by stock or recorded deliveries.'
-        : 'No options to check: either nothing is short, or a stock count is missing.'}</p>}
+      {plans.length === 0 && rehearsal.impact.groups.length === 0 && <p className="editor-empty">Nothing to rehearse: no delay reported and every order is covered by stock or recorded deliveries.</p>}
       <div className="recovery-options">
         {plans.map((plan, index) => {
           const text = words.planText(plan)

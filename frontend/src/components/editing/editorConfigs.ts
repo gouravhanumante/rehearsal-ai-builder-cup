@@ -193,8 +193,8 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       initial: {
         name: supplier?.name ?? '',
         contact: supplier?.contact ?? '',
-        productId: offer?.productId ?? firstGroup?.lines[0]?.productId ?? workspace.products[0]?.id ?? '',
-        locationId: offer?.locationId ?? firstGroup?.locationId ?? workspace.locations[0]?.id ?? '',
+        productId: offer?.productId ?? (target.type === 'new-supplier' ? target.productId : undefined) ?? firstGroup?.lines[0]?.productId ?? workspace.products[0]?.id ?? '',
+        locationId: offer?.locationId ?? (target.type === 'new-supplier' ? target.locationId : undefined) ?? firstGroup?.locationId ?? workspace.locations[0]?.id ?? '',
         available: offer?.available.value?.toString() ?? '',
         pricePerUnit: offer?.pricePerUnit.value?.toString() ?? '',
         arrivalAt: offer?.arrivalAt.value ? format.toInput(offer.arrivalAt.value) : '',
@@ -286,7 +286,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'repeat', label: 'Repeats', type: 'select', required: false, extractable: false, isFact: false, options: repeatOptions,
           hint: 'For a regular delivery, the same amount arrives on this schedule. Orders count each one.' },
       ],
-      initial: { supplierName: '', productId: workspace.products[0]?.id ?? '', quantity: '', locationId: workspace.locations[0]?.id ?? '', arrivalAt: '', repeat: '' },
+      initial: { supplierName: '', productId: target.productId ?? workspace.products[0]?.id ?? '', quantity: '', locationId: target.locationId ?? workspace.locations[0]?.id ?? '', arrivalAt: '', repeat: '' },
       initialEvidence: { supplierName: null, productId: null, quantity: null, locationId: null, arrivalAt: null, repeat: null },
       apply: (values, evidence) => {
         const proof = recordEvidence([evidence.quantity, evidence.arrivalAt], evidence.arrivalAt as Evidence)
@@ -347,7 +347,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'toLocationId', label: 'Move to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         { key: 'arrivalAt', label: `Arrival if booked now (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
       ],
-      initial: { fromLocationId: workspace.locations[0]?.id ?? '', toLocationId: workspace.locations[1]?.id ?? '', arrivalAt: '' },
+      initial: { fromLocationId: target.fromLocationId ?? workspace.locations[0]?.id ?? '', toLocationId: target.toLocationId ?? workspace.locations[1]?.id ?? '', arrivalAt: '' },
       initialEvidence: { fromLocationId: null, toLocationId: null, arrivalAt: null },
       validate: (values) => values.fromLocationId === values.toLocationId ? 'A transfer needs two different locations.' : null,
       apply: (values, evidence) => ({

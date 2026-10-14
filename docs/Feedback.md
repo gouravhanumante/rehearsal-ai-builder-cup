@@ -12,6 +12,10 @@
   - Blank limits read "No limit (∞)"; fields show an example ("e.g. 50") and a unit after the box ("packages", "per day").
   - Short orders are rehearsed like delays: "Not enough stock" card on the Overview, transfers and backup suppliers offered, and a note naming what to add when there is no option yet.
 - **Next (agreed, not built):** warn on step 1 of Add order as you type (not only on Review); show the product name on each order row.
+- **Problems Rehearsal does not solve yet (2026-10-14 review, checked against the code):**
+  - *Big:* (1) a transfer can take stock the source warehouse needs for its own orders (shared/planner/plan.ts uses the full count at the source); (2) only one fix at a time, never "transfer 8 + buy 16"; (3) approving changes nothing (WorkspaceScreen approve only records the choice), so the problem stays after you "fix" it; (4) no "Mark received" for deliveries, so after one arrives and stock is recounted it can count twice.
+  - *Medium:* a delivery that would overflow storage is not flagged (limits only cap rescue options); stock above its limit shows in Inventory but not as a problem; a warehouse never counted is "Stock unknown" with no prompt to count it; unloading limit not checked on supplier deliveries; backup replies and transfer arrival times go stale (not tied to a problem).
+  - *Small:* conflicts (priority vs earlier order) only appear inside a problem; a supplier reply covering part of the need isn't combined with other options.
 - **Still open:** see docs/TODO.md (replies not tied to a delay, storage room uses today's count only, unloading limit not checked on shipments).
 - **Working rule (2026-10-14):** log feedback here; code changes happen when the user asks.
 
