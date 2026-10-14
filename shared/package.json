@@ -1,0 +1,5 @@
+{
+  "name": "@rehearsal/shared",
+  "private": true,
+  "type": "module"
+}
