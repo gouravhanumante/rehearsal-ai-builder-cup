@@ -75,6 +75,18 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     expect(next.suppliers[0].offers.every((offer) => offer.available.value === null && offer.pricePerUnit.value === null)).toBe(true)
   })
 
+  it('a route between the same two places cannot be added twice, and adding one undoes an earlier "can\'t move this way"', () => {
+    let workspace = smallBusiness()
+    workspace = enter(workspace, { type: 'new-location' }, { name: 'South Hub', kind: 'warehouse' }).workspace
+    const [north, south] = workspace.locations.map((location) => location.id)
+    workspace = { ...workspace, noTransfers: [{ fromLocationId: south, toLocationId: north }] }
+    const { workspace: next } = enter(workspace, { type: 'new-route', fromLocationId: south, toLocationId: north }, {})
+    expect(next.routes).toHaveLength(1)
+    expect(next.noTransfers).toEqual([])
+    const again = editorFor({ type: 'new-route', fromLocationId: south, toLocationId: north }, next, createFormat(next.settings))
+    expect(again?.validate?.({ fromLocationId: south, toLocationId: north, arrivalAt: null })).toMatch(/already exists/)
+  })
+
   it('watches the order without raising an alarm while every shipment is on time', () => {
     const workspace = smallBusiness()
     expect(workspace.orders).toHaveLength(1)

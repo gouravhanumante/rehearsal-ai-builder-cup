@@ -693,6 +693,17 @@
 .data-view-actions .ds-button { min-height: 38px; font-size: 11px; }
 
 .supplier-alternative { align-items: start; }
+.route-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.route-row { display: grid; grid-template-columns: minmax(200px, 1.2fr) minmax(180px, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.route-row--blocked { grid-template-columns: minmax(200px, 1fr) auto; background: #fbfaf6; }
+.route-pair { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #304639; font-size: 14px; }
+.route-pair svg { color: #6d8a74; }
+.route-row--blocked .route-pair svg:first-child { color: #a1452c; }
+.route-when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: #4d6155; font-size: 12px; }
+.route-when small { color: #66766b; font-size: 11px; }
+.route-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.route-actions .ds-button { min-height: 34px; font-size: 12px; }
+@media (max-width: 900px) { .route-row, .route-row--blocked { grid-template-columns: minmax(0, 1fr); } .route-actions { justify-content: flex-start; } }
 .supplier-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .supplier-card-head { display: flex; align-items: center; gap: 12px; }
 .supplier-card-head .supplier-main > p { margin-top: 3px; }

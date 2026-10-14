@@ -368,7 +368,11 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       ],
       initial: { fromLocationId: target.fromLocationId ?? workspace.locations[0]?.id ?? '', toLocationId: target.toLocationId ?? workspace.locations[1]?.id ?? '', arrivalAt: '' },
       initialEvidence: { fromLocationId: null, toLocationId: null, arrivalAt: null },
-      validate: (values) => values.fromLocationId === values.toLocationId ? 'A transfer needs two different locations.' : null,
+      validate: (values) => values.fromLocationId === values.toLocationId
+        ? 'A transfer needs two different locations.'
+        : workspace.routes.some((route) => route.fromLocationId === values.fromLocationId && route.toLocationId === values.toLocationId)
+          ? 'This route already exists. Edit it in Transfers.'
+          : null,
       apply: (values, evidence) => ({
         ...workspace,
         routes: [...workspace.routes, {
@@ -378,6 +382,8 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
           arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt),
           quotes: [],
         }],
+        // Adding the route answers "can stock move this way?" with yes.
+        noTransfers: workspace.noTransfers?.filter((pair) => !(pair.fromLocationId === values.fromLocationId && pair.toLocationId === values.toLocationId)),
       }),
     }
   }

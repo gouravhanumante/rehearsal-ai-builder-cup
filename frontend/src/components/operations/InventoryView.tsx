@@ -21,7 +21,7 @@ type Mode = 'product' | 'location'
 const kindLabels = { warehouse: 'Warehouse', store: 'Store', 'distribution-centre': 'Distribution centre' }
 const pairKey = (locationId: string, productId: string) => `${locationId}|${productId}`
 
-function Pager({ page, pageCount, total, noun, onPage }: { page: number; pageCount: number; total: number; noun: string; onPage: (page: number) => void }) {
+export function Pager({ page, pageCount, total, noun, onPage }: { page: number; pageCount: number; total: number; noun: string; onPage: (page: number) => void }) {
   const count = `${total} ${total === 1 ? noun : `${noun}s`}`
   if (pageCount <= 1) return <p className="inventory-pager"><span>{count}</span></p>
   return (
@@ -35,7 +35,7 @@ function Pager({ page, pageCount, total, noun, onPage }: { page: number; pageCou
   )
 }
 
-function SearchBox({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+export function SearchBox({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="inventory-search">
       <Search aria-hidden="true" size={14} />

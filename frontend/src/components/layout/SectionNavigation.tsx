@@ -1,6 +1,6 @@
-import { Boxes, ClipboardCheck, ClipboardList, LayoutDashboard, ListChecks, Truck } from 'lucide-react'
+import { Boxes, ClipboardCheck, ClipboardList, LayoutDashboard, ListChecks, Route, Truck } from 'lucide-react'
 
-export type SectionName = 'Setup' | 'Overview' | 'Orders' | 'Inventory' | 'Suppliers' | 'Rehearsals'
+export type SectionName = 'Setup' | 'Overview' | 'Orders' | 'Inventory' | 'Transfers' | 'Suppliers' | 'Rehearsals'
 
 type SectionNavigationProps = {
   activeSection: SectionName
@@ -16,6 +16,7 @@ const sections = [
   { name: 'Overview' as const, icon: LayoutDashboard },
   { name: 'Orders' as const, icon: ClipboardList },
   { name: 'Inventory' as const, icon: Boxes },
+  { name: 'Transfers' as const, icon: Route },
   { name: 'Suppliers' as const, icon: Truck },
   { name: 'Rehearsals' as const, icon: ClipboardCheck },
 ]

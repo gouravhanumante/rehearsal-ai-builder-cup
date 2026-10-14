@@ -9,6 +9,8 @@ import { CommitmentsPanel } from './components/operations/CommitmentsPanel'
 import { IncidentOverview } from './components/operations/IncidentOverview'
 import { InventoryView } from './components/operations/InventoryView'
 import { SuppliersView } from './components/operations/SuppliersView'
+import { TransfersView } from './components/operations/TransfersView'
+import { ConfirmDialog } from './components/layout/ConfirmDialog'
 import { ApprovalWarning } from './components/planning/ApprovalWarning'
 import { OverviewRecommendation } from './components/planning/OverviewRecommendation'
 import { RecoveryPlans } from './components/planning/RecoveryPlans'
@@ -49,6 +51,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const [editor, setEditor] = useState<OpenEditor | null>(null)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [importKind, setImportKind] = useState<ImportKind | null>(null)
+  const [removingRouteId, setRemovingRouteId] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
   const editorConfig = editor ? editorFor(editor.target, workspace, format) : null
 
@@ -96,8 +99,21 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   }
 
   const openEditor = (target: EditTarget, mode: 'manual' | 'document' = 'manual') => setEditor({ target, mode })
-  const ruleOutTransfer = (fromLocationId: string, toLocationId: string) =>
+  const ruleOutTransfer = (fromLocationId: string, toLocationId: string) => {
     saveChange({ ...workspace, noTransfers: [...(workspace.noTransfers ?? []), { fromLocationId, toLocationId }] })
+    onNotice('Saved. You can change this answer any time in Transfers.')
+  }
+  const askAgain = (fromLocationId: string, toLocationId: string) =>
+    saveChange({ ...workspace, noTransfers: (workspace.noTransfers ?? []).filter((pair) => !(pair.fromLocationId === fromLocationId && pair.toLocationId === toLocationId)) })
+  const removingRoute = workspace.routes.find((route) => route.id === removingRouteId)
+  // A removed route is remembered as "can't move this way" so Rehearsal doesn't ask straight back.
+  const removeRoute = () => {
+    if (!removingRoute) return
+    const { fromLocationId, toLocationId } = removingRoute
+    const others = (workspace.noTransfers ?? []).filter((pair) => !(pair.fromLocationId === fromLocationId && pair.toLocationId === toLocationId))
+    saveChange({ ...workspace, routes: workspace.routes.filter((route) => route.id !== removingRoute.id), noTransfers: [...others, { fromLocationId, toLocationId }] })
+    setRemovingRouteId(null)
+  }
 
   const needsBoth = workspace.products.length === 0 || workspace.locations.length === 0 ? 'Add a product and a location first' : undefined
   const setupActions: Partial<Record<SetupStepId, SetupAction[]>> = {
@@ -123,6 +139,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
     Overview: { title: 'Operations overview', subtitle: rehearsal.impact.groups.length === 0 && workspace.disruptions.length === 0 ? 'What Rehearsal is watching for you.' : 'What is wrong, the orders at risk, and the next best response.' },
     Orders: { title: 'Orders', subtitle: rehearsal.impact.groups.length === 0 ? 'Your open customer orders.' : 'Orders at risk, and the ones that are fine.' },
     Inventory: { title: 'Inventory', subtitle: 'Stock by product or by warehouse, incoming shipments, and transfers.' },
+    Transfers: { title: 'Transfers', subtitle: 'Which of your locations can send stock to which, and how long it takes.' },
     Suppliers: { title: 'Suppliers', subtitle: 'Deliveries you are expecting, and backup suppliers for when things go wrong.' },
     Rehearsals: { title: 'Recovery options', subtitle: 'Compare checked responses before changing the plan.' },
   }
@@ -158,6 +175,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
               </>)}
             {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
+            {activeSection === 'Transfers' && <TransfersView onAskAgain={askAgain} onEdit={openEditor} onRemoveRoute={setRemovingRouteId} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} />}
             {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />}
             <footer className="page-footer">
@@ -173,6 +191,13 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
           onClose={() => setPendingApproval(null)}
           onVerify={(target) => { setPendingApproval(null); openEditor(target, 'document') }}
           plan={pendingApproval}
+        />}
+        {removingRoute && <ConfirmDialog
+          body={`Rehearsal will stop suggesting transfers from ${words.locationName(removingRoute.fromLocationId)} to ${words.locationName(removingRoute.toLocationId)}. You can add it back any time in Transfers.`}
+          confirmLabel="Remove route"
+          onClose={() => setRemovingRouteId(null)}
+          onConfirm={removeRoute}
+          title={`Remove ${words.locationName(removingRoute.fromLocationId)} → ${words.locationName(removingRoute.toLocationId)}?`}
         />}
         {importKind && <ImportDialog kind={importKind} onApply={(next) => { saveChange(next); setImportKind(null) }} onClose={() => setImportKind(null)} />}
         {editor && editorConfig && <DetailsEditor

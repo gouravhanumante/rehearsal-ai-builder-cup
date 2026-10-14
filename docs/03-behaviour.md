@@ -107,9 +107,14 @@ Agreed with the user: both paths exist, and the difference is always visible.
   is covered and none of that location's own orders becomes short (`orderCoverage`). It needs no
   transfer route and no storage room at the short warehouse. Approving it **changes the order's
   warehouse** (`approve` in `WorkspaceScreen.tsx`); other approvals still only record the choice.
-- **Can stock move between them?** (`RecoveryPlans.tsx`): when another location holds a short
+- **Can stock move between them?** (`RecoveryPlans.tsx`): when another location can spare a short
   product and there is no transfer route from it, Recovery options asks. **Yes, add transfer**
   opens the route form prefilled; **No** saves the pair (`noTransfers`) and stops asking.
+- **Transfers** section (`TransfersView.tsx`, user decision 2026-10-14): lists every route
+  (from → to, arrival if booked now, quotes) with **Edit** and **Remove** (confirm first). Removing
+  a route records the pair as "can't move this way" so the question doesn't come straight back.
+  Pairs answered **No** are listed under "Can't move stock this way" with **It can, add route** and
+  **Ask me again**. Adding a route clears an earlier No; the same route can't be added twice.
 - **Repeating deliveries** (`repeatEveryDays`: 7, 14 or 28): the next delivery is
   `confirmedArrivalAt`, later ones follow the original schedule (`arrivalsOf`). Reporting one late
   moves only that delivery; later ones still count for the delay plan.
