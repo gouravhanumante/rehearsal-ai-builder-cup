@@ -42,7 +42,9 @@ export function createWording(workspace: Workspace, format: Format) {
   const totalQuantity = (value: number) => `${format.number(value)} ${totalUnit(value)}`
 
   const statusLabel = (plan: Plan) =>
-    plan.status === 'ready' ? (plan.unverified.length ? 'Ready · unverified' : 'Ready to use') : plan.status === 'conditional' ? 'Needs information' : "Can't be done"
+    plan.status === 'ready' ? (plan.unverified.length ? 'Ready · unverified' : 'Ready to use')
+      : plan.reason.code === 'supplier-missing' ? 'Waiting for reply'
+      : plan.status === 'conditional' ? 'Needs information' : "Can't be done"
 
   const impactOf = (plan: Plan) => {
     if (plan.outcome) {
@@ -67,19 +69,24 @@ export function createWording(workspace: Workspace, format: Format) {
   const detailOf = (plan: Plan) => {
     const { reason } = plan
     const destination = locationName(plan.locationId)
+    const storageNote = plan.spaceLeft !== null && plan.quantity !== null && plan.quantity === plan.spaceLeft
+      ? ` Storage at ${destination} only has room for ${quantity(plan.spaceLeft, plan.productId)}.` : ''
     switch (reason.code) {
       case 'transfer-ok':
-        return reason.limit === null
+        return (reason.limit === null
           ? `${quantity(reason.quantity, plan.productId)} arrive before the priority order is due.`
-          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day and arrive before the priority order is due.`
+          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day and arrive before the priority order is due.`) + storageNote
       case 'transfer-none-available': return `${locationName(plan.sourceLocationId ?? '')} has no unallocated stock to move.`
       case 'transfer-arrival-unknown': return 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
       case 'transfer-late': return 'The confirmed transfer arrival is after the priority order promise.'
       case 'transfer-over-limit': return `${destination} can receive at most ${quantity(reason.limit, plan.productId)} per day. This transfer exceeds capacity by ${quantity(reason.excess, plan.productId)}.`
-      case 'supplier-missing': return `Missing: ${reason.missing.map((field) => missingLabels[field]).join(', ')}. Add these to check whether this option works.`
+      case 'supplier-missing': return plan.request
+        ? `Ask ${supplierName(plan.supplierId)} for ${quantity(plan.request.quantity, plan.productId)} by ${format.dateTime(plan.request.neededBy)}, then record their reply. Still missing: ${reason.missing.map((field) => missingLabels[field]).join(', ')}.`
+        : `Missing: ${reason.missing.map((field) => missingLabels[field]).join(', ')}. Add these to check whether this option works.`
       case 'supplier-no-stock': return `${supplierName(plan.supplierId)} has no stock to offer.`
       case 'supplier-too-late': return 'Arrives after every affected order is due, so it does not help.'
-      case 'supplier-ok': return `Arrives before ${reason.protectsPriority ? 'the priority order is due' : 'some affected orders are due'} and cuts the shortage from ${quantity(reason.exposedBefore, plan.productId)} to ${quantity(reason.exposedAfter, plan.productId)}.`
+      case 'supplier-ok': return `Arrives before ${reason.protectsPriority ? 'the priority order is due' : 'some affected orders are due'} and cuts the shortage from ${quantity(reason.exposedBefore, plan.productId)} to ${quantity(reason.exposedAfter, plan.productId)}.${storageNote}`
+      case 'no-space': return `${destination} is full: it holds at most ${quantity(reason.limit, plan.productId)} of ${productName(plan.productId)} and already has that many.`
     }
   }
 
@@ -94,7 +101,11 @@ export function createWording(workspace: Workspace, format: Format) {
     const destination = locationName(plan.locationId)
     if (plan.kind === 'transfer') return `Move ${quantity(plan.quantity ?? 0, plan.productId)} to ${destination} before the priority order is due.`
     if (plan.kind === 'bulk-transfer') return `Move the full available ${locationName(plan.sourceLocationId ?? '')} balance to ${destination}.`
-    if (plan.quantity === null || plan.arrivalAt === null) return `Ask ${supplierName(plan.supplierId)} for stock that arrives before the delayed shipment.`
+    if (plan.quantity === null || plan.arrivalAt === null) {
+      return plan.request
+        ? `Ask ${supplierName(plan.supplierId)} for ${quantity(plan.request.quantity, plan.productId)} delivered to ${destination} by ${format.dateTime(plan.request.neededBy)}.`
+        : `Ask ${supplierName(plan.supplierId)} for stock that arrives before the delayed shipment.`
+    }
     return `Buy ${quantity(plan.quantity, plan.productId)} from ${supplierName(plan.supplierId)}, arriving ${format.dateTime(plan.arrivalAt)}.`
   }
 

@@ -39,6 +39,10 @@ describe('saved data checks', () => {
     const tooMany = { ...sampleWorkspace, stock: Array.from({ length: LIMITS.stock + 1 }, () => sampleWorkspace.stock[0]) }
     expect(parseWorkspace(tooMany)).toBeNull()
   })
+
+  it('refuses a saved file with a storage limit that is not a whole number of units', () => {
+    expect(parseWorkspace({ ...sampleWorkspace, storageLimits: [{ locationId: 'north', productId: 'harbor-blend', limit: -5 }] })).toBeNull()
+  })
 })
 
 describe('the data a plan check needs', () => {
@@ -48,8 +52,9 @@ describe('the data a plan check needs', () => {
   const bigger: Workspace = {
     ...sampleWorkspace,
     products: [...sampleWorkspace.products, { id: 'oat', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }],
-    locations: [...sampleWorkspace.locations, { id: 'east', name: 'East Store', kind: 'store', receivingLimitPerDay: 4 }],
+    locations: [...sampleWorkspace.locations.map((item) => item.id === 'north' ? { ...item, storageLimit: 40 } : item), { id: 'east', name: 'East Store', kind: 'store', receivingLimitPerDay: 4 }],
     stock: [...sampleWorkspace.stock, { locationId: 'east', productId: 'harbor-blend', available: { value: 2, evidence: sampleEvidence } }],
+    storageLimits: [{ locationId: 'north', productId: 'harbor-blend', limit: 20 }, { locationId: 'east', productId: 'harbor-blend', limit: 5 }],
     orders: [
       ...sampleWorkspace.orders,
       order('E1', 'east', 'harbor-blend', '2026-10-15T10:00:00+05:30', 9),

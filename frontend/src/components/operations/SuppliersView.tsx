@@ -62,16 +62,16 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
               <div className="supplier-icon"><Truck size={18} /></div>
               <div className="supplier-main">
                 <div className="supplier-title"><h3>{supplier.name}</h3><StatusBadge tone={toneFor(plan?.status)} dot>{text?.statusLabel ?? 'Not needed now'}</StatusBadge></div>
-                <p>Backup supply{manyPlaces ? ` · ${words.productName(offer.productId)} to ${words.locationName(offer.locationId)}` : ''} · {text?.detail ?? 'No current shortage for this product and location.'}</p>
+                <p>Backup supply{manyPlaces ? ` · ${words.productName(offer.productId)} to ${words.locationName(offer.locationId)}` : ''}{supplier.contact ? ` · ${supplier.contact}` : ''} · {text?.detail ?? 'Not needed now. When a delay leaves you short, ask them from Recovery options.'}</p>
               </div>
               <div className="supplier-facts">
-                <FactLine fact={offer.available} label="Stock available" show={(value) => words.quantity(value, offer.productId)} />
+                <FactLine fact={offer.available} label="Can send" show={(value) => words.quantity(value, offer.productId)} />
                 <FactLine fact={offer.pricePerUnit} label="Price" show={(value) => `${format.money(value)} / ${workspace.products.find((item) => item.id === offer.productId)?.unit ?? 'unit'}`} />
-                <FactLine fact={offer.arrivalAt} label="Arrival" show={format.dateTime} />
+                <FactLine fact={offer.arrivalAt} label="Arrives" show={format.dateTime} />
               </div>
               <div className="supplier-actions">
-                <Button aria-label={`Type details for ${supplier.name}`} icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="secondary">Type details</Button>
-                <Button aria-label={`Attach quote for ${supplier.name}`} icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="secondary">Attach quote</Button>
+                <Button aria-label={`Record reply from ${supplier.name}`} icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="secondary">Record reply</Button>
+                <Button aria-label={`Attach reply from ${supplier.name}`} icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="secondary">Attach reply</Button>
               </div>
             </article>
           )

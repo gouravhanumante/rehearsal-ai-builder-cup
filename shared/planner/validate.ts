@@ -16,6 +16,7 @@ const listOf = (check: Check, max: number): Check => (value) => Array.isArray(va
 const oneOf = (...options: string[]): Check => (value) => options.includes(value as string)
 const shape = (fields: Record<string, Check>): Check => (value) => isObject(value) && Object.entries(fields).every(([key, check]) => check(value[key]))
 const nullable = (check: Check): Check => (value) => value === null || check(value)
+const optional = (check: Check): Check => (value) => value === undefined || check(value)
 
 const isEvidence: Check = shape({ kind: oneOf('sample', 'manual', 'document', 'import'), source: isText(160), recordedAt: isTime })
 const recorded = (check: Check): Check => (value) => isObject(value) && check(value.value) && isEvidence(value.evidence)
@@ -29,8 +30,9 @@ const isWorkspaceShape = shape({
   businessName: isText(80),
   settings: shape({ country: isText(2), currency: isText(3), timeZone: isText(64), locale: isText(16) }),
   products: listOf(shape({ id: isText(64), name: isText(80), unit: isText(24), pack: isText(80) }), LIMITS.products),
-  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount) }), LIMITS.locations),
+  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount), storageLimit: optional(nullable(isCount)) }), LIMITS.locations),
   stock: listOf(shape({ locationId: isText(64), productId: isText(64), available: recorded(isCount) }), LIMITS.stock),
+  storageLimits: optional(listOf(shape({ locationId: isText(64), productId: isText(64), limit: isCount }), LIMITS.stock)),
   orders: listOf(shape({
     id: isText(64), customer: isText(80), locationId: isText(64), dueAt: isTime,
     priority: oneOf('protected', 'standard'), lines: listOf(isLine, LIMITS.lines), evidence: isEvidence,
@@ -45,7 +47,7 @@ const isWorkspaceShape = shape({
     quotes: listOf(shape({ quantity: isCount, amount: isAmount }), 20),
   }), LIMITS.routes),
   suppliers: listOf(shape({
-    id: isText(64), name: isText(80),
+    id: isText(64), name: isText(80), contact: optional(nullable(isText(120))),
     offers: listOf(shape({ productId: isText(64), locationId: isText(64), available: fact(isCount), pricePerUnit: fact(isAmount), arrivalAt: fact(isTime) }), LIMITS.offers),
   }), LIMITS.suppliers),
   conflictDecisions: listOf(shape({ conflictId: isText(200), winner: oneOf('earliest-due', 'priority') }), 1000),

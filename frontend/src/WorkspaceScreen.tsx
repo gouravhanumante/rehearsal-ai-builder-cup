@@ -149,7 +149,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
             {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} />}
-            {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={(target) => openEditor(target)} onApprove={requestApproval} onDecideConflict={decideConflict} />}
+            {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onApprove={requestApproval} onDecideConflict={decideConflict} />}
             <footer className="page-footer">
               <span>{isReal ? 'Your data is saved in this browser. Download a backup from the menu.' : 'Illustrative distributor data · edits stay in this browser until Reset'}</span>
               <span>Approval is simulated · no business records change</span>

@@ -196,4 +196,50 @@ describe('overview recommendation', () => {
   it('recommends nothing when no option is ready', () => {
     expect(recommendPlan(rehearse(withStock(sampleWorkspace, 'south', 0)).plans)).toBeUndefined()
   })
+
+  it('when two suppliers both cover the shortage in time, recommends the cheaper one', () => {
+    const offerAt = (price: number) => [{ productId: 'harbor-blend', locationId: 'north', available: { value: 30, evidence: quote }, pricePerUnit: { value: price, evidence: quote }, arrivalAt: { value: thursdayMorning, evidence: quote } }]
+    const data: Workspace = { ...sampleWorkspace, suppliers: [
+      { id: 'pricey', name: 'Pricey Co', offers: offerAt(20) },
+      { id: 'cheap', name: 'Cheap Co', offers: offerAt(12) },
+    ] }
+    expect(recommendPlan(rehearse(data).plans)?.supplierId).toBe('cheap')
+  })
+})
+
+describe('storage limits', () => {
+  // North Hub has 14 cases and is 24 short before the delayed shipment lands.
+  const withLimits = (location: number | null, product?: number): Workspace => ({
+    ...sampleWorkspace,
+    locations: sampleWorkspace.locations.map((item) => item.id === 'north' ? { ...item, storageLimit: location } : item),
+    storageLimits: product === undefined ? [] : [{ locationId: 'north', productId: 'harbor-blend', limit: product }],
+  })
+
+  it('asks a backup supplier only for what still fits: holds 20, has 14, so ask for 6 even though 24 are short', () => {
+    expect(planIn(withLimits(20), supplierPlan)?.request).toEqual({ quantity: 6, neededBy: '2026-10-15T14:00:00+05:30' })
+  })
+
+  it('asks for the whole shortage when no storage limit is set', () => {
+    expect(planIn(sampleWorkspace, supplierPlan)?.request?.quantity).toBe(24)
+  })
+
+  it('uses the lower of the warehouse limit and the product limit there', () => {
+    expect(planIn(withLimits(30, 20), supplierPlan)?.spaceLeft).toBe(6)
+    expect(planIn(withLimits(20, 30), supplierPlan)?.spaceLeft).toBe(6)
+  })
+
+  it('a product limit applies even when the warehouse has none', () => {
+    expect(planIn(withLimits(null, 18), supplierPlan)?.spaceLeft).toBe(4)
+  })
+
+  it('moves only what fits in storage, even when the receiving limit would allow more', () => {
+    expect(planIn(withLimits(18), transferPlan)).toMatchObject({ status: 'ready', quantity: 4 })
+  })
+
+  it("rejects transfers and suppliers when the warehouse is already full", () => {
+    const full = withLimits(14)
+    expect(planIn(full, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
+    expect(planIn(full, supplierPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
+    expect(recommendPlan(rehearse(full).plans)).toBeUndefined()
+  })
 })

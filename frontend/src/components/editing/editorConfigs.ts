@@ -90,24 +90,33 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
   const unitOf = (productId: string) => workspace.products.find((product) => product.id === productId)?.unit ?? 'unit'
   const productName = (productId: string) => workspace.products.find((product) => product.id === productId)?.name ?? productId
   const locationName = (locationId: string) => workspace.locations.find((location) => location.id === locationId)?.name ?? locationId
-  const priceLabel = `Price per unit (${format.currencySymbol})`
 
   if (target.type === 'stock') {
     const record = workspace.stock.find((item) => item.locationId === target.locationId && item.productId === target.productId)
+    const ownLimit = workspace.storageLimits?.find((item) => item.locationId === target.locationId && item.productId === target.productId)
+    const locationLimit = workspace.locations.find((item) => item.id === target.locationId)?.storageLimit ?? null
+    const unit = unitOf(target.productId)
     return {
       title: `Stock at ${locationName(target.locationId)}`,
       subtitle: productName(target.productId),
       documentHint: 'Stock count sheet or goods receipt',
-      fields: [{ key: 'available', label: `${capitalize(unitOf(target.productId))}s available`, type: 'integer', required: true, extractable: true, isFact: true }],
-      initial: { available: record ? String(record.available.value) : '' },
-      initialEvidence: { available: record?.available.evidence ?? null },
+      fields: [
+        { key: 'available', label: `${capitalize(unit)}s available`, type: 'integer', required: true, extractable: true, isFact: true },
+        { key: 'storageLimit', label: `Most ${unit}s it can store here`, type: 'integer', required: false, extractable: false, isFact: false,
+          hint: locationLimit === null ? 'Leave blank for no limit.' : `Leave blank to use the warehouse limit of ${format.number(locationLimit)}. The lower of the two applies.` },
+      ],
+      initial: { available: record ? String(record.available.value) : '', storageLimit: ownLimit ? String(ownLimit.limit) : '' },
+      initialEvidence: { available: record?.available.evidence ?? null, storageLimit: null },
       apply: (values, evidence) => {
         const next = { locationId: target.locationId, productId: target.productId, available: { value: values.available as number, evidence: evidence.available as Evidence } }
+        const limit = asNumber(values.storageLimit)
+        const otherLimits = (workspace.storageLimits ?? []).filter((item) => item !== ownLimit)
         return {
           ...workspace,
           stock: record
             ? workspace.stock.map((item) => item === record ? next : item)
             : [...workspace.stock, next],
+          storageLimits: limit === null ? otherLimits : [...otherLimits, { locationId: target.locationId, productId: target.productId, limit }],
         }
       },
     }
@@ -157,23 +166,28 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     if (target.type === 'offer' && (!supplier || !offer)) return null
     const firstGroup = workspace.disruptions.length ? workspace.shipments.find((item) => item.id === workspace.disruptions[0].shipmentId) : undefined
     const isNew = !supplier
+    const unit = unitOf(offer?.productId ?? '')
+    const contactField: FieldSpec = { key: 'contact', label: 'Email or phone', type: 'text', required: false, extractable: false, isFact: false, hint: 'Used to send them a request when you are short.' }
     return {
-      title: isNew ? 'Add supplier' : `Supplier details · ${supplier.name}`,
-      subtitle: isNew ? 'Leave anything you don’t know yet blank — it stays “Unknown”.' : `${productName(offer?.productId ?? '')} to ${locationName(offer?.locationId ?? '')} · blank means unknown`,
-      documentHint: 'Supplier quote, pro-forma invoice, or delivery confirmation',
+      title: isNew ? 'Add supplier' : `Reply from ${supplier.name}`,
+      subtitle: isNew ? 'Someone you could buy from in a shortage. You ask them for stock when a delay happens.' : `${productName(offer?.productId ?? '')} to ${locationName(offer?.locationId ?? '')} · blank means they haven’t said`,
+      documentHint: 'Their reply, quote, pro-forma invoice, or delivery confirmation',
       isNew,
-      fields: [
+      fields: isNew ? [
+        { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: false, isFact: false },
+        contactField,
+        { key: 'productId', label: 'Product they can supply', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
+        { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
+      ] : [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: true, isFact: false },
-        ...(isNew ? [
-          { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
-          { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
-        ] satisfies FieldSpec[] : []),
-        { key: 'available', label: 'Stock available', type: 'integer', required: false, extractable: true, isFact: true },
-        { key: 'pricePerUnit', label: priceLabel, type: 'money', required: false, extractable: true, isFact: true },
-        { key: 'arrivalAt', label: `Arrival (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
+        contactField,
+        { key: 'available', label: `How many ${unit}s they can send`, type: 'integer', required: false, extractable: true, isFact: true },
+        { key: 'pricePerUnit', label: `Their price per ${unit} (${format.currencySymbol})`, type: 'money', required: false, extractable: true, isFact: true },
+        { key: 'arrivalAt', label: `When it would arrive (${format.settings.timeZone})`, type: 'datetime', required: false, extractable: true, isFact: true },
       ],
       initial: {
         name: supplier?.name ?? '',
+        contact: supplier?.contact ?? '',
         productId: offer?.productId ?? firstGroup?.lines[0]?.productId ?? workspace.products[0]?.id ?? '',
         locationId: offer?.locationId ?? firstGroup?.locationId ?? workspace.locations[0]?.id ?? '',
         available: offer?.available.value?.toString() ?? '',
@@ -181,7 +195,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         arrivalAt: offer?.arrivalAt.value ? format.toInput(offer.arrivalAt.value) : '',
       },
       initialEvidence: {
-        name: null, productId: null, locationId: null,
+        name: null, contact: null, productId: null, locationId: null,
         available: offer?.available.evidence ?? null,
         pricePerUnit: offer?.pricePerUnit.evidence ?? null,
         arrivalAt: offer?.arrivalAt.evidence ?? null,
@@ -195,10 +209,10 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
           arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt),
         }
         if (isNew) {
-          const created: Supplier = { id: newId('supplier'), name: values.name as string, offers: [nextOffer] }
+          const created: Supplier = { id: newId('supplier'), name: values.name as string, contact: asText(values.contact), offers: [nextOffer] }
           return { ...workspace, suppliers: [...workspace.suppliers, created] }
         }
-        const updated: Supplier = { ...supplier, name: values.name as string, offers: supplier.offers.map((item) => item === offer ? nextOffer : item) }
+        const updated: Supplier = { ...supplier, name: values.name as string, contact: asText(values.contact), offers: supplier.offers.map((item) => item === offer ? nextOffer : item) }
         return { ...workspace, suppliers: workspace.suppliers.map((item) => item.id === supplier.id ? updated : item) }
       },
     }
@@ -352,11 +366,12 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false },
         { key: 'kind', label: 'Type', type: 'select', required: true, extractable: false, isFact: false, options: kindOptions },
         { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, hint: 'How much can arrive here in one day, not how much it can store. Leave blank for no limit.' },
+        { key: 'storageLimit', label: 'Most it can store of each product', type: 'integer', required: false, extractable: false, isFact: false, hint: 'Applies to every product here; a product can have its own lower limit in Inventory. Leave blank for no limit.' },
       ],
-      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '' },
-      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null },
+      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', storageLimit: location?.storageLimit?.toString() ?? '' },
+      initialEvidence: { name: null, kind: null, receivingLimitPerDay: null, storageLimit: null },
       apply: (values) => {
-        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay) }
+        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, receivingLimitPerDay: asNumber(values.receivingLimitPerDay), storageLimit: asNumber(values.storageLimit) }
         return {
           ...workspace,
           locations: location ? workspace.locations.map((item) => item.id === location.id ? next : item) : [...workspace.locations, next],

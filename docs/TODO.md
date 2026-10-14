@@ -33,6 +33,9 @@
 - [ ] several products on one order/shipment when typing it in (import already supports several lines)
 - [ ] edit/delete a shipment, delete orders/locations/products (only add and edit exist; delete is not built)
 - [ ] sign-in and cross-device sync (V2)
+- [ ] supplier replies are not tied to a delay: a reply recorded for one delay is still used for the next one until edited
+- [ ] storage room uses today's count only; it does not credit stock leaving for orders before the new stock arrives, and the delayed shipment itself is not checked against storage
+- [ ] the per-day unloading limit is still one number for every product and is not checked on supplier shipments
 
 ## Priority P1 — important for a solid hackathon demo
 - [x] add separate Demo and Real workspace selector (start screen)

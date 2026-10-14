@@ -19,6 +19,7 @@ export type PlanReason =
   | { code: 'supplier-no-stock' }
   | { code: 'supplier-too-late' }
   | { code: 'supplier-ok'; exposedBefore: number; exposedAfter: number; protectsPriority: boolean }
+  | { code: 'no-space'; limit: number }
 
 export type Plan = {
   id: string
@@ -37,6 +38,10 @@ export type Plan = {
   /** What is left after this plan; null when the plan cannot be checked. */
   outcome: { exposedQuantity: number; protectsPriority: boolean } | null
   unverified: UnverifiedFact[]
+  /** How much more of the product fits in storage at the destination; null when there is no limit. */
+  spaceLeft: number | null
+  /** What to ask a supplier for: the shortage, capped by storage space, needed by the first short order. */
+  request?: { quantity: number; neededBy: string }
 }
 
 export type Allocation = { orderId: string; ordered: number; covered: number }
@@ -104,6 +109,15 @@ function allocate(demands: Demand[], batches: Batch[], firstServed: Set<string>)
 }
 
 const shortfall = (allocations: Allocation[]) => allocations.reduce((total, item) => total + item.ordered - item.covered, 0)
+
+/** Most of a product a location can hold: the lower of its own limit and the product's limit there. Null means no limit. */
+export function storageCap(workspace: Workspace, locationId: string, productId: string): number | null {
+  const limits = [
+    workspace.locations.find((location) => location.id === locationId)?.storageLimit,
+    workspace.storageLimits?.find((item) => item.locationId === locationId && item.productId === productId)?.limit,
+  ].filter((value): value is number => typeof value === 'number')
+  return limits.length ? Math.min(...limits) : null
+}
 
 export function rehearse(workspace: Workspace) {
   const { settings } = workspace
@@ -175,13 +189,19 @@ export function rehearse(workspace: Workspace) {
       ]
       const earliestPriorityDue = Math.min(...demands.filter((item) => item.order.priority === 'protected').map((item) => time(item.order.dueAt)))
       const destinationLimit = locationById.get(locationId)?.receivingLimitPerDay ?? null
-      const common = { disruptionId: disruption.id, productId, locationId }
+      // Room is measured against today's count; stock leaving for orders before arrival is not credited.
+      const cap = storageCap(workspace, locationId, productId)
+      const spaceLeft = cap === null ? null : Math.max(0, cap - stock.available.value)
+      const common = { disruptionId: disruption.id, productId, locationId, spaceLeft }
+      const fits = (quantity: number) => (spaceLeft === null ? quantity : Math.min(quantity, spaceLeft))
+      const firstShort = baseline.allocations.find((item) => item.covered < item.ordered)
+      const neededBy = demands.find((item) => item.order.id === firstShort?.orderId)?.order.dueAt ?? delayedUntil
 
       for (const route of workspace.routes.filter((item) => item.toLocationId === locationId)) {
         const source = stockByKey.get(stockKey(route.fromLocationId, productId))
         if (!source) continue
         const sourceQuantity = source.available.value
-        const quantity = Math.min(sourceQuantity, destinationLimit ?? sourceQuantity)
+        const quantity = fits(Math.min(sourceQuantity, destinationLimit ?? sourceQuantity))
         const costFor = (amount: number): Money | null => {
           const quote = route.quotes.find((item) => item.quantity === amount)
           return quote ? { amount: quote.amount, currency: settings.currency } : null
@@ -194,7 +214,9 @@ export function rehearse(workspace: Workspace) {
         const arrivalAt = route.arrivalAt.value
         const base = { ...common, sourceLocationId: route.fromLocationId, routeId: route.id, arrivalAt, unverified }
 
-        if (quantity <= 0) {
+        if (cap !== null && spaceLeft === 0) {
+          plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'rejected', reason: { code: 'no-space', limit: cap }, quantity: 0, cost: null, outcome: null, unverified: [] })
+        } else if (quantity <= 0) {
           plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'rejected', reason: { code: 'transfer-none-available' }, quantity: 0, cost: null, outcome: null, unverified: [] })
         } else if (arrivalAt === null) {
           plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'conditional', reason: { code: 'transfer-arrival-unknown' }, quantity, cost: costFor(quantity), outcome: null, unverified: [] })
@@ -223,16 +245,21 @@ export function rehearse(workspace: Workspace) {
       for (const supplier of workspace.suppliers) {
         for (const offer of supplier.offers.filter((item) => item.productId === productId && item.locationId === locationId)) {
           const id = `supplier:${supplier.id}:${productId}:${locationId}`
-          const base = { ...common, id, kind: 'supplier' as const, supplierId: supplier.id }
+          const request = { quantity: fits(baseline.exposedQuantity), neededBy }
+          const base = { ...common, id, kind: 'supplier' as const, supplierId: supplier.id, request }
           const available = offer.available.value
           const price = offer.pricePerUnit.value
           const arrivalAt = offer.arrivalAt.value
+          if (cap !== null && spaceLeft === 0) {
+            plans.push({ ...base, status: 'rejected', reason: { code: 'no-space', limit: cap }, quantity: 0, arrivalAt, cost: null, outcome: null, unverified: [] })
+            continue
+          }
           if (available === null || price === null || arrivalAt === null) {
             const missing = (['available', 'pricePerUnit', 'arrivalAt'] as const).filter((field) => offer[field].value === null)
             plans.push({ ...base, status: 'conditional', reason: { code: 'supplier-missing', missing: [...missing] }, quantity: null, arrivalAt, cost: null, outcome: null, unverified: [] })
             continue
           }
-          const quantity = Math.min(available, baseline.exposedQuantity)
+          const quantity = Math.min(available, request.quantity)
           const result = outcome([{ at: arrivalAt, quantity }])
           const helps = quantity > 0 && result.exposedQuantity < baseline.exposedQuantity
           const offerUnverified: UnverifiedFact[] = (['available', 'pricePerUnit', 'arrivalAt'] as const)
@@ -274,13 +301,15 @@ export type Rehearsal = ReturnType<typeof rehearse>
 
 /**
  * The Overview shows one plan: a ready plan that protects the priority order first, then the one
- * leaving the least exposed, then the one relying on fewer typed-in details.
+ * leaving the least exposed, then the cheaper one (unknown cost last), then the one relying on fewer typed-in details.
  */
 export function recommendPlan(plans: Plan[]) {
+  const costOf = (plan: Plan) => plan.cost?.amount ?? Number.MAX_SAFE_INTEGER
   return plans
     .filter((plan) => plan.status === 'ready' && plan.outcome)
     .sort((first, second) => Number(second.outcome?.protectsPriority) - Number(first.outcome?.protectsPriority)
       || (first.outcome?.exposedQuantity ?? 0) - (second.outcome?.exposedQuantity ?? 0)
+      || costOf(first) - costOf(second)
       || first.unverified.length - second.unverified.length)[0]
 }
 

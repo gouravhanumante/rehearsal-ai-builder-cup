@@ -12,9 +12,12 @@ export type WorkspaceSettings = { country: string; currency: string; timeZone: s
 export type Product = { id: string; name: string; unit: string; pack: string }
 
 export type LocationKind = 'warehouse' | 'store' | 'distribution-centre'
-export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null }
+/** storageLimit: most of any one product it can hold. Optional because older saves don't have it. */
+export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; storageLimit?: number | null }
 
 export type StockRecord = { locationId: string; productId: string; available: Recorded<number> }
+/** Most of one product a location can hold. When the location also has a storageLimit, the lower one applies. */
+export type StorageLimit = { locationId: string; productId: string; limit: number }
 
 export type OrderLine = { productId: string; quantity: number }
 export type Order = {
@@ -56,7 +59,7 @@ export type SupplierOffer = {
   pricePerUnit: Fact<number>
   arrivalAt: Fact<string>
 }
-export type Supplier = { id: string; name: string; offers: SupplierOffer[] }
+export type Supplier = { id: string; name: string; contact?: string | null; offers: SupplierOffer[] }
 
 /** The user's answer to "who gets the stock" when a priority order competes with an earlier one. */
 export type ConflictDecision = { conflictId: string; winner: 'earliest-due' | 'priority' }
@@ -72,6 +75,7 @@ export type Workspace = {
   products: Product[]
   locations: Location[]
   stock: StockRecord[]
+  storageLimits?: StorageLimit[]
   orders: Order[]
   shipments: InboundShipment[]
   disruptions: Disruption[]

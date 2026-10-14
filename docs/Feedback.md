@@ -2,7 +2,8 @@
 
 ## Status (2026-10-14)
 - **Done (local, not deployed yet):** new-record review lists every detail instead of "Unknown ->" (all Add forms); product fields renamed "How it is packed" / "Unit you count stock in" with examples; priority option is "High priority"; unloading limit label + hint; inventory By product / By warehouse toggle with search and pages of 25.
-- **Waiting for a decision:** per-item storage limit (new saved field), ask-supplier-at-delay flow (new workflow). The unloading limit is still one number for all products and not checked on shipments.
+- **Done (local, not deployed yet):** storage limits (warehouse limit per product + optional product limit; lower wins; none = unlimited); transfers and supplier asks capped to the room left; ask-all-suppliers panel with copy / email-all, record each reply; cheaper option wins when outcomes tie. Rules in docs/03-behaviour.md.
+- **Still open:** see docs/TODO.md (replies not tied to a delay, storage room uses today's count only, unloading limit not checked on shipments).
 
 ## 2026-10-14
 - **Add location confirmation:** For a new location, show that it will be created and list its details. Avoid `Unknown -> ...` and existing-value changes, which make the flow look like an edit. Clarify the impact, for example: “This adds a location; existing plans won’t change.”

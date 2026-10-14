@@ -22,6 +22,7 @@ export function sliceForPlan(workspace: Workspace, planId: string): Workspace | 
     products: workspace.products.filter((product) => product.id === productId),
     locations: workspace.locations.filter((location) => locationIds.has(location.id)),
     stock: workspace.stock.filter((record) => record.productId === productId && locationIds.has(record.locationId)),
+    storageLimits: workspace.storageLimits?.filter((item) => item.productId === productId && locationIds.has(item.locationId)),
     orders: workspace.orders.filter((order) => order.locationId === locationId && hasProduct(order.lines)),
     shipments,
     disruptions: workspace.disruptions.filter((disruption) => shipmentIds.has(disruption.shipmentId)),

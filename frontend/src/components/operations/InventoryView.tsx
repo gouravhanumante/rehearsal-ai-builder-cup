@@ -5,6 +5,7 @@ import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Location, Product } from '../../../../shared/planner/model'
 import type { EditTarget } from '../../presentation/planText'
 import { searchPage } from '../../presentation/listPage'
+import { storageCap } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { EmptyState } from '../layout/EmptyState'
@@ -105,6 +106,8 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
     const inbound = workspace.shipments.filter((shipment) => shipment.locationId === rowLocation.id && shipment.lines.some((line) => line.productId === rowProduct.id))
     const inboundQuantity = inbound.reduce((total, shipment) => total + shipment.lines.filter((line) => line.productId === rowProduct.id).reduce((sum, line) => sum + line.quantity, 0), 0)
     const target = { type: 'stock' as const, locationId: rowLocation.id, productId: rowProduct.id }
+    const cap = storageCap(workspace, rowLocation.id, rowProduct.id)
+    const overCap = cap !== null && record !== undefined && record.available.value > cap
     return (
       <li className="stock-row" key={pairKey(rowLocation.id, rowProduct.id)}>
         <div className="stock-row-name">
@@ -115,10 +118,11 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
         </div>
         <div className="stock-row-quantity">
           {record
-            ? <><strong>{format.number(record.available.value)}</strong><span>{record.available.value === 1 ? rowProduct.unit : `${rowProduct.unit}s`}</span></>
+            ? <><strong>{format.number(record.available.value)}</strong><span>{record.available.value === 1 ? rowProduct.unit : `${rowProduct.unit}s`}{cap !== null && ` of ${format.number(cap)} max`}</span></>
             : <span className="stock-row-unknown">Not counted · unknown, not zero</span>}
         </div>
         <div className="stock-row-status">
+          {overCap && <StatusBadge tone="danger" dot>Over storage limit</StatusBadge>}
           {pressured.has(pairKey(rowLocation.id, rowProduct.id))
             ? <StatusBadge tone="warning" dot>Under pressure</StatusBadge>
             : record && record.available.value === 0 && <StatusBadge tone="neutral" dot>Empty</StatusBadge>}
@@ -180,7 +184,7 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
             : <div className="inventory-detail-heading">
               <div>
                 <h3>{location.name}</h3>
-                <p>{kindLabels[location.kind]} · {location.receivingLimitPerDay === null ? 'No unloading limit set' : `Can unload ${format.number(location.receivingLimitPerDay)} a day`}</p>
+                <p>{kindLabels[location.kind]} · {location.receivingLimitPerDay === null ? 'No unloading limit set' : `Can unload ${format.number(location.receivingLimitPerDay)} a day`} · {location.storageLimit == null ? 'No storage limit set' : `Stores up to ${format.number(location.storageLimit)} of each product`}</p>
               </div>
               <Button icon={<Settings2 size={14} />} onClick={() => onEdit({ type: 'location', locationId: location.id }, 'manual')} variant="secondary">Edit location</Button>
             </div>}

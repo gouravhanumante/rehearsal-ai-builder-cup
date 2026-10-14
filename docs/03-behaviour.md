@@ -67,15 +67,28 @@ Agreed with the user: both paths exist, and the difference is always visible.
   destination's daily receiving limit and against the priority order's due time. Its cost is
   shown only when someone quoted a price for exactly that quantity. A route with unknown arrival
   is **Needs information** with **Add details** (no dead end).
-- Each supplier offer for that product and location is its own option. Missing stock, price per
-  unit, or arrival → **Needs information**, naming what is missing, with **Add details**. Arrives
-  after every affected order is due → **Can't be done**. It buys only what is short
-  (`min(offer, shortage)`) at the quoted price per unit.
+- Each supplier offer for that product and location is its own option. At setup a backup
+  supplier is only who / contact / product / where; stock, price and arrival are their **reply**
+  when a delay happens. Until all three are recorded the option is **Waiting for reply**, with
+  **Record reply**. Arrives after every affected order is due → **Can't be done**. It buys only
+  what is short and fits (`min(offer, shortage, storage room)`) at the quoted price per unit.
+- **Ask your backup suppliers** (Recovery options, `AskSuppliers.tsx`, user decision 2026-10-14):
+  every supplier for the short product gets the same question — the shortage capped by storage
+  room, needed by the first order that is short (`plan.request`). Copy the message, or email
+  one / all waiting suppliers (BCC). Only a plain email address becomes a link (`emailOf`).
+  The app does not send anything itself.
+- **Storage limits** (user decision 2026-10-14): a location can have a limit for each product
+  (`storageLimit`), and a product can have its own limit there (`storageLimits`, set on the
+  stock count). The lower applies; neither set means no limit (`storageCap`). Room = limit minus
+  today's count (stock leaving for orders before arrival is not credited). Transfers and
+  supplier options are capped to the room; a full location rejects them as **Can't be done**.
+  The warehouse limit is per product, not a total across products, because bags and units
+  can't be added up.
 - "Transfer all … in one day" is only shown when it would break the receiving limit;
   otherwise it is the same move as the normal transfer.
 - The Overview shows one ready plan: the one that protects the priority order, then leaves the
-  least exposed, then relies on fewer typed-in details (`recommendPlan`). If none is ready it
-  says so instead of recommending something.
+  least exposed, then costs less (unknown cost last), then relies on fewer typed-in details
+  (`recommendPlan`). If none is ready it says so instead of recommending something.
 - Money and times follow the workspace country (sample: India → ₹ and India time). A time typed
   in, or read from a document without a timezone, is taken as the business's local time,
   including daylight-saving changes (`shared/planner/time.ts`, `countries.ts`).

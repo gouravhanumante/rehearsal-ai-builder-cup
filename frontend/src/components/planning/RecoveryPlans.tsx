@@ -4,11 +4,12 @@ import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Plan } from '../../../../shared/planner/plan'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
+import { AskSuppliers } from './AskSuppliers'
 import { ConflictCards } from './ConflictCards'
 
 type RecoveryPlansProps = {
   onApprove: (plan: Plan) => void
-  onAddDetails: (target: EditTarget) => void
+  onAddDetails: (target: EditTarget, mode?: 'manual' | 'document') => void
   onDecideConflict: (conflictId: string, winner: 'earliest-due' | 'priority') => void
 }
 
@@ -44,9 +45,10 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: Rec
     <section className="options-section" aria-labelledby="options-title">
       <div className="section-heading options-heading">
         <div><p className="section-kicker">REHEARSAL · {plans.length} OPTIONS CHECKED</p><h2 id="options-title">Recovery options</h2></div>
-        <p className="check-note"><ShieldCheck size={16} /> We checked stock, delivery times, and receiving limits</p>
+        <p className="check-note"><ShieldCheck size={16} /> We checked stock, delivery times, receiving and storage limits</p>
       </div>
       <ConflictCards onDecide={onDecideConflict} />
+      <AskSuppliers onRecordReply={onAddDetails} />
       {approved && approval && <div className={`approval-notice ${approval.withWarning ? 'approval-notice--warning' : ''}`}>
         {approval.withWarning ? <TriangleAlert size={16} /> : <Check size={16} />}
         <span><strong>{words.planText(approved).title} approved for this demo{approval.withWarning ? ' with a warning' : ''}.</strong>{approval.defaultedConflicts > 0 ? ` Earliest due was used for ${approval.defaultedConflicts} unanswered conflict${approval.defaultedConflicts === 1 ? '' : 's'}.` : ''} No business records were changed.</span>
@@ -71,7 +73,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: Rec
                   : plan.status === 'ready'
                     ? <Button onClick={() => onApprove(plan)} variant="primary">Approve</Button>
                     : target
-                      ? <Button icon={<PencilLine size={14} />} onClick={() => onAddDetails(target)} variant="secondary">Add details</Button>
+                      ? <Button icon={<PencilLine size={14} />} onClick={() => onAddDetails(target)} variant="secondary">{plan.kind === 'supplier' ? 'Record reply' : 'Add details'}</Button>
                       : <Button disabled variant="secondary">Can&apos;t be done</Button>}
               </div>
             </article>
