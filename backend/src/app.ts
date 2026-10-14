@@ -64,6 +64,12 @@ export function createApp() {
         })
         return
       }
+      if (error instanceof Error && /timeout|timed out/i.test(error.message)) {
+        response.status(504).json({
+          error: { code: 'AI_TIMEOUT', message: 'Gemini is taking too long. Please retry.' },
+        })
+        return
+      }
       response.status(502).json({
         error: { code: 'AI_UNAVAILABLE', message: 'Gemini could not answer right now. Please retry.' },
       })

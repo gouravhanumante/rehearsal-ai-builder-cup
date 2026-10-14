@@ -1,6 +1,6 @@
 # Rehearsal API
 
-TypeScript API for the Rehearsal prototype. Gemini credentials stay on this server. Requests and responses are not stored by Rehearsal; Gemini calls use stateless Interactions requests (`store: false`).
+TypeScript API for the Rehearsal prototype. Gemini credentials stay on this server. Requests and responses are not stored by Rehearsal; Gemini calls use stateless Interactions requests (`store: false`). Ask AI defaults to stable Gemini 3.5 Flash-Lite with low thinking, a short output limit, and a 15-second request timeout. One local sample request completed in about 2.1 seconds; actual latency varies with the network and provider.
 
 ## Local development
 

@@ -2,7 +2,7 @@
 
 Rehearsal helps small businesses rehearse a response to operational disruptions by showing what is affected and checking recovery options against stated constraints.
 
-The current prototype is a distributor sample workflow. Its data and estimated costs are illustrative. Ask AI calls Gemini through a local TypeScript API; each developer supplies their own key in the ignored `backend/.env`. Firebase Hosting and Firestore are not wired yet; the planned Real workspace will keep records in this browser during V1.
+The current prototype is a distributor sample workflow. Its data and estimated costs are illustrative. Ask AI calls Gemini 3.5 Flash-Lite through a local TypeScript API; each developer supplies their own key in the ignored `backend/.env`. Firebase Hosting and Firestore are not wired yet; the planned Real workspace will keep records in this browser during V1.
 
 ## Run locally
 

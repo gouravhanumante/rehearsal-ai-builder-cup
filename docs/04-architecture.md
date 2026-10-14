@@ -43,6 +43,7 @@ The Ask AI endpoint sends the user's question plus current workspace facts/optio
   microphone for receipt photos and voice.
 - **Backend:** TypeScript/Node on Cloud Run. The deterministic planner remains code-owned; current sample rules are implemented in the frontend domain module and will move to a shared/server-owned boundary before real workspace changes are applied.
 - **Gemini provider:** Google AI Studio API key, held only by the backend as `GEMINI_API_KEY`; never exposed in browser code.
+- **Ask AI model:** Gemini 3.5 Flash-Lite with low thinking, a bounded output size, and a 15-second request timeout for interactive latency. Model selection stays configurable through `GEMINI_MODEL`.
 - **Demo data:** resettable sample workspace; planned Firestore use is only for sample/demo state and audit data.
 - **Real data:** V1 design is browser-local with evidence attachments; Gemini receives only the explicitly submitted question/context or scan for processing. No Rehearsal backend persistence or cross-device sync. Firebase Authentication and synced Real workspaces are deferred to V2.
 - **Development proxy:** Vite forwards `/api` to the local Node API on port 8080. Production will use Firebase Hosting rewrites to Cloud Run.

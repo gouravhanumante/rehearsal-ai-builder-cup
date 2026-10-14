@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { assistantResponseSchema, type AssistantRequest, type AssistantResponse } from './contracts.js'
 
-const DEFAULT_MODEL = 'gemini-3.8-flash'
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite'
 const UNSAFE_NUMERIC_ANSWER = 'I can explain the options, but I may have misstated a figure. Please use the confirmed values shown in the dashboard.'
 
 const outputSchema = {
@@ -72,6 +72,11 @@ export async function answerWithGemini(request: AssistantRequest): Promise<Assis
     model,
     input: prompt,
     store: false,
+    generation_config: {
+      thinking_level: 'low',
+      max_output_tokens: 320,
+      temperature: 0.2,
+    },
     system_instruction: [
       'You are Rehearsal, an assistant for small-business operations recovery.',
       'Use only the supplied workspace facts. A fact marked unknown is not known; say so plainly.',
@@ -85,7 +90,7 @@ export async function answerWithGemini(request: AssistantRequest): Promise<Assis
       mime_type: 'application/json',
       schema: outputSchema,
     },
-  })
+  }, { timeout: 15_000, maxRetries: 0 })
 
   if (!interaction.output_text) throw new Error('Gemini returned no text response.')
   return validateAssistantOutput(JSON.parse(interaction.output_text), request)

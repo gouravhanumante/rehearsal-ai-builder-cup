@@ -27,6 +27,7 @@
 - Gemini response validation filters option IDs to known planner options and recommendations to ready options
 - Gemini Interactions use `store: false`; Rehearsal backend does not persist prompts or context
 - Live sample question returned a planner-checked option reference; no key value is stored in the repository
+- Ask AI uses Gemini 3.5 Flash-Lite; one local sample UI request completed in about 2.1 seconds
 - research-backed UX guidelines recorded for future screens
 - distributor sample fixture centralized separately from UI
 - deterministic impact and recovery-option calculations implemented
