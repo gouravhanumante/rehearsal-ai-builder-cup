@@ -1,5 +1,5 @@
 /** Where a value came from. Unknown values have no evidence at all. */
-export type EvidenceKind = 'sample' | 'manual' | 'document'
+export type EvidenceKind = 'sample' | 'manual' | 'document' | 'import'
 export type Evidence = { kind: EvidenceKind; source: string; recordedAt: string }
 
 /** A value we hold, with where it came from. */
@@ -65,6 +65,8 @@ export type Approval = { planId: string; withWarning: boolean; approvedAt: strin
 
 export type Workspace = {
   version: 2
+  /** The sample is a shared demo; a real workspace belongs to one business. */
+  mode: 'demo' | 'real'
   businessName: string
   settings: WorkspaceSettings
   products: Product[]

@@ -6,6 +6,7 @@ const unknown = { value: null, evidence: null }
 
 export const sampleWorkspace: Workspace = {
   version: 2,
+  mode: 'demo',
   businessName: 'Northstar Supply',
   settings: settingsForCountry('IN'),
   products: [{ id: 'harbor-blend', name: 'Harbor Blend Coffee', unit: 'case', pack: '1 kg case' }],
