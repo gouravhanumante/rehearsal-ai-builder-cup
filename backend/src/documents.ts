@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { z } from 'zod'
+import { isTimeZone, localToIso } from '../../shared/planner/time.js'
 import { GeminiNotConfiguredError, geminiModel } from './gemini.js'
 
 export const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
@@ -9,7 +10,7 @@ const acceptedMimeTypes = ['image/png', 'image/jpeg', 'image/webp', 'application
 type AcceptedMimeType = typeof acceptedMimeTypes[number]
 
 const extractionFieldSchema = z.object({
-  key: z.string().regex(/^[a-zA-Z]{1,32}$/),
+  key: z.string().regex(/^[a-zA-Z][\w:-]{0,63}$/),
   label: z.string().min(1).max(80),
   type: z.enum(['integer', 'money', 'datetime', 'text']),
 }).strict()
@@ -18,7 +19,8 @@ export const extractRequestSchema = z.object({
   fileName: z.string().min(1).max(120),
   mimeType: z.enum(acceptedMimeTypes),
   dataBase64: z.string().min(1).max(MAX_BASE64_LENGTH).regex(/^[A-Za-z0-9+/]+={0,2}$/),
-  fields: z.array(extractionFieldSchema).min(1).max(8),
+  timeZone: z.string().min(1).max(64).refine(isTimeZone),
+  fields: z.array(extractionFieldSchema).min(1).max(12),
 }).strict()
 
 export type ExtractRequest = z.infer<typeof extractRequestSchema>
@@ -59,19 +61,21 @@ export function detectMimeType(dataBase64: string): AcceptedMimeType | null {
   return null
 }
 
-function normalizeValue(type: ExtractionField['type'], raw: string) {
+function normalizeValue(type: ExtractionField['type'], raw: string, timeZone: string) {
   const text = raw.trim()
   switch (type) {
     case 'integer': {
       const digits = text.replace(/[,\s]/g, '')
-      return /^\d{1,6}$/.test(digits) ? String(Number(digits)) : null
+      return /^\d{1,7}$/.test(digits) ? String(Number(digits)) : null
     }
     case 'money': {
-      const amount = text.replace(/[$₹,\s]|USD|INR|Rs\.?/gi, '')
-      return /^\d{1,7}(\.\d{1,2})?$/.test(amount) ? String(Number(amount)) : null
+      const amount = text.replace(/[\p{Sc},\s]|\b[A-Z]{3}\b|Rs\.?/gu, '')
+      return /^\d{1,9}(\.\d{1,2})?$/.test(amount) ? String(Number(amount)) : null
     }
     case 'datetime':
-      return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/.test(text) && !Number.isNaN(Date.parse(text)) ? text : null
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/.test(text)) return Number.isNaN(Date.parse(text)) ? null : text
+      // No offset written: it is the business's own local time.
+      return localToIso(text, timeZone)
     case 'text':
       return text.length > 0 && text.length <= 80 ? text : null
   }
@@ -81,14 +85,14 @@ function normalizeValue(type: ExtractionField['type'], raw: string) {
  * The model proposes; this decides what reaches the user. A value survives only if it was
  * requested, has the right shape, and comes with the document text it was read from.
  */
-export function normalizeExtraction(value: unknown, requested: ExtractionField[]): ExtractResponse {
+export function normalizeExtraction(value: unknown, requested: ExtractionField[], timeZone: string): ExtractResponse {
   const parsed = modelOutputSchema.parse(value)
   return {
     summary: parsed.summary.trim().slice(0, 160),
     fields: requested.map((field) => {
       const found = parsed.fields.find((item) => item.key === field.key)
       const quote = found?.quote?.trim().slice(0, 160) || null
-      const normalized = found?.value && quote ? normalizeValue(field.type, found.value) : null
+      const normalized = found?.value && quote ? normalizeValue(field.type, found.value, timeZone) : null
       return { key: field.key, value: normalized, quote: normalized === null ? null : quote }
     }),
   }
@@ -118,12 +122,12 @@ export async function extractWithGemini(request: ExtractRequest): Promise<Extrac
       'For each requested field, return a value only if the document states it explicitly, and put the exact supporting text from the document in quote.',
       'If a field is not stated, return null for both value and quote. Never calculate, convert units, or guess.',
       'integer: digits only. money: a plain number with no currency symbol; if the field asks for a per-case price and only a total is shown, return null.',
-      'datetime: ISO 8601 with a UTC offset; if no timezone is written, use +05:30; if no time of day is written, return null.',
+      'datetime: if the document states a timezone or UTC offset, give ISO 8601 with that offset; otherwise give the local date and time exactly as written, as YYYY-MM-DDTHH:mm with no offset. If no time of day is written, return null.',
       'summary: one short sentence naming the document type and who issued it, with no numbers.',
     ].join(' '),
     response_format: { type: 'text', mime_type: 'application/json', schema: outputSchema },
   }, { timeout: 25_000, maxRetries: 0 })
 
   if (!interaction.output_text) throw new Error('Gemini returned no text response.')
-  return normalizeExtraction(JSON.parse(interaction.output_text), request.fields)
+  return normalizeExtraction(JSON.parse(interaction.output_text), request.fields, request.timeZone)
 }

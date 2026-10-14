@@ -5,6 +5,8 @@ import { ZodError } from 'zod'
 import { assistantRequestSchema } from './contracts.js'
 import { detectMimeType, extractRequestSchema, extractWithGemini } from './documents.js'
 import { answerWithGemini, GeminiNotConfiguredError, geminiModel, isGeminiConfigured } from './gemini.js'
+import { rehearse } from '../../shared/planner/plan.js'
+import { parseWorkspace } from '../../shared/planner/validate.js'
 
 const assistantLimiter = rateLimit({
   windowMs: 60_000,
@@ -23,6 +25,14 @@ const documentLimiter = rateLimit({
 })
 
 const notConfigured = { error: { code: 'AI_NOT_CONFIGURED', message: 'Gemini is not configured on the server yet.' } }
+
+const planCheckLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many checks. Try again in a minute.' } },
+})
 
 function sendAiFailure(error: unknown, response: express.Response) {
   if (error instanceof GeminiNotConfiguredError) {
@@ -51,8 +61,9 @@ export function createApp() {
   app.disable('x-powered-by')
   app.set('trust proxy', 1)
   app.use(helmet())
-  // Documents need a bigger body than questions; this parser runs first only for that route.
+  // Documents and whole workspaces need bigger bodies than questions; these parsers run first for those routes.
   app.use('/api/documents', express.json({ limit: '6mb' }))
+  app.use('/api/plans', express.json({ limit: '2mb' }))
   app.use(express.json({ limit: '24kb' }))
 
   app.get('/api/health', (_request, response) => {
@@ -87,6 +98,25 @@ export function createApp() {
     } catch (error) {
       sendAiFailure(error, response)
     }
+  })
+
+  // The browser shows plans from its own copy of the planner; this re-runs it on the server before approval.
+  app.post('/api/plans/check', planCheckLimiter, (request, response) => {
+    const body = request.body as { workspace?: unknown; planId?: unknown }
+    const workspace = parseWorkspace(body?.workspace)
+    if (!workspace || typeof body.planId !== 'string' || body.planId.length > 200) {
+      response.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'The workspace data could not be checked.' } })
+      return
+    }
+    const { plans, conflicts } = rehearse(workspace)
+    const plan = plans.find((item) => item.id === body.planId)
+    response.json({
+      planId: body.planId,
+      ready: plan?.status === 'ready',
+      status: plan?.status ?? 'missing',
+      unverified: plan?.unverified.length ?? 0,
+      openConflicts: conflicts.filter((conflict) => !conflict.decided).length,
+    })
   })
 
   app.post('/api/documents/extract', documentLimiter, async (request, response) => {

@@ -20,4 +20,4 @@ No endpoint changes business records. Gemini answers must not invent quantities,
 
 ## Deploy
 
-The Dockerfile builds a Cloud Run container. Configure `GEMINI_API_KEY` as a Cloud Run secret and set `GEMINI_MODEL` / `PORT` as environment variables. Do not bake secrets into the image.
+The Dockerfile builds a Cloud Run container. Build it from the repository root so the shared planner in `shared/` is included: `docker build -f backend/Dockerfile .`. Configure `GEMINI_API_KEY` as a Cloud Run secret and set `GEMINI_MODEL` / `PORT` as environment variables. Do not bake secrets into the image.

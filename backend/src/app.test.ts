@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { sampleWorkspace } from '../../shared/planner/sample.js'
 import { createApp } from './app.js'
 import { geminiModel } from './gemini.js'
 
@@ -64,6 +65,34 @@ describe('assistant API', () => {
   })
 })
 
+describe('server plan check before approval', () => {
+  const check = (url: string, body: unknown) => fetch(`${url}/api/plans/check`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+
+  it('agrees that a plan the data supports is ready', async () => {
+    await withServer(async (url) => {
+      const response = await check(url, { workspace: sampleWorkspace, planId: 'transfer:south-to-north:harbor-blend' })
+      expect(await response.json()).toMatchObject({ ready: true, status: 'ready' })
+    })
+  })
+
+  it('does not take the browser\'s word for it: a plan the data rules out is not ready', async () => {
+    await withServer(async (url) => {
+      const response = await check(url, { workspace: sampleWorkspace, planId: 'bulk:south-to-north:harbor-blend' })
+      expect(await response.json()).toMatchObject({ ready: false, status: 'rejected' })
+    })
+  })
+
+  it('refuses workspace data it cannot trust, such as negative stock', async () => {
+    const broken = { ...sampleWorkspace, stock: [{ ...sampleWorkspace.stock[0], available: { ...sampleWorkspace.stock[0].available, value: -5 } }] }
+    await withServer(async (url) => {
+      const response = await check(url, { workspace: broken, planId: 'transfer:south-to-north:harbor-blend' })
+      expect(response.status).toBe(400)
+    })
+  })
+})
+
 describe('document reading API', () => {
   it('rejects a file whose contents do not match the type it claims, before any model call', async () => {
     process.env.GEMINI_API_KEY = 'test-key-not-used'
@@ -75,6 +104,7 @@ describe('document reading API', () => {
           fileName: 'quote.png',
           mimeType: 'image/png',
           dataBase64: Buffer.from('this is not really an image').toString('base64').replace(/=+$/, ''),
+          timeZone: 'Asia/Kolkata',
           fields: [{ key: 'availableCases', label: 'Stock', type: 'integer' }],
         }),
       })
