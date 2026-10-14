@@ -134,6 +134,10 @@ Agreed with the user: both paths exist, and the difference is always visible.
   questions to help answer them, and is never used to decide.
 - The best option is picked by: covers priority orders → fewest left short → **lowest total cost**
   (unknown cost last) → fewest typed-in details (`rankPlans`).
+- Recovery options are **grouped by problem** (user decision 2026-10-15): one block per late
+  delivery or shortage (one product at one place) titled e.g. "Not enough Broom at Warehouse A ·
+  1 package short · SHIVA KIRANA", with that problem's options ranked and the first ready one marked
+  **Best for this problem**. Questions and the supplier ask panel stay shared above and below.
 - **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
   `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
   out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a
