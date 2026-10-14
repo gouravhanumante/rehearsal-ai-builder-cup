@@ -37,6 +37,8 @@ export type EditorConfig = {
   documentHint: string
   /** Creates a record rather than editing one, so the review lists every detail instead of before → after. */
   isNew?: boolean
+  /** Warn while typing when productId / quantity / locationId ask for more than that location can spare. */
+  checksStock?: boolean
   fields: FieldSpec[]
   initial: Record<string, string>
   initialEvidence: Record<string, Evidence | null>
@@ -56,7 +58,7 @@ export function parseField(field: FieldSpec, raw: string, format: Format): { val
   if (!text) return field.required ? { error: 'Required' } : { value: null }
   switch (field.type) {
     case 'integer':
-      return /^\d{1,7}$/.test(text) ? { value: Number(text) } : { error: 'Enter a whole number' }
+      return /^\d{1,7}$/.test(text) ? { value: Number(text) } : { error: /^\d+$/.test(text) ? 'That is too big: enter up to 9,999,999' : 'Enter a whole number' }
     case 'money':
       return /^\d{1,9}(\.\d{1,2})?$/.test(text) ? { value: Number(text) } : { error: 'Enter an amount like 12.50' }
     case 'datetime': {
@@ -304,6 +306,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       subtitle: 'A customer order you have promised to deliver',
       documentHint: 'Purchase order or order confirmation',
       isNew: true,
+      checksStock: true,
       fields: [
         { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true, placeholder: 'e.g. Shiva Kirana' },
         { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },

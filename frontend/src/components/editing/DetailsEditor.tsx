@@ -2,7 +2,7 @@ import { useMemo, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, ShieldCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { Workspace } from '../../../../shared/planner/model'
-import { orderCoverage, rehearse } from '../../../../shared/planner/plan'
+import { orderCoverage, rehearse, spareStock } from '../../../../shared/planner/plan'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { createWording } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
@@ -83,6 +83,22 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
       return line.status === 'short' && (!earlier || earlier.status !== 'short' || earlier.covered > line.covered)
     })
   }, [draft, workspace])
+  // Shown under Quantity: how much the chosen warehouse can spare, and whether this order needs more.
+  const stockHint = useMemo(() => {
+    if (!config.checksStock) return null
+    const value = (key: string) => { const result = parsed[key]; return result && 'value' in result ? result.value : null }
+    const productId = value('productId')
+    const locationId = value('locationId')
+    const quantity = value('quantity')
+    if (typeof productId !== 'string' || typeof locationId !== 'string') return null
+    const record = workspace.stock.find((item) => item.locationId === locationId && item.productId === productId)
+    const spare = spareStock(workspace, locationId, productId)
+    const wanted = typeof quantity === 'number' ? quantity : null
+    // With every field filled, the full check also counts deliveries arriving before the due date.
+    const short = draft ? newShortages.length > 0 : wanted !== null && wanted > spare
+    const coveredByDeliveries = Boolean(draft) && !short && wanted !== null && wanted > spare
+    return { productId, locationId, onHand: record?.available.value ?? 0, counted: Boolean(record), spare, short, coveredByDeliveries }
+  }, [config.checksStock, parsed, workspace, draft, newShortages.length])
 
   const updateValue = (key: string, value: string) => {
     setValues((previous) => ({ ...previous, [key]: value }))
@@ -199,13 +215,22 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                     {fieldOrigin === 'document' && quotes[field.key] && <small className="editor-quote">“{quotes[field.key]}”</small>}
                     {mode === 'document' && documentName && field.extractable && fieldOrigin !== 'document' && <small className="editor-missing">Not found in the document</small>}
                   </div>
-                  {showErrors && 'error' in result && <small className="editor-error">{result.error}</small>}
+                  {(showErrors || (values[field.key] ?? '').trim() !== '') && 'error' in result && <small className="editor-error">{result.error}</small>}
+                  {field.key === 'quantity' && stockHint && (!('error' in result) || !(values[field.key] ?? '').trim()) && <small aria-live="polite" className={stockHint.short || !stockHint.counted ? 'editor-stock-warning' : 'editor-hint'}>
+                    {!stockHint.counted
+                      ? `${words.locationName(stockHint.locationId)} has no stock count for ${words.productName(stockHint.productId)} yet, so this can't be checked.`
+                      : stockHint.short
+                        ? `More than ${words.locationName(stockHint.locationId)} can spare: at most ${words.quantity(stockHint.spare, stockHint.productId)}${stockHint.onHand > stockHint.spare ? ` (it has ${format.number(stockHint.onHand)}; the rest is promised to other orders)` : ''}. You can still save the order; Rehearsal will look for ways to cover it.`
+                        : stockHint.coveredByDeliveries
+                          ? `Covered: ${words.locationName(stockHint.locationId)} can spare ${words.quantity(stockHint.spare, stockHint.productId)} now, and deliveries arrive before the due date.`
+                          : `${words.locationName(stockHint.locationId)} can spare up to ${words.quantity(stockHint.spare, stockHint.productId)}${stockHint.onHand > stockHint.spare ? ` (it has ${format.number(stockHint.onHand)}; the rest is promised to other orders)` : ''}.`}
+                  </small>}
                 </div>
               )
             })}
           </div>}
           {showErrors && crossError && <p className="editor-error" role="alert">{crossError}</p>}
-          {showForm && draftWords && newShortages.length > 0 && <div aria-live="polite" className="editor-live-warning">
+          {showForm && draftWords && newShortages.length > 0 && !config.checksStock && <div aria-live="polite" className="editor-live-warning">
             <strong>Not enough stock</strong>
             <ul className="editor-shortages">{newShortages.map((line) => (
               <li key={`${line.orderId}-${line.productId}`}><strong>{draftWords.customer(line.orderId)} · {draftWords.productName(line.productId)}</strong><small>{draftWords.shortageText(line)}</small></li>
