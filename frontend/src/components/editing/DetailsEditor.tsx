@@ -1,13 +1,14 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, ShieldCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
-import type { DistributorData, Evidence } from '../../data/distributorDemo'
+import type { DistributorData } from '../../data/distributorDemo'
 import { rehearseDistributor } from '../../domain/rehearseDistributor'
 import { toIstInput } from '../../lib/istTime'
+import { useEscapeKey } from '../../lib/useEscapeKey'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { displayValue, parseField, type EditorConfig, type ParsedValue } from './editorConfigs'
+import { changedFieldKeys, originAfterTyping, resolveEvidence, type Origin } from './editorRules'
 
-type Origin = 'unchanged' | 'typed' | 'document'
 type ExtractedField = { key: string; value: string | null; quote: string | null }
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024
@@ -30,14 +31,6 @@ function readAsBase64(file: File) {
   })
 }
 
-/** Where a saved value came from: the attached document, the keyboard, or whatever it had before. */
-function resolveEvidence(origin: Origin, value: ParsedValue, previous: Evidence | null, documentName: string | null, recordedAt: string): Evidence | null {
-  if (value === null) return null
-  if (origin === 'document' && documentName) return { kind: 'document', source: documentName, recordedAt }
-  if (origin === 'typed' || !previous) return { kind: 'manual', source: 'Entered manually', recordedAt }
-  return previous
-}
-
 export function DetailsEditor({ config, current, initialMode, onApply, onClose }: DetailsEditorProps) {
   const [mode, setMode] = useState(initialMode)
   const [step, setStep] = useState<'edit' | 'review'>('edit')
@@ -49,15 +42,16 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
   const [reading, setReading] = useState(false)
   const [readError, setReadError] = useState<string | null>(null)
   const [showErrors, setShowErrors] = useState(false)
-  const [recordedAt] = useState(() => new Date().toISOString())
+  const [recordedAt, setRecordedAt] = useState(() => new Date().toISOString())
+  useEscapeKey(onClose)
 
   const parsed = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, parseField(field, values[field.key] ?? '')])), [config.fields, values])
   const hasErrors = Object.values(parsed).some((result) => 'error' in result)
 
   const evidenceFor = (key: string, value: ParsedValue) => resolveEvidence(origin[key], value, config.initialEvidence[key], documentName, recordedAt)
 
-  const changedFields = config.fields.filter((field) => origin[field.key] !== 'unchanged' && values[field.key] !== config.initial[field.key]
-    || origin[field.key] === 'document' && config.initialEvidence[field.key]?.kind !== 'document')
+  const changedKeys = changedFieldKeys(config.fields, values, config.initial, origin, config.initialEvidence)
+  const changedFields = config.fields.filter((field) => changedKeys.includes(field.key))
 
   const next = useMemo(() => {
     if (step !== 'review' || hasErrors) return null
@@ -71,7 +65,7 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
 
   const updateValue = (key: string, value: string) => {
     setValues((previous) => ({ ...previous, [key]: value }))
-    setOrigin((previous) => ({ ...previous, [key]: value === config.initial[key] ? 'unchanged' : 'typed' }))
+    setOrigin((previous) => ({ ...previous, [key]: originAfterTyping(value, config.initial[key]) }))
   }
 
   const readDocument = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +111,9 @@ export function DetailsEditor({ config, current, initialMode, onApply, onClose }
 
   const goToReview = () => {
     setShowErrors(true)
-    if (!hasErrors) setStep('review')
+    if (hasErrors) return
+    setRecordedAt(new Date().toISOString())
+    setStep('review')
   }
 
   const extractableCount = config.fields.filter((field) => field.extractable).length
