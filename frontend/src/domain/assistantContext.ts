@@ -99,5 +99,12 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
     }
   })
 
-  return { facts, options, omittedFacts: omittedCount, omittedOptions: Math.max(0, rehearsal.plans.length - MAX_ASSISTANT_OPTIONS) }
+  return {
+    facts,
+    options,
+    // Shown in the panel only; the API gets plain statuses.
+    optionLabels: Object.fromEntries(shown.map((plan, index) => [`option-${index + 1}`, words.planText(plan).statusLabel])),
+    omittedFacts: omittedCount,
+    omittedOptions: Math.max(0, rehearsal.plans.length - MAX_ASSISTANT_OPTIONS),
+  }
 }

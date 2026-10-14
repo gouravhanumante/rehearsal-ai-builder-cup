@@ -21,7 +21,7 @@ type AskAiPanelProps = {
 
 export function AskAiPanel({ onClose, onViewOptions }: AskAiPanelProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
-  const { facts, options, omittedFacts, omittedOptions } = buildAssistantContext(workspace, rehearsal, format, words)
+  const { facts, options, optionLabels, omittedFacts, omittedOptions } = buildAssistantContext(workspace, rehearsal, format, words)
   const bulk = rehearsal.plans.find((plan) => plan.kind === 'bulk-transfer')
   const priorityOrder = workspace.orders.find((order) => order.priority === 'protected' && rehearsal.impact.affectedOrderIds.includes(order.id))
   const suggestions = [
@@ -118,7 +118,7 @@ export function AskAiPanel({ onClose, onViewOptions }: AskAiPanelProps) {
             <p>{reply.answer}</p>
             {referencedOptions.length > 0 && <div className="assistant-option-links"><span>CHECKED OPTIONS</span>{referencedOptions.map((option) => (
               <button className="assistant-option-link" key={option.id} onClick={onViewOptions} type="button">
-                <StatusBadge tone={option.status === 'ready' ? 'success' : option.status === 'conditional' ? 'warning' : 'danger'} dot>{option.status === 'ready' ? 'Ready to use' : option.status === 'conditional' ? 'Needs information' : "Can't be done"}</StatusBadge>
+                <StatusBadge tone={option.status === 'ready' ? (optionLabels[option.id] === 'Ready to use' ? 'success' : 'warning') : option.status === 'conditional' ? 'warning' : 'danger'} dot>{optionLabels[option.id] ?? option.status}</StatusBadge>
                 <strong>{option.title}</strong><small>{option.outcome}</small><small>{option.cost}</small>
                 {recommendedOption?.id === option.id && <span className="assistant-recommended">Suggested by Gemini · checked by planner</span>}
               </button>

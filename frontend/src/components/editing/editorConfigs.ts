@@ -62,6 +62,7 @@ export function recordEvidence(evidence: (Evidence | null)[], fallback: Evidence
 }
 
 const newId = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const asNumber = (value: ParsedValue) => (typeof value === 'number' ? value : null)
 const asText = (value: ParsedValue) => (typeof value === 'string' ? value : null)
 const fact = <T,>(value: T | null, evidence: Evidence | null) => ({ value, evidence: value === null ? null : evidence })
@@ -83,7 +84,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: `Stock at ${locationName(target.locationId)}`,
       subtitle: productName(target.productId),
       documentHint: 'Stock count sheet or goods receipt',
-      fields: [{ key: 'available', label: `${unitOf(target.productId)}s available`, type: 'integer', required: true, extractable: true, isFact: true }],
+      fields: [{ key: 'available', label: `${capitalize(unitOf(target.productId))}s available`, type: 'integer', required: true, extractable: true, isFact: true }],
       initial: { available: record ? String(record.available.value) : '' },
       initialEvidence: { available: record?.available.evidence ?? null },
       apply: (values, evidence) => {

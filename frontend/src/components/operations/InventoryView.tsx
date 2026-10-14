@@ -60,8 +60,8 @@ export function InventoryView({ onEdit }: InventoryViewProps) {
                   : <span>No stock count yet — unknown, not zero.</span>}
               </div>
               <div className="inventory-card-actions">
-                <Button icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="quiet">{record ? 'Edit count' : 'Add count'}</Button>
-                <Button icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="quiet">Attach count sheet</Button>
+                <Button aria-label={`${record ? 'Edit count' : 'Add count'} at ${location.name}`} icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="quiet">{record ? 'Edit count' : 'Add count'}</Button>
+                <Button aria-label={`Attach count sheet for ${location.name}`} icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="quiet">Attach count sheet</Button>
               </div>
               {inbound.map((shipment) => (
                 <div className="inventory-inbound" key={shipment.id}><ArrowDownToLine size={15} /><span>
@@ -73,13 +73,13 @@ export function InventoryView({ onEdit }: InventoryViewProps) {
                 <div className="inventory-inbound inventory-inbound-neutral" key={route.id}><Truck size={15} /><span>
                   <strong>Transfer from {words.locationName(route.fromLocationId)}</strong>
                   <small>{route.arrivalAt.value ? `Arrives ${format.dateTime(route.arrivalAt.value)}` : 'Arrival time unknown'}</small>
-                </span><Button onClick={() => onEdit({ type: 'route', routeId: route.id }, 'manual')} variant="quiet">Edit</Button></div>
+                </span><Button aria-label={`Edit transfer from ${words.locationName(route.fromLocationId)}`} onClick={() => onEdit({ type: 'route', routeId: route.id }, 'manual')} variant="quiet">Edit</Button></div>
               ))}
               {inbound.length === 0 && routesIn.length === 0 && <div className="inventory-inbound inventory-inbound-neutral"><Boxes size={15} /><span><strong>Nothing inbound</strong><small>No shipments or transfers to this location.</small></span></div>}
               <div className="inventory-capacity">
                 <span>Receiving limit</span>
                 <strong>{location.receivingLimitPerDay === null ? 'No limit set' : `${words.quantity(location.receivingLimitPerDay, product.id)} / day`}</strong>
-                <Button onClick={() => onEdit({ type: 'location', locationId: location.id }, 'manual')} variant="quiet">Edit location</Button>
+                <Button aria-label={`Edit ${location.name}`} onClick={() => onEdit({ type: 'location', locationId: location.id }, 'manual')} variant="quiet">Edit location</Button>
               </div>
             </article>
           )

@@ -122,6 +122,14 @@ export function createWording(workspace: Workspace, format: Format) {
         target: { type: 'order', orderId: fact.orderId },
       }
     }
+    if (fact.type === 'route') {
+      const route = workspace.routes.find((item) => item.id === fact.routeId)
+      return {
+        label: `Transfer ${locationName(route?.fromLocationId ?? '')} → ${locationName(route?.toLocationId ?? '')} arrival`,
+        value: format.dateTime(fact.arrivalAt),
+        target: { type: 'route', routeId: fact.routeId },
+      }
+    }
     const value = fact.field === 'arrivalAt' ? format.dateTime(String(fact.value))
       : fact.field === 'pricePerUnit' ? format.money(Number(fact.value)) : quantity(Number(fact.value), fact.productId)
     return { label: `${supplierName(fact.supplierId)} · ${fieldLabels[fact.field]}`, value, target: offerTarget(fact) }

@@ -66,8 +66,8 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
                 <FactLine fact={offer.arrivalAt} label="Arrival" show={format.dateTime} />
               </div>
               <div className="supplier-actions">
-                <Button icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="secondary">Type details</Button>
-                <Button icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="secondary">Attach quote</Button>
+                <Button aria-label={`Type details for ${supplier.name}`} icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="secondary">Type details</Button>
+                <Button aria-label={`Attach quote for ${supplier.name}`} icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="secondary">Attach quote</Button>
               </div>
             </article>
           )

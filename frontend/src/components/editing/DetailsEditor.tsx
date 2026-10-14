@@ -193,7 +193,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                 <li key={field.key}>
                   <span>{field.label}</span>
                   <span className="editor-change-values"><s>{displayValue(field, config.initial[field.key] ?? '', format)}</s><ArrowRight size={13} /><strong>{displayValue(field, values[field.key] ?? '', format)}</strong></span>
-                  {field.isFact && <EvidenceMark evidence={evidenceFor(field.key, 'value' in parsed[field.key] ? (parsed[field.key] as { value: ParsedValue }).value : null)} />}
+                  {field.isFact && (values[field.key] ?? '').trim() !== '' && <EvidenceMark evidence={evidenceFor(field.key, 'value' in parsed[field.key] ? (parsed[field.key] as { value: ParsedValue }).value : null)} />}
                 </li>
               ))}
             </ul>}

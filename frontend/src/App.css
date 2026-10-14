@@ -755,7 +755,7 @@
 .approval-conflicts strong { color: #6b4910; }
 .approval-conflicts .ds-button { min-height: 34px; color: #355d45; font-size: 11px; }
 
-.storage-notice { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid #d9e3ea; border-radius: 6px; color: #3f5a6b; background: #f3f8fb; font-size: 12px; }
+.storage-notice { position: sticky; z-index: 5; top: 8px; display: flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid #d9e3ea; border-radius: 6px; color: #3f5a6b; background: #f3f8fb; box-shadow: 0 6px 18px rgba(20, 43, 32, 0.08); font-size: 12px; }
 .storage-notice span { flex: 1; }
 .storage-notice button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; color: inherit; background: transparent; cursor: pointer; }
 .storage-notice button:hover { background: #e3edf3; }
