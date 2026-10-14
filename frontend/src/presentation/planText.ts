@@ -48,7 +48,11 @@ export function createWording(workspace: Workspace, format: Format) {
 
   const impactOf = (plan: Plan) => {
     if (plan.outcome) {
-      return `${plan.outcome.protectsPriority ? 'Protects the priority order' : 'Priority order remains exposed'}; ${quantity(plan.outcome.exposedQuantity, plan.productId)} remain exposed`
+      const left = plan.outcome.exposedQuantity
+      const hasPriority = workspace.orders.some((order) => order.locationId === plan.locationId && order.priority === 'protected' && order.lines.some((line) => line.productId === plan.productId))
+      if (left === 0) return 'Covers every order'
+      if (!hasPriority) return `${quantity(left, plan.productId)} still short`
+      return plan.outcome.protectsPriority ? `Priority orders covered; ${quantity(left, plan.productId)} still short` : `${quantity(left, plan.productId)} still short, including a priority order`
     }
     if (plan.kind === 'bulk-transfer') return 'Would cover more near-term demand if receiving capacity allowed'
     if (plan.status === 'conditional') return 'Cannot be checked yet'

@@ -805,7 +805,7 @@
 .conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .conflict-actions .ds-button { min-height: 40px; font-size: 11px; }
 
-.ask-suppliers { display: grid; gap: 12px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.ask-suppliers { display: grid; gap: 12px; margin: 24px 0 16px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .no-options-note { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 11px 13px; border-left: 3px solid #c3a054; border-radius: 6px; background: #fffbf2; color: #5e4a1f; font-size: 12px; line-height: 1.5; }
 .no-options-note > span:nth-child(2) { flex: 1 1 320px; }
 .no-options-actions { display: flex; flex-wrap: wrap; gap: 8px; }

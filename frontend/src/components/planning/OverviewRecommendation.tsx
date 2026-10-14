@@ -35,7 +35,7 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
     <section className="overview-recommendation" aria-labelledby="recommendation-title">
       <div className="recommendation-icon">{unverified ? <TriangleAlert size={19} /> : <ShieldCheck size={19} />}</div>
       <div className="recommendation-main">
-        <div className="recommendation-title"><p className="section-kicker">BEST FIT FOR PROTECTING THE PRIORITY ORDER</p><StatusBadge tone={unverified ? 'warning' : 'success'} dot>{text.statusLabel}</StatusBadge></div>
+        <div className="recommendation-title"><p className="section-kicker">BEST OPTION</p><StatusBadge tone={unverified ? 'warning' : 'success'} dot>{text.statusLabel}</StatusBadge></div>
         <h2 id="recommendation-title">{text.title}</h2>
         <p>{text.detail}</p>
         <div className="recommendation-outcome"><strong>{text.impact}</strong><span>{text.cost}</span></div>
