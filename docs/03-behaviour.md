@@ -75,7 +75,9 @@ Agreed with the user: both paths exist, and the difference is always visible.
   still work until edited. **Cost** (user decision 2026-10-15) = cost per trip + cost per package ×
   quantity (`costPerTrip`, `costPerUnit`); an older quote for exactly that quantity wins; neither set
   → "Transfer cost not set". A route with unknown travel time
-  is **Needs information** with **Add details** (no dead end).
+  is **Needs information** with **Add details** (no dead end). A ready transfer says **Book by**
+  {time}: the earlier of when it is needed and the priority order's due time, minus the travel time
+  (`plan.bookBy`, user decision 2026-10-15).
 - Each supplier offer for that product and location is its own option. At setup a backup
   supplier is only who / contact / products / where; **Add backup supplier** ticks every product
   they supply and saves one supplier with one offer per product (user decision 2026-10-14,
@@ -142,6 +144,14 @@ Agreed with the user: both paths exist, and the difference is always visible.
   workable is left, the problem lists next steps instead: **Add backup supplier**, **Does
   {existing supplier} sell {product}?** (opens that supplier with the product added) and **Add
   expected delivery**.
+  When every workable option is a supplier still waiting for a reply and fewer than three are being
+  asked, the block says "Only {supplier} is left to ask" with the same **Add backup supplier** and
+  **Does … sell …?** buttons, so there is a fallback if they say no.
+- **Is it worth it?** (user decision 2026-10-15): a product can have an optional **selling price per
+  package**. A ready option whose cost is more than the packages it saves are worth
+  (`plan.savedQuantity` × price) gets a warning, e.g. "Costs ₹21,000, more than the 3 packages it
+  saves are worth (₹900)." It warns only; it does not change the ranking (`worthNote` in
+  `planText.ts`).
 - **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
   `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
   out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a

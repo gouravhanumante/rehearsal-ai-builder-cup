@@ -103,6 +103,7 @@ export function createWording(workspace: Workspace, format: Format) {
         return (reason.limit === null
           ? `${quantity(reason.quantity, plan.productId)} arrive before ${dueWhat(plan)} is due.`
           : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day and arrive before ${dueWhat(plan)} is due.`) + storageNote
+          + (plan.bookBy ? ` Book by ${format.dateTime(plan.bookBy)} to make it.` : '')
       case 'transfer-none-available': return `${locationName(plan.sourceLocationId ?? '')} has no ${productName(plan.productId)} to spare after its own orders.`
       case 'transfer-arrival-unknown': return 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
       case 'transfer-late': return 'The confirmed transfer arrival is after the priority order promise.'
@@ -141,6 +142,16 @@ export function createWording(workspace: Workspace, format: Format) {
     return `Buy ${quantity(plan.quantity, plan.productId)} from ${supplierName(plan.supplierId)}, arriving ${format.dateTime(plan.arrivalAt)}.`
   }
 
+  /** A warning when a fix costs more than the goods it saves sell for; null when fine or the price isn't known. */
+  const worthNote = (plan: Plan) => {
+    const price = productById.get(plan.productId)?.pricePerUnit
+    if (price == null || !plan.cost || !plan.savedQuantity) return null
+    const worth = plan.savedQuantity * price
+    return plan.cost.amount > worth
+      ? `Costs ${format.money(plan.cost.amount)}, more than the ${quantity(plan.savedQuantity, plan.productId)} it saves are worth (${format.money(worth)}).`
+      : null
+  }
+
   const planText = (plan: Plan) => ({
     title: titleOf(plan),
     description: descriptionOf(plan),
@@ -148,6 +159,7 @@ export function createWording(workspace: Workspace, format: Format) {
     impact: impactOf(plan),
     cost: costOf(plan),
     statusLabel: statusLabel(plan),
+    worthNote: worthNote(plan),
   })
 
   const offerTarget = (fact: Extract<UnverifiedFact, { type: 'offer' }>): EditTarget => {

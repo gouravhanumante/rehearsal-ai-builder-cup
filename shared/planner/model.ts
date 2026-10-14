@@ -9,8 +9,8 @@ export type Fact<T> = { value: T | null; evidence: Evidence | null }
 
 export type WorkspaceSettings = { country: string; currency: string; timeZone: string; locale: string }
 
-/** perPackage: how many items one package holds. Optional because older saves don't have it. */
-export type Product = { id: string; name: string; unit: string; pack: string; perPackage?: number }
+/** perPackage: how many items one package holds. pricePerUnit: what one package sells for, to tell whether a fix is worth its cost. Both optional for older saves. */
+export type Product = { id: string; name: string; unit: string; pack: string; perPackage?: number; pricePerUnit?: number | null }
 
 export type LocationKind = 'warehouse' | 'store' | 'distribution-centre'
 /** deliveryCostPerOrder: what it costs to send one customer order out of this location. area: city or region, shown to help the user answer questions; never used to decide anything. */

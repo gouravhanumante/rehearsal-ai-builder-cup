@@ -49,6 +49,7 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
               <h2 id={headingId}>{text.title}</h2>
               <p>{text.detail}</p>
               <div className="recommendation-outcome"><strong>{text.impact}</strong><span>{text.cost}</span></div>
+              {text.worthNote && <p className="option-worth"><TriangleAlert size={13} /> {text.worthNote}</p>}
             </div>
             <div className="recommendation-actions">
               {approval?.planId === plan.id

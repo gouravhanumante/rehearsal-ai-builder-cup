@@ -37,9 +37,10 @@ function smallBusiness() {
 }
 
 describe('a distributor builds a business by hand, then a shipment is late', () => {
-  it('a product asks only for its name and how many items one package holds; stock is counted in packages', () => {
+  it('a product asks for its name and how many items one package holds (selling price optional); stock is counted in packages', () => {
     const { workspace, config } = enter(createBlankWorkspace('Priya Traders', 'IN'), { type: 'new-product' }, { name: 'Red pen', perPackage: '10' })
-    expect(config.fields.map((field) => field.key)).toEqual(['name', 'perPackage'])
+    expect(config.fields.filter((field) => field.required).map((field) => field.key)).toEqual(['name', 'perPackage'])
+    expect(config.fields.map((field) => field.key)).toEqual(['name', 'perPackage', 'pricePerUnit'])
     expect(workspace.products[0]).toMatchObject({ name: 'Red pen', unit: 'package', perPackage: 10, pack: '10 per package' })
   })
 
@@ -105,7 +106,6 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     expect(offers[1].available.value).toBeNull()
   })
 
-  it('watches the order without raising an alarm while every shipment is on time', () => {
   it('"Does Vibgyor sell Mops?" opens their form with Mops already ticked, and that can be saved without touching anything', () => {
     let workspace = smallBusiness()
     workspace = enter(workspace, { type: 'new-product' }, { name: 'Mops', perPackage: '1' }).workspace
@@ -118,6 +118,7 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     expect(changedFieldKeys(config.fields, values, config.initial, origin, config.initialEvidence)).toEqual(['productIds'])
   })
 
+  it('watches the order without raising an alarm while every shipment is on time', () => {
     const workspace = smallBusiness()
     expect(workspace.orders).toHaveLength(1)
     expect(workspace.shipments).toHaveLength(1)

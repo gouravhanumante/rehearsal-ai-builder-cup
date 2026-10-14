@@ -62,6 +62,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         <p className="option-description">{text.description}</p>
         <div className={`option-reason reason-${plan.status}`}><IconForStatus status={plan.status} /><span>{text.detail}</span></div>
         {plan.status === 'ready' && plan.unverified.length > 0 && <p className="option-unverified"><TriangleAlert size={13} /> Uses {plan.unverified.length} typed-in {plan.unverified.length === 1 ? 'detail' : 'details'}</p>}
+        {text.worthNote && <p className="option-worth"><TriangleAlert size={13} /> {text.worthNote}</p>}
         <div className="option-footer"><div><strong>{text.impact}</strong><small>{text.cost}</small></div>
           {approval?.planId === plan.id
             ? <span className="approved-label">{approval.withWarning ? <TriangleAlert size={15} /> : <Check size={15} />} Approved</span>
@@ -124,6 +125,9 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         const ruledOut = options.filter((plan) => plan.status === 'rejected')
         // Existing suppliers who aren't asked about this product yet: they may sell it too.
         const otherSuppliers = workspace.suppliers.filter((supplier) => !supplier.offers.some((offer) => offer.productId === group.productId && offer.locationId === group.locationId)).slice(0, 3)
+        // Nothing ready, and everything left depends on a few suppliers replying: suggest asking more.
+        const waitingSuppliers = workable.filter((plan) => plan.kind === 'supplier' && plan.status === 'conditional')
+        const onlyWaitingOnSuppliers = workable.length > 0 && waitingSuppliers.length === workable.length && waitingSuppliers.length < 3
         return (
           <section aria-labelledby={`issue-${issueIndex}`} className="issue-block" key={`${group.disruptionId}|${group.productId}|${group.locationId}`}>
             <header className="issue-head">
@@ -145,6 +149,18 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
               </span>
             </div>}
             {workable.length > 0 && <div className="recovery-options">{workable.map(card)}</div>}
+            {onlyWaitingOnSuppliers && <div className="no-options-note">
+              <LifeBuoy size={14} />
+              <span><strong>Only {waitingSuppliers.length === 1 ? `${words.supplierName(waitingSuppliers[0].supplierId)} is` : `${waitingSuppliers.length} suppliers are`} left to ask.</strong>{' '}
+                Ask more suppliers for {product} so you can compare price and arrival, and still have a way out if they say no.
+              </span>
+              <span className="no-options-actions">
+                <Button icon={<LifeBuoy size={14} />} onClick={() => onAddDetails({ type: 'new-supplier', productId: group.productId, locationId: group.locationId })} variant="primary">Add backup supplier</Button>
+                {otherSuppliers.map((supplier) => (
+                  <Button key={supplier.id} onClick={() => onAddDetails({ type: 'supplier', supplierId: supplier.id, addProductId: group.productId })} variant="secondary">Does {supplier.name} sell {product}?</Button>
+                ))}
+              </span>
+            </div>}
             {ruledOut.length > 0 && <details className="ruled-out">
               <summary>Ruled out ({ruledOut.length}): {ruledOut.map((plan) => words.planText(plan).title.replace(` · ${product}`, '')).join(', ')}</summary>
               <ul>{ruledOut.map((plan) => <li key={plan.id}><strong>{words.planText(plan).title.replace(` · ${product}`, '')}</strong> — {words.planText(plan).detail}</li>)}</ul>

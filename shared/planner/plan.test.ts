@@ -208,6 +208,10 @@ describe('warehouse transfer options', () => {
     expect(planIn(withTravel(30), transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
   })
 
+  it('says when to book at the latest: a 3-hour route for an order due at 2 pm must be booked by 11 am', () => {
+    expect(planIn(withTravel(3), transferPlan)).toMatchObject({ bookBy: new Date('2026-10-15T11:00:00+05:30').toISOString(), savedQuantity: 8 })
+  })
+
   it('needs information when nobody knows how long the transfer takes', () => {
     expect(planIn(withTravel(null), transferPlan)).toMatchObject({ status: 'conditional', reason: { code: 'transfer-arrival-unknown' } })
   })

@@ -479,14 +479,16 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Red pen or Teddy bear' },
       { key: 'perPackage', label: 'Items in one package', type: 'integer', required: true, extractable: false, isFact: false, placeholder: 'e.g. 10', suffix: 'items',
         hint: 'A package is how it is shipped: a box, packet or bag. Enter 1 if each item ships on its own. Stock counts and orders are in packages.' },
+      { key: 'pricePerUnit', label: `Selling price per package (${format.currencySymbol})`, type: 'money', required: false, extractable: false, isFact: false, placeholder: 'e.g. 300', suffix: 'per package',
+        hint: 'Optional. Lets Rehearsal warn when a fix costs more than the orders it saves are worth.' },
     ],
-    initial: { name: product?.name ?? '', perPackage: product?.perPackage?.toString() ?? '' },
-    initialEvidence: { name: null, perPackage: null },
+    initial: { name: product?.name ?? '', perPackage: product?.perPackage?.toString() ?? '', pricePerUnit: product?.pricePerUnit?.toString() ?? '' },
+    initialEvidence: { name: null, perPackage: null, pricePerUnit: null },
     validate: (values) => (typeof values.perPackage === 'number' && values.perPackage < 1 ? 'A package holds at least 1 item.' : null),
     apply: (values) => {
       const unit = product?.unit ?? 'package'
       const perPackage = values.perPackage as number
-      const next = { id: product?.id ?? newId('product'), name: values.name as string, unit, perPackage, pack: `${perPackage} per ${unit}` }
+      const next = { id: product?.id ?? newId('product'), name: values.name as string, unit, perPackage, pack: `${perPackage} per ${unit}`, pricePerUnit: asNumber(values.pricePerUnit) }
       return {
         ...workspace,
         products: product ? workspace.products.map((item) => item.id === product.id ? next : item) : [...workspace.products, next],

@@ -48,6 +48,10 @@ export type Plan = {
   spaceLeft: number | null
   /** What to ask a supplier for: the shortage, capped by storage space, needed by the first short order. */
   request?: { quantity: number; neededBy: string }
+  /** Ready plans: how much of the shortage this plan covers. */
+  savedQuantity?: number
+  /** Transfers with a known travel time: book by then to arrive before the first short order. */
+  bookBy?: string
   /** Supplier cost is goods only: they haven't said what delivery costs. */
   costExcludesDelivery?: boolean
 }
@@ -380,6 +384,8 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
         } else {
           const result = outcome([{ at: arrivalAt, quantity }])
           const late = time(arrivalAt) > earliestPriorityDue || result.exposedQuantity >= baseline.exposedQuantity
+          const hours = route.travelHours?.value ?? null
+          const deadline = Math.min(time(neededBy), earliestPriorityDue)
           plans.push({
             ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer',
             status: late ? 'rejected' : 'ready',
@@ -387,6 +393,8 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
             quantity, cost: costFor(quantity),
             outcome: late ? null : { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
             unverified: late ? [] : unverified,
+            ...(late ? {} : { savedQuantity: baseline.exposedQuantity - result.exposedQuantity }),
+            ...(!late && hours !== null && Number.isFinite(deadline) ? { bookBy: new Date(deadline - hours * 3_600_000).toISOString() } : {}),
           })
         }
         // Only worth showing when moving all that is needed would break the receiving limit.
@@ -434,6 +442,7 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
             ...(offer.deliveryCharge?.value == null ? { costExcludesDelivery: true } : {}),
             outcome: helps ? { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority } : null,
             unverified: helps ? [...baseUnverified, ...offerUnverified] : [],
+            ...(helps ? { savedQuantity: baseline.exposedQuantity - result.exposedQuantity } : {}),
           })
         }
       }
@@ -465,6 +474,7 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
             reason: { code: !covers ? 'ship-from-short' : ready ? 'ship-from-ok' : 'ship-from-ask' },
             quantity: short.ordered, arrivalAt: null, cost: extra,
             outcome: result && { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
+            ...(result ? { savedQuantity: baseline.exposedQuantity - result.exposedQuantity } : {}),
             unverified: ready
               ? [...baseUnverified, ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: from, productId, quantity: source.available.value }] : [])]
               : [],

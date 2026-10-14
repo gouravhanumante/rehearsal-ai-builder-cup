@@ -759,6 +759,8 @@
 .orders-subheading { margin: 18px 0 6px; color: #617168; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
 
 .option-unverified { display: flex; align-items: center; gap: 5px; margin: 8px 0 0; color: #8a5a12; font-size: 10px; font-weight: 700; }
+.option-worth { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0 0; padding: 6px 8px; border-radius: 6px; color: #8a3a1f; background: #fbeee8; font-size: 11px; font-weight: 700; line-height: 1.4; }
+.option-worth svg { flex: 0 0 auto; margin-top: 1px; }
 .approval-notice--warning { border-color: #f0dfbd; color: #7b5618; background: #fff8ea; }
 .approval-notice--warning strong { color: #6b4910; }
 .overview-recommendation--empty { border-color: #ecdcb9; border-left-color: #c29a4e; background: #fffaf0; }

@@ -3,8 +3,8 @@
 ## Open gaps found while testing (2026-10-15)
 - [ ] **Mark a delivery received**: approved transfers and purchases become incoming deliveries; when one arrives the user must recount stock and delete the delivery by hand, or it counts twice.
 - [x] **Shipping cost**: routes cost per trip + per package; supplier replies have a delivery charge; locations have a delivery cost per order for ship-from (2026-10-15).
-- [ ] **Is it worth it?** Add a selling price per product; warn when an option costs more than the orders it saves are worth (e.g. "₹21,000 transfer to save orders worth ₹900").
-- [ ] **Latest time to book**: show by when a transfer or purchase must be booked to arrive before the first short order (e.g. "book by 2:10 am Fri" for a 20-hour route).
+- [x] **Is it worth it?** Optional selling price per product; options costing more than the packages they save are worth get a warning (2026-10-15). Warning only, ranking unchanged.
+- [x] **Latest time to book**: ready transfers show "Book by …" (2026-10-15). Suppliers give an arrival time, not a lead time, so purchases have no book-by yet.
 - [ ] **Move more per trip** (idea, not agreed): when the trip cost is high, consider moving extra stock in the same trip instead of exactly the shortfall.
 
 ## Priority P0 — must have for V1
