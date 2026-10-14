@@ -422,13 +422,20 @@ export type Rehearsal = ReturnType<typeof rehearse>
  * leaving the least exposed, then the cheaper one (unknown cost last), then the one relying on fewer typed-in details.
  */
 export function recommendPlan(plans: Plan[]) {
+  return rankPlans(plans).find((plan) => plan.status === 'ready' && plan.outcome)
+}
+
+const statusOrder: Record<PlanStatus, number> = { ready: 0, conditional: 1, rejected: 2 }
+/** Best first: ready plans ranked as above, then ones waiting for information, then ones that can't be done. */
+export function rankPlans(plans: Plan[]) {
   const costOf = (plan: Plan) => plan.cost?.amount ?? Number.MAX_SAFE_INTEGER
-  return plans
-    .filter((plan) => plan.status === 'ready' && plan.outcome)
-    .sort((first, second) => Number(second.outcome?.protectsPriority) - Number(first.outcome?.protectsPriority)
-      || (first.outcome?.exposedQuantity ?? 0) - (second.outcome?.exposedQuantity ?? 0)
-      || costOf(first) - costOf(second)
-      || first.unverified.length - second.unverified.length)[0]
+  return [...plans].sort((first, second) => statusOrder[first.status] - statusOrder[second.status]
+    || (first.status === 'ready'
+      ? Number(second.outcome?.protectsPriority) - Number(first.outcome?.protectsPriority)
+        || (first.outcome?.exposedQuantity ?? 0) - (second.outcome?.exposedQuantity ?? 0)
+        || costOf(first) - costOf(second)
+        || first.unverified.length - second.unverified.length
+      : 0))
 }
 
 /** A plan whose status is ready but relies on typed-in details. */

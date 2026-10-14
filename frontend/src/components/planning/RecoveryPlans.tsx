@@ -1,7 +1,7 @@
 import { Check, CircleHelp, CircleX, LifeBuoy, PackagePlus, PencilLine, ShieldCheck, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import type { Plan } from '../../../../shared/planner/plan'
+import { rankPlans, type Plan } from '../../../../shared/planner/plan'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { AskSuppliers } from './AskSuppliers'
@@ -61,10 +61,9 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         <p className="check-note"><ShieldCheck size={16} /> We checked stock, delivery times, receiving and storage limits</p>
       </div>
       <ConflictCards onDecide={onDecideConflict} />
-      <AskSuppliers onRecordReply={onAddDetails} />
       {[...routeQuestions.values()].map(({ from, to, productId, quantity }) => (
-        <div className="no-options-note" key={`${from}|${to}`}>
-          <Truck size={14} />
+        <div className="no-options-note route-question" key={`${from}|${to}`}>
+          <Truck size={20} />
           <span><strong>Can you move stock from {words.locationName(from)} to {words.locationName(to)}?</strong>{' '}
             {words.locationName(from)} has {words.quantity(quantity, productId)} of {words.productName(productId)}. If you can, add how long it takes and Rehearsal will check it.
           </span>
@@ -94,7 +93,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
       </div>}
       {plans.length === 0 && rehearsal.impact.groups.length === 0 && <p className="editor-empty">Nothing to rehearse: no delay reported and every order is covered by stock or recorded deliveries.</p>}
       <div className="recovery-options">
-        {plans.map((plan, index) => {
+        {rankPlans(plans).map((plan, index) => {
           const text = words.planText(plan)
           const target = detailsTarget(plan, offerIndexOf)
           return (
@@ -117,6 +116,7 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
           )
         })}
       </div>
+      <AskSuppliers onRecordReply={onAddDetails} />
     </section>
   )
 }

@@ -811,6 +811,9 @@
 .no-options-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .no-options-actions .ds-button { min-height: 34px; font-size: 11px; }
 .no-options-note svg { flex: 0 0 auto; margin-top: 2px; color: #8a5a12; }
+.route-question { align-items: center; gap: 14px; padding: 18px 20px; border-left-width: 4px; font-size: 14px; }
+.route-question strong { display: block; margin-bottom: 4px; font-size: 16px; color: #3f3112; }
+.route-question .no-options-actions .ds-button { min-height: 40px; padding: 0 18px; font-size: 13px; }
 .ask-suppliers h3 { margin: 4px 0 0; color: #2f4437; font-size: 15px; font-weight: 800; }
 .ask-suppliers-intro { margin: 4px 0 0; color: #5e6e63; font-size: 12px; line-height: 1.5; }
 .ask-group { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; padding-top: 12px; border-top: 1px solid #e7ece7; }

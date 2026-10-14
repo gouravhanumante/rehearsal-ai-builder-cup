@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Evidence, Order, Supplier, Workspace } from './model.js'
-import { orderCoverage, recommendPlan, rehearse, storageCap } from './plan.js'
+import { orderCoverage, rankPlans, recommendPlan, rehearse, storageCap } from './plan.js'
 import { sampleEvidence, sampleWorkspace } from './sample.js'
 
 const typed: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-15T09:00:00+05:30' }
@@ -288,6 +288,15 @@ describe('overview recommendation', () => {
       { id: 'cheap', name: 'Cheap Co', offers: offerAt(12) },
     ] }
     expect(recommendPlan(rehearse(data).plans)?.supplierId).toBe('cheap')
+  })
+
+  it('lists options best first: the recommended one, then other ready ones, then waiting for a reply, then can\'t be done', () => {
+    const { plans } = rehearse(sampleWorkspace)
+    const ranked = rankPlans(plans)
+    expect(ranked[0].id).toBe(recommendPlan(plans)?.id)
+    const statuses = ranked.map((plan) => plan.status)
+    expect(statuses).toEqual([...statuses].sort((first, second) => ['ready', 'conditional', 'rejected'].indexOf(first) - ['ready', 'conditional', 'rejected'].indexOf(second)))
+    expect(new Set(statuses)).toEqual(new Set(['ready', 'conditional', 'rejected']))
   })
 })
 
