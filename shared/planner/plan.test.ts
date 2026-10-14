@@ -142,6 +142,16 @@ describe('more locations and products', () => {
     const shortage = rehearse(bigger).impact.groups.find((group) => group.kind === 'shortage')
     expect(shortage).toMatchObject({ locationId: 'east', productId: 'harbor-blend', affectedOrderIds: ['ORD-E1'], exposedQuantity: 40, delayedUntil: null })
   })
+
+  it('every option belongs to exactly one problem, and no two problems look the same, so options never mix', () => {
+    const data: Workspace = { ...bigger, deliveryAnswers: [{ fromLocationId: 'south', forLocationId: 'east', canDeliver: true }, { fromLocationId: 'north', forLocationId: 'east', canDeliver: true }] }
+    const { impact, plans } = rehearse(data)
+    const key = (item: { disruptionId: string; productId: string; locationId: string }) => `${item.disruptionId}|${item.productId}|${item.locationId}`
+    expect(new Set(impact.groups.map(key)).size).toBe(impact.groups.length)
+    expect(impact.groups.length).toBeGreaterThanOrEqual(3)
+    expect(plans.length).toBeGreaterThan(3)
+    for (const plan of plans) expect(impact.groups.filter((group) => key(group) === key(plan))).toHaveLength(1)
+  })
 })
 
 describe('warehouse transfer options', () => {
