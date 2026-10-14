@@ -509,6 +509,10 @@
 .issue-head h3 { margin: 0; color: #2f4437; font-size: 17px; font-weight: 800; }
 .issue-head p { margin: 0; color: #5e6e63; font-size: 12px; }
 .issue-head p strong { color: #944b33; }
+.ruled-out { color: #5e6e63; font-size: 12px; }
+.ruled-out summary { cursor: pointer; color: #66766b; }
+.ruled-out ul { display: grid; gap: 4px; margin: 6px 0 0; padding-left: 18px; }
+.ruled-out li strong { color: #3a5043; }
 
 .recovery-option h3 {
   margin: 11px 0 0;

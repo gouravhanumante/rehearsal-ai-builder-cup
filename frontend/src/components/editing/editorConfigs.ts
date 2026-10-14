@@ -269,7 +269,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'productIds', label: 'Products they can supply', type: 'multiselect', required: true, extractable: false, isFact: false, options: productOptions, hint: 'Removing a product also removes any reply recorded for it.' },
         { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions, hint: 'Changing this clears their replies, since arrival times were for the old place.' },
       ],
-      initial: { name: supplier.name, contact: supplier.contact ?? '', productIds: JSON.stringify([...new Set(supplier.offers.map((offer) => offer.productId))]), locationId: deliverTo },
+      initial: { name: supplier.name, contact: supplier.contact ?? '', productIds: JSON.stringify([...new Set([...supplier.offers.map((offer) => offer.productId), ...(target.addProductId ? [target.addProductId] : [])])]), locationId: deliverTo },
       initialEvidence: { name: null, contact: null, productIds: null, locationId: null },
       apply: (values) => {
         const locationId = values.locationId as string

@@ -10,7 +10,7 @@ export type EditTarget =
   | { type: 'location'; locationId: string }
   | { type: 'product'; productId: string }
   | { type: 'new-supplier'; productId?: string; locationId?: string }
-  | { type: 'supplier'; supplierId: string }
+  | { type: 'supplier'; supplierId: string; addProductId?: string }
   | { type: 'new-location' }
   | { type: 'new-product' }
   | { type: 'new-order' }
@@ -46,6 +46,10 @@ export function createWording(workspace: Workspace, format: Format) {
     return pluralUnit(unit, value)
   }
   const totalQuantity = (value: number) => `${format.number(value)} ${totalUnit(value)}`
+
+  /** "the priority order" only when one is waiting on this product here; otherwise "the first short order". */
+  const dueWhat = (plan: Plan) => workspace.orders.some((order) => order.locationId === plan.locationId && order.priority === 'protected' && order.lines.some((line) => line.productId === plan.productId))
+    ? 'the priority order' : 'the first short order'
 
   const statusLabel = (plan: Plan) =>
     plan.status === 'ready' ? (plan.unverified.length ? 'Ready · unverified' : 'Ready to use')
@@ -97,9 +101,9 @@ export function createWording(workspace: Workspace, format: Format) {
     switch (reason.code) {
       case 'transfer-ok':
         return (reason.limit === null
-          ? `${quantity(reason.quantity, plan.productId)} arrive before the priority order is due.`
-          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day and arrive before the priority order is due.`) + storageNote
-      case 'transfer-none-available': return `${locationName(plan.sourceLocationId ?? '')} has no unallocated stock to move.`
+          ? `${quantity(reason.quantity, plan.productId)} arrive before ${dueWhat(plan)} is due.`
+          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day and arrive before ${dueWhat(plan)} is due.`) + storageNote
+      case 'transfer-none-available': return `${locationName(plan.sourceLocationId ?? '')} has no ${productName(plan.productId)} to spare after its own orders.`
       case 'transfer-arrival-unknown': return 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
       case 'transfer-late': return 'The confirmed transfer arrival is after the priority order promise.'
       case 'transfer-over-limit': return `${destination} can receive at most ${quantity(reason.limit, plan.productId)} per day. This transfer exceeds capacity by ${quantity(reason.excess, plan.productId)}.`
@@ -126,7 +130,7 @@ export function createWording(workspace: Workspace, format: Format) {
 
   const descriptionOf = (plan: Plan) => {
     const destination = locationName(plan.locationId)
-    if (plan.kind === 'transfer') return `Move ${quantity(plan.quantity ?? 0, plan.productId)} to ${destination} before the priority order is due.`
+    if (plan.kind === 'transfer') return plan.quantity ? `Move ${quantity(plan.quantity, plan.productId)} to ${destination} before ${dueWhat(plan)} is due.` : `Nothing to move from ${locationName(plan.sourceLocationId ?? '')}.`
     if (plan.kind === 'bulk-transfer') return `Move the full available ${locationName(plan.sourceLocationId ?? '')} balance to ${destination}.`
     if (plan.kind === 'ship-from') return `Send ${plan.orderId ?? 'this order'} to ${customer(plan.orderId ?? '')} from ${locationName(plan.sourceLocationId ?? '')} instead of ${destination}. Approving moves the order there.`
     if (plan.quantity === null || plan.arrivalAt === null) {

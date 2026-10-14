@@ -123,24 +123,35 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRul
         const product = words.productName(group.productId)
         const where = words.locationName(group.locationId)
         const shortOrders = group.allocations.filter((item) => item.covered < item.ordered).map((item) => item.orderId)
+        const workable = options.filter((plan) => plan.status !== 'rejected')
+        const ruledOut = options.filter((plan) => plan.status === 'rejected')
+        // Existing suppliers who aren't asked about this product yet: they may sell it too.
+        const otherSuppliers = workspace.suppliers.filter((supplier) => !supplier.offers.some((offer) => offer.productId === group.productId && offer.locationId === group.locationId)).slice(0, 3)
         return (
           <section aria-labelledby={`issue-${issueIndex}`} className="issue-block" key={`${group.disruptionId}|${group.productId}|${group.locationId}`}>
             <header className="issue-head">
               <span className="issue-count">{issues.length > 1 ? `Problem ${issueIndex + 1} of ${issues.length}` : 'Problem'}</span>
               <h3 id={`issue-${issueIndex}`}>{group.kind === 'delay' ? `Late delivery from ${shipment?.supplierName ?? 'a supplier'} · ${product} at ${where}` : `Not enough ${product} at ${where}`}</h3>
-              <p><strong>{words.quantity(group.exposedQuantity, group.productId)} short</strong>{shortOrders.length > 0 && ` · ${customers(shortOrders)}`} · {options.length} {options.length === 1 ? 'option' : 'options'} checked</p>
+              <p><strong>{words.quantity(group.exposedQuantity, group.productId)} short</strong>{shortOrders.length > 0 && ` · ${customers(shortOrders)}`} · {workable.length === 0 ? 'no workable option yet' : `${workable.length} ${workable.length === 1 ? 'option' : 'options'}`}</p>
             </header>
-            {options.length === 0 && <div className="no-options-note">
+            {workable.length === 0 && <div className="no-options-note next-steps">
               <TriangleAlert size={14} />
-              <span><strong>No way to fix this yet.</strong>{' '}
-                Is a supplier already bringing some? Add that delivery and the order may be covered. Or add a backup supplier to ask.
+              <span><strong>No way to fix this yet. Here is what would help:</strong>{' '}
+                find someone who sells {product}, or record a delivery already on its way to {where}.
               </span>
               <span className="no-options-actions">
-                <Button icon={<PackagePlus size={14} />} onClick={() => onAddDetails({ type: 'new-shipment', productId: group.productId, locationId: group.locationId })} variant="primary">Add expected delivery</Button>
-                <Button icon={<LifeBuoy size={14} />} onClick={() => onAddDetails({ type: 'new-supplier', productId: group.productId, locationId: group.locationId })} variant="secondary">Add backup supplier</Button>
+                <Button icon={<LifeBuoy size={14} />} onClick={() => onAddDetails({ type: 'new-supplier', productId: group.productId, locationId: group.locationId })} variant="primary">Add backup supplier</Button>
+                {otherSuppliers.map((supplier) => (
+                  <Button key={supplier.id} onClick={() => onAddDetails({ type: 'supplier', supplierId: supplier.id, addProductId: group.productId })} variant="secondary">Does {supplier.name} sell {product}?</Button>
+                ))}
+                <Button icon={<PackagePlus size={14} />} onClick={() => onAddDetails({ type: 'new-shipment', productId: group.productId, locationId: group.locationId })} variant="secondary">Add expected delivery</Button>
               </span>
             </div>}
-            {options.length > 0 && <div className="recovery-options">{options.map(card)}</div>}
+            {workable.length > 0 && <div className="recovery-options">{workable.map(card)}</div>}
+            {ruledOut.length > 0 && <details className="ruled-out">
+              <summary>Ruled out ({ruledOut.length}): {ruledOut.map((plan) => words.planText(plan).title.replace(` · ${product}`, '')).join(', ')}</summary>
+              <ul>{ruledOut.map((plan) => <li key={plan.id}><strong>{words.planText(plan).title.replace(` · ${product}`, '')}</strong> — {words.planText(plan).detail}</li>)}</ul>
+            </details>}
           </section>
         )
       })}

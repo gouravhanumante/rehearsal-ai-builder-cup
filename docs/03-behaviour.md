@@ -138,6 +138,10 @@ Agreed with the user: both paths exist, and the difference is always visible.
   delivery or shortage (one product at one place) titled e.g. "Not enough Broom at Warehouse A ·
   1 package short · SHIVA KIRANA", with that problem's options ranked and the first ready one marked
   **Best for this problem**. Questions and the supplier ask panel stay shared above and below.
+  Options that can't be done fold into one "Ruled out (n)" line with their reasons. When nothing
+  workable is left, the problem lists next steps instead: **Add backup supplier**, **Does
+  {existing supplier} sell {product}?** (opens that supplier with the product added) and **Add
+  expected delivery**.
 - **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
   `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
   out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a
