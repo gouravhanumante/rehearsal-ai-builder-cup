@@ -59,6 +59,14 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   }
 
   const approve = (plan: Plan, withWarning: boolean) => {
+    if (plan.kind === 'ship-from' && plan.orderId && plan.sourceLocationId) {
+      const from = plan.sourceLocationId
+      const order = workspace.orders.find((item) => item.id === plan.orderId)
+      saveChange({ ...workspace, orders: workspace.orders.map((item) => item.id === plan.orderId ? { ...item, locationId: from } : item) })
+      onNotice(`${order?.customer ?? plan.orderId}'s order ${plan.orderId} now ships from ${words.locationName(from)}.`)
+      setPendingApproval(null)
+      return
+    }
     const defaultedConflicts = rehearsal.conflicts.filter((conflict) => !conflict.decided).length
     onChange({ ...workspace, approval: { planId: plan.id, withWarning, approvedAt: new Date().toISOString(), defaultedConflicts } })
     setPendingApproval(null)
@@ -88,6 +96,8 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   }
 
   const openEditor = (target: EditTarget, mode: 'manual' | 'document' = 'manual') => setEditor({ target, mode })
+  const ruleOutTransfer = (fromLocationId: string, toLocationId: string) =>
+    saveChange({ ...workspace, noTransfers: [...(workspace.noTransfers ?? []), { fromLocationId, toLocationId }] })
 
   const needsBoth = workspace.products.length === 0 || workspace.locations.length === 0 ? 'Add a product and a location first' : undefined
   const setupActions: Partial<Record<SetupStepId, SetupAction[]>> = {
@@ -149,10 +159,10 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
             {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} />}
-            {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onApprove={requestApproval} onDecideConflict={decideConflict} />}
+            {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />}
             <footer className="page-footer">
               <span>{isReal ? 'Your data is saved in this browser. Download a backup from the menu.' : 'Illustrative distributor data · edits stay in this browser until Reset'}</span>
-              <span>Approval is simulated · no business records change</span>
+              <span>Approving only changes records when it moves an order to another warehouse</span>
             </footer>
           </main>
         </div>

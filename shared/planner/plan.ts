@@ -20,16 +20,20 @@ export type PlanReason =
   | { code: 'supplier-too-late' }
   | { code: 'supplier-ok'; exposedBefore: number; exposedAfter: number; protectsPriority: boolean }
   | { code: 'no-space'; limit: number }
+  | { code: 'ship-from-ok' }
+  | { code: 'ship-from-short' }
 
 export type Plan = {
   id: string
-  kind: 'transfer' | 'bulk-transfer' | 'supplier'
+  kind: 'transfer' | 'bulk-transfer' | 'supplier' | 'ship-from'
   disruptionId: string
   productId: string
   locationId: string
   sourceLocationId?: string
   routeId?: string
   supplierId?: string
+  /** ship-from: the order that would be sent from sourceLocationId instead. */
+  orderId?: string
   status: PlanStatus
   reason: PlanReason
   quantity: number | null
@@ -147,9 +151,11 @@ export type OrderCoverage = {
  * Every order line against its own warehouse, delay or not: stock on hand plus shipments that
  * arrive by the due time, shared with other orders due first. No stock count means unknown.
  */
-export function orderCoverage(workspace: Workspace): OrderCoverage[] {
+export function orderCoverage(workspace: Workspace, onlyLocationId?: string): OrderCoverage[] {
   const result: OrderCoverage[] = []
-  const pairs = new Set(workspace.orders.flatMap((order) => order.lines.map((line) => `${order.locationId}|${line.productId}`)))
+  const pairs = new Set(workspace.orders
+    .filter((order) => onlyLocationId === undefined || order.locationId === onlyLocationId)
+    .flatMap((order) => order.lines.map((line) => `${order.locationId}|${line.productId}`)))
   for (const pair of pairs) {
     const [locationId, productId] = pair.split('|')
     const stock = workspace.stock.find((record) => record.locationId === locationId && record.productId === productId)
@@ -250,9 +256,10 @@ export function rehearse(workspace: Workspace) {
         conflicts.push({ id, productId, locationId, priorityOrderId: demand.order.id, earlierOrderIds: earlier.map((item) => item.order.id), quantity: Math.min(short, takenByEarlier), winner, decided: decisions.has(id) })
       }
 
-      const outcome = (extra: Batch[]) => {
-        const allocations = allocate(demands, [...onHand, ...extra], prioritiesFirst)
-        const priorityIds = new Set(demands.filter((item) => item.order.priority === 'protected').map((item) => item.order.id))
+      const outcome = (extra: Batch[], withoutOrderId?: string) => {
+        const kept = demands.filter((item) => item.order.id !== withoutOrderId)
+        const allocations = allocate(kept, [...onHand, ...extra], prioritiesFirst)
+        const priorityIds = new Set(kept.filter((item) => item.order.priority === 'protected').map((item) => item.order.id))
         return {
           allocations,
           exposedQuantity: shortfall(allocations),
@@ -363,10 +370,36 @@ export function rehearse(workspace: Workspace) {
           })
         }
       }
+
+      // Send a short order from another location instead, if it covers the whole order and still covers its own orders.
+      const sources = workspace.stock.filter((record) => record.productId === productId && record.locationId !== locationId && record.available.value > 0)
+      for (const short of baseline.allocations.filter((item) => item.covered < item.ordered)) {
+        const order = demands.find((item) => item.order.id === short.orderId)?.order
+        if (!order) continue
+        for (const source of sources) {
+          const from = source.locationId
+          const moved = { ...workspace, orders: workspace.orders.map((item) => item.id === order.id ? { ...item, locationId: from } : item) }
+          const before = new Map(orderCoverage(workspace, from).map((line) => [`${line.orderId}|${line.productId}`, line.status]))
+          const covers = orderCoverage(moved, from).every((line) => line.orderId === order.id
+            ? line.status === 'covered'
+            : line.status === 'covered' || line.status === before.get(`${line.orderId}|${line.productId}`))
+          const result = covers ? outcome([], order.id) : null
+          plans.push({
+            ...common, id: `ship:${order.id}:${from}:${productId}`, kind: 'ship-from', orderId: order.id, sourceLocationId: from,
+            status: covers ? 'ready' : 'rejected',
+            reason: { code: covers ? 'ship-from-ok' : 'ship-from-short' },
+            quantity: short.ordered, arrivalAt: null, cost: null,
+            outcome: result && { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
+            unverified: covers
+              ? [...baseUnverified, ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: from, productId, quantity: source.available.value }] : [])]
+              : [],
+          })
+        }
+      }
     }
   }
 
-  const kindOrder = { transfer: 0, supplier: 1, 'bulk-transfer': 2 }
+  const kindOrder = { transfer: 0, 'ship-from': 1, supplier: 2, 'bulk-transfer': 3 }
   plans.sort((first, second) => kindOrder[first.kind] - kindOrder[second.kind])
   const knownGroups = groups.filter((group) => group.exposedQuantity !== null)
   return {

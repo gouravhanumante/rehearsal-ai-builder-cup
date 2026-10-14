@@ -9,21 +9,26 @@ export function sliceForPlan(workspace: Workspace, planId: string): Workspace | 
   const plan = rehearse(workspace).plans.find((item) => item.id === planId)
   if (!plan) return null
   const { locationId, productId } = plan
-  const hasProduct = (lines: { productId: string }[]) => lines.some((line) => line.productId === productId)
+  // Shipping an order from elsewhere also needs that location's orders and every product the order holds.
+  const shipFrom = plan.kind === 'ship-from' ? plan.sourceLocationId : undefined
+  const moved = workspace.orders.find((order) => order.id === plan.orderId)
+  const productIds = new Set([productId, ...(shipFrom && moved ? moved.lines.map((line) => line.productId) : [])])
+  const hasProduct = (lines: { productId: string }[]) => lines.some((line) => productIds.has(line.productId))
+  const served = (id: string) => id === locationId || id === shipFrom
 
-  const shipments = workspace.shipments.filter((shipment) => shipment.locationId === locationId && hasProduct(shipment.lines))
+  const shipments = workspace.shipments.filter((shipment) => served(shipment.locationId) && hasProduct(shipment.lines))
   const shipmentIds = new Set(shipments.map((shipment) => shipment.id))
   const routes = workspace.routes.filter((route) => route.toLocationId === locationId)
-  const locationIds = new Set([locationId, ...routes.map((route) => route.fromLocationId)])
+  const locationIds = new Set([locationId, ...routes.map((route) => route.fromLocationId), ...(shipFrom ? [shipFrom] : [])])
 
   return {
     ...workspace,
     approval: null,
-    products: workspace.products.filter((product) => product.id === productId),
+    products: workspace.products.filter((product) => productIds.has(product.id)),
     locations: workspace.locations.filter((location) => locationIds.has(location.id)),
-    stock: workspace.stock.filter((record) => record.productId === productId && locationIds.has(record.locationId)),
-    storageLimits: workspace.storageLimits?.filter((item) => item.productId === productId && locationIds.has(item.locationId)),
-    orders: workspace.orders.filter((order) => order.locationId === locationId && hasProduct(order.lines)),
+    stock: workspace.stock.filter((record) => productIds.has(record.productId) && locationIds.has(record.locationId)),
+    storageLimits: workspace.storageLimits?.filter((item) => productIds.has(item.productId) && locationIds.has(item.locationId)),
+    orders: workspace.orders.filter((order) => served(order.locationId) && hasProduct(order.lines)),
     shipments,
     disruptions: workspace.disruptions.filter((disruption) => shipmentIds.has(disruption.shipmentId)),
     routes,

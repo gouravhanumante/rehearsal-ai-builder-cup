@@ -56,6 +56,7 @@ export function createWording(workspace: Workspace, format: Format) {
   }
 
   const costOf = (plan: Plan) => {
+    if (plan.kind === 'ship-from') return 'Nothing to buy or move between warehouses'
     if (plan.kind === 'supplier') {
       if (!plan.cost || plan.quantity === null) return 'Price unknown'
       const offer = workspace.suppliers.find((item) => item.id === plan.supplierId)?.offers.find((item) => item.productId === plan.productId && item.locationId === plan.locationId)
@@ -87,6 +88,8 @@ export function createWording(workspace: Workspace, format: Format) {
       case 'supplier-too-late': return 'Arrives after every affected order is due, so it does not help.'
       case 'supplier-ok': return `Arrives before ${reason.protectsPriority ? 'the priority order is due' : 'some affected orders are due'} and cuts the shortage from ${quantity(reason.exposedBefore, plan.productId)} to ${quantity(reason.exposedAfter, plan.productId)}.${storageNote}`
       case 'no-space': return `${destination} is full: it holds at most ${quantity(reason.limit, plan.productId)} of ${productName(plan.productId)} and already has that many.`
+      case 'ship-from-ok': return `${locationName(plan.sourceLocationId ?? '')} has enough for the whole order and still covers its own orders.`
+      case 'ship-from-short': return `${locationName(plan.sourceLocationId ?? '')} doesn't have enough for the whole order once its own orders are covered.`
     }
   }
 
@@ -94,6 +97,7 @@ export function createWording(workspace: Workspace, format: Format) {
     const suffix = manyProducts ? ` · ${productName(plan.productId)}` : ''
     if (plan.kind === 'transfer') return `Transfer stock from ${locationName(plan.sourceLocationId ?? '')}${suffix}`
     if (plan.kind === 'bulk-transfer') return `Transfer all ${quantity(plan.quantity ?? 0, plan.productId)} in one day${suffix}`
+    if (plan.kind === 'ship-from') return `Ship ${customer(plan.orderId ?? '')}'s order from ${locationName(plan.sourceLocationId ?? '')}${suffix}`
     return `Buy emergency stock from ${supplierName(plan.supplierId)}${suffix}`
   }
 
@@ -101,6 +105,7 @@ export function createWording(workspace: Workspace, format: Format) {
     const destination = locationName(plan.locationId)
     if (plan.kind === 'transfer') return `Move ${quantity(plan.quantity ?? 0, plan.productId)} to ${destination} before the priority order is due.`
     if (plan.kind === 'bulk-transfer') return `Move the full available ${locationName(plan.sourceLocationId ?? '')} balance to ${destination}.`
+    if (plan.kind === 'ship-from') return `Send ${plan.orderId ?? 'this order'} to ${customer(plan.orderId ?? '')} from ${locationName(plan.sourceLocationId ?? '')} instead of ${destination}. Approving moves the order there.`
     if (plan.quantity === null || plan.arrivalAt === null) {
       return plan.request
         ? `Ask ${supplierName(plan.supplierId)} for ${quantity(plan.request.quantity, plan.productId)} delivered to ${destination} by ${format.dateTime(plan.request.neededBy)}.`

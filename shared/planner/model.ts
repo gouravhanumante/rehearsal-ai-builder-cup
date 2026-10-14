@@ -82,6 +82,8 @@ export type Workspace = {
   shipments: InboundShipment[]
   disruptions: Disruption[]
   routes: TransferRoute[]
+  /** Location pairs the user said stock can't move between, so Rehearsal stops asking. */
+  noTransfers?: { fromLocationId: string; toLocationId: string }[]
   suppliers: Supplier[]
   conflictDecisions: ConflictDecision[]
   approval: Approval | null

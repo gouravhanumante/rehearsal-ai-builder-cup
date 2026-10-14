@@ -320,10 +320,35 @@ describe('storage limits', () => {
     expect(planIn(withLimit(18), transferPlan)).toMatchObject({ status: 'ready', quantity: 4 })
   })
 
-  it("rejects transfers and suppliers when the warehouse is already full", () => {
+  it("rejects transfers and suppliers when the warehouse is already full, but shipping an order from elsewhere still works", () => {
     const full = withLimit(14)
     expect(planIn(full, transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
     expect(planIn(full, supplierPlan)).toMatchObject({ status: 'rejected', reason: { code: 'no-space', limit: 14 } })
-    expect(recommendPlan(rehearse(full).plans)).toBeUndefined()
+    expect(recommendPlan(rehearse(full).plans)?.kind).toBe('ship-from')
+  })
+})
+
+describe('ship a short order from another warehouse instead', () => {
+  // North Hub has no coffee; Shiva Kirana wants 3 cases from North on Friday. South Hub has 14.
+  const friday = '2026-10-16T22:00:00+05:30'
+  const shiva: Order = { id: 'SK-1', customer: 'Shiva Kirana', locationId: 'north', dueAt: friday, priority: 'protected', lines: [{ productId: 'harbor-blend', quantity: 3 }], evidence: typed }
+  const southOrder = (quantity: number): Order => ({ id: 'S-1', customer: 'South buyer', locationId: 'south', dueAt: '2026-10-17T09:00:00+05:30', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity }], evidence: typed })
+  const data = (orders: Order[], extra: Partial<Workspace> = {}): Workspace => withStock({ ...sampleWorkspace, disruptions: [], shipments: [], routes: [], orders, ...extra }, 'north', 0)
+  const shipPlan = 'ship:SK-1:south:harbor-blend'
+
+  it('South Hub can send the order itself, even with no transfer route', () => {
+    const { plans } = rehearse(data([shiva]))
+    expect(plans.find((plan) => plan.id === shipPlan)).toMatchObject({ status: 'ready', orderId: 'SK-1', sourceLocationId: 'south', outcome: { exposedQuantity: 0, protectsPriority: true } })
+    expect(recommendPlan(plans)?.id).toBe(shipPlan)
+  })
+
+  it("not when it would leave South Hub short for its own later order: 14 there, 12 promised for Saturday, 3 asked", () => {
+    expect(planIn(data([shiva, southOrder(12)]), shipPlan)).toMatchObject({ status: 'rejected', reason: { code: 'ship-from-short' }, outcome: null })
+  })
+
+  it('the whole order moves, so South Hub must also have the other products in it', () => {
+    const mixed = { ...shiva, lines: [...shiva.lines, { productId: 'oat-milk', quantity: 2 }] }
+    const products = [...sampleWorkspace.products, { id: 'oat-milk', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }]
+    expect(planIn(data([mixed], { products }), shipPlan)?.status).toBe('rejected')
   })
 })

@@ -43,6 +43,10 @@ describe('saved data checks', () => {
   it('refuses a saved file with a storage limit that is not a whole number of units', () => {
     expect(parseWorkspace({ ...sampleWorkspace, storageLimits: [{ locationId: 'north', productId: 'harbor-blend', limit: -5 }] })).toBeNull()
   })
+
+  it('keeps a saved "stock can\'t move from South Hub to North Hub" answer', () => {
+    expect(parseWorkspace({ ...sampleWorkspace, noTransfers: [{ fromLocationId: 'south', toLocationId: 'north' }] })).not.toBeNull()
+  })
 })
 
 describe('the data a plan check needs', () => {

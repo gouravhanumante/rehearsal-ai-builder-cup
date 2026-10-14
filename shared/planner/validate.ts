@@ -47,6 +47,7 @@ const isWorkspaceShape = shape({
     id: isText(64), fromLocationId: isText(64), toLocationId: isText(64), arrivalAt: fact(isTime),
     quotes: listOf(shape({ quantity: isCount, amount: isAmount }), 20),
   }), LIMITS.routes),
+  noTransfers: optional(listOf(shape({ fromLocationId: isText(64), toLocationId: isText(64) }), LIMITS.routes)),
   suppliers: listOf(shape({
     id: isText(64), name: isText(80), contact: optional(nullable(isText(120))),
     offers: listOf(shape({ productId: isText(64), locationId: isText(64), available: fact(isCount), pricePerUnit: fact(isAmount), arrivalAt: fact(isTime) }), LIMITS.offers),

@@ -11,6 +11,7 @@ type RecoveryPlansProps = {
   onApprove: (plan: Plan) => void
   onAddDetails: (target: EditTarget, mode?: 'manual' | 'document') => void
   onDecideConflict: (conflictId: string, winner: 'earliest-due' | 'priority') => void
+  onRuleOutTransfer: (fromLocationId: string, toLocationId: string) => void
 }
 
 const toneForStatus = (plan: Plan) => {
@@ -33,13 +34,25 @@ function detailsTarget(plan: Plan, offerIndexOf: (supplierId: string, plan: Plan
   return null
 }
 
-export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: RecoveryPlansProps) {
+export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict, onRuleOutTransfer }: RecoveryPlansProps) {
   const { workspace, rehearsal, words } = useWorkspaceView()
   const { plans } = rehearsal
   const approval = workspace.approval
   const approved = plans.find((plan) => plan.id === approval?.planId)
   const offerIndexOf = (supplierId: string, plan: Plan) => Math.max(0, workspace.suppliers.find((item) => item.id === supplierId)?.offers
     .findIndex((offer) => offer.productId === plan.productId && offer.locationId === plan.locationId) ?? 0)
+  const shortGroups = rehearsal.impact.groups.filter((group) => (group.exposedQuantity ?? 0) > 0)
+  // Another location holds the product but nobody has said whether stock can move from it.
+  const routeQuestions = new Map<string, { from: string; to: string; productId: string; quantity: number }>()
+  for (const group of shortGroups) {
+    for (const record of workspace.stock.filter((item) => item.productId === group.productId && item.locationId !== group.locationId && item.available.value > 0)) {
+      const from = record.locationId
+      const to = group.locationId
+      const answered = workspace.routes.some((route) => route.fromLocationId === from && route.toLocationId === to)
+        || (workspace.noTransfers ?? []).some((pair) => pair.fromLocationId === from && pair.toLocationId === to)
+      if (!answered && !routeQuestions.has(`${from}|${to}`)) routeQuestions.set(`${from}|${to}`, { from, to, productId: group.productId, quantity: record.available.value })
+    }
+  }
 
   return (
     <section className="options-section" aria-labelledby="options-title">
@@ -49,29 +62,32 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: Rec
       </div>
       <ConflictCards onDecide={onDecideConflict} />
       <AskSuppliers onRecordReply={onAddDetails} />
-      {rehearsal.impact.groups
-        .filter((group) => (group.exposedQuantity ?? 0) > 0 && !plans.some((plan) => plan.locationId === group.locationId && plan.productId === group.productId))
-        .map((group) => {
-          const holder = workspace.stock
-            .filter((record) => record.productId === group.productId && record.locationId !== group.locationId && record.available.value > 0)
-            .sort((first, second) => second.available.value - first.available.value)[0]
-          return (
-            <div className="no-options-note" key={group.disruptionId}>
-              <TriangleAlert size={14} />
-              <span><strong>No way to fix {words.productName(group.productId)} at {words.locationName(group.locationId)} yet.</strong>{' '}
-                {holder
-                  ? `${words.locationName(holder.locationId)} has ${words.quantity(holder.available.value, group.productId)}. Add a transfer route from it, or a backup supplier.`
-                  : 'No other warehouse has any. Add a backup supplier for it.'}
-                {' '}Or is a supplier already bringing some? Add that delivery and the order may be covered.
-              </span>
-              <span className="no-options-actions">
-                {holder && <Button icon={<Truck size={14} />} onClick={() => onAddDetails({ type: 'new-route', fromLocationId: holder.locationId, toLocationId: group.locationId })} variant="primary">Add transfer from {words.locationName(holder.locationId)}</Button>}
-                <Button icon={<PackagePlus size={14} />} onClick={() => onAddDetails({ type: 'new-shipment', productId: group.productId, locationId: group.locationId })} variant="secondary">Add expected delivery</Button>
-                <Button icon={<LifeBuoy size={14} />} onClick={() => onAddDetails({ type: 'new-supplier', productId: group.productId, locationId: group.locationId })} variant="secondary">Add backup supplier</Button>
-              </span>
-            </div>
-          )
-        })}
+      {[...routeQuestions.values()].map(({ from, to, productId, quantity }) => (
+        <div className="no-options-note" key={`${from}|${to}`}>
+          <Truck size={14} />
+          <span><strong>Can you move stock from {words.locationName(from)} to {words.locationName(to)}?</strong>{' '}
+            {words.locationName(from)} has {words.quantity(quantity, productId)} of {words.productName(productId)}. If you can, add how long it takes and Rehearsal will check it.
+          </span>
+          <span className="no-options-actions">
+            <Button icon={<Truck size={14} />} onClick={() => onAddDetails({ type: 'new-route', fromLocationId: from, toLocationId: to })} variant="primary">Yes, add transfer</Button>
+            <Button onClick={() => onRuleOutTransfer(from, to)} variant="secondary">No</Button>
+          </span>
+        </div>
+      ))}
+      {shortGroups
+        .filter((group) => !plans.some((plan) => plan.locationId === group.locationId && plan.productId === group.productId))
+        .map((group) => (
+          <div className="no-options-note" key={group.disruptionId}>
+            <TriangleAlert size={14} />
+            <span><strong>No way to fix {words.productName(group.productId)} at {words.locationName(group.locationId)} yet.</strong>{' '}
+              Is a supplier already bringing some? Add that delivery and the order may be covered. Or add a backup supplier to ask.
+            </span>
+            <span className="no-options-actions">
+              <Button icon={<PackagePlus size={14} />} onClick={() => onAddDetails({ type: 'new-shipment', productId: group.productId, locationId: group.locationId })} variant="primary">Add expected delivery</Button>
+              <Button icon={<LifeBuoy size={14} />} onClick={() => onAddDetails({ type: 'new-supplier', productId: group.productId, locationId: group.locationId })} variant="secondary">Add backup supplier</Button>
+            </span>
+          </div>
+        ))}
       {approved && approval && <div className={`approval-notice ${approval.withWarning ? 'approval-notice--warning' : ''}`}>
         {approval.withWarning ? <TriangleAlert size={16} /> : <Check size={16} />}
         <span><strong>{words.planText(approved).title} approved for this demo{approval.withWarning ? ' with a warning' : ''}.</strong>{approval.defaultedConflicts > 0 ? ` Earliest due was used for ${approval.defaultedConflicts} unanswered conflict${approval.defaultedConflicts === 1 ? '' : 's'}.` : ''} No business records were changed.</span>

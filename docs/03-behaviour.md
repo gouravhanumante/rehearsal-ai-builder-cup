@@ -92,8 +92,17 @@ Agreed with the user: both paths exist, and the difference is always visible.
   order and no reported delay becomes its own problem (`ImpactGroup.kind: 'shortage'`), shown on
   the Overview as "Not enough stock", with the same options (transfers in, backup suppliers) and
   recommendation. A warehouse+product already in a reported delay is handled by that delay only,
-  so nothing is counted twice. When no option exists, Recovery options says what to add and names
-  a warehouse that has the stock.
+  so nothing is counted twice. When no option exists, Recovery options offers **Add expected
+  delivery** and **Add backup supplier**, prefilled.
+- **Ship the order from another warehouse** (user decision 2026-10-14, `kind: 'ship-from'` in
+  `shared/planner/plan.ts`): for each short order, every other location holding the product is an
+  option. It is ready only if, with the order moved there, the whole order (every product in it)
+  is covered and none of that location's own orders becomes short (`orderCoverage`). It needs no
+  transfer route and no storage room at the short warehouse. Approving it **changes the order's
+  warehouse** (`approve` in `WorkspaceScreen.tsx`); other approvals still only record the choice.
+- **Can stock move between them?** (`RecoveryPlans.tsx`): when another location holds a short
+  product and there is no transfer route from it, Recovery options asks. **Yes, add transfer**
+  opens the route form prefilled; **No** saves the pair (`noTransfers`) and stops asking.
 - **Repeating deliveries** (`repeatEveryDays`: 7, 14 or 28): the next delivery is
   `confirmedArrivalAt`, later ones follow the original schedule (`arrivalsOf`). Reporting one late
   moves only that delivery; later ones still count for the delay plan.
