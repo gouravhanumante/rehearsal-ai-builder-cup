@@ -1,0 +1,15 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - backend/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/rehearsal/rehearsal-api:$BUILD_ID
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/rehearsal/rehearsal-api:$BUILD_ID
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/rehearsal/rehearsal-api:$BUILD_ID
