@@ -49,12 +49,29 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: Rec
       </div>
       <ConflictCards onDecide={onDecideConflict} />
       <AskSuppliers onRecordReply={onAddDetails} />
+      {rehearsal.impact.groups
+        .filter((group) => (group.exposedQuantity ?? 0) > 0 && !plans.some((plan) => plan.locationId === group.locationId && plan.productId === group.productId))
+        .map((group) => {
+          const holders = workspace.stock
+            .filter((record) => record.productId === group.productId && record.locationId !== group.locationId && record.available.value > 0)
+            .sort((first, second) => second.available.value - first.available.value)
+          return (
+            <p className="no-options-note" key={group.disruptionId}>
+              <TriangleAlert size={14} />
+              <span><strong>No way to fix {words.productName(group.productId)} at {words.locationName(group.locationId)} yet.</strong>{' '}
+                {holders.length > 0
+                  ? `${words.locationName(holders[0].locationId)} has ${words.quantity(holders[0].available.value, group.productId)}: add a transfer route from it in Setup, or add a backup supplier.`
+                  : 'No other warehouse has any. Add a backup supplier for it in Suppliers.'}
+              </span>
+            </p>
+          )
+        })}
       {approved && approval && <div className={`approval-notice ${approval.withWarning ? 'approval-notice--warning' : ''}`}>
         {approval.withWarning ? <TriangleAlert size={16} /> : <Check size={16} />}
         <span><strong>{words.planText(approved).title} approved for this demo{approval.withWarning ? ' with a warning' : ''}.</strong>{approval.defaultedConflicts > 0 ? ` Earliest due was used for ${approval.defaultedConflicts} unanswered conflict${approval.defaultedConflicts === 1 ? '' : 's'}.` : ''} No business records were changed.</span>
       </div>}
-      {plans.length === 0 && <p className="editor-empty">{workspace.disruptions.length === 0
-        ? 'Nothing to rehearse yet. When a shipment is late, report the delay and the options appear here.'
+      {plans.length === 0 && <p className="editor-empty">{rehearsal.impact.groups.length === 0
+        ? 'Nothing to rehearse: no delay reported and every order is covered by stock or recorded deliveries.'
         : 'No options to check: either nothing is short, or a stock count is missing.'}</p>}
       <div className="recovery-options">
         {plans.map((plan, index) => {

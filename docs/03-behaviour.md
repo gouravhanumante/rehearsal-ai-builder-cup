@@ -88,6 +88,12 @@ Agreed with the user: both paths exist, and the difference is always visible.
   hand at its warehouse plus deliveries arriving by its due time, shared with orders due first.
   Covered / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows
   deliveries the user entered) / Stock unknown when the warehouse was never counted.
+- **Shortages are rehearsed too** (user decision 2026-10-14): a warehouse+product with a Short
+  order and no reported delay becomes its own problem (`ImpactGroup.kind: 'shortage'`), shown on
+  the Overview as "Not enough stock", with the same options (transfers in, backup suppliers) and
+  recommendation. A warehouse+product already in a reported delay is handled by that delay only,
+  so nothing is counted twice. When no option exists, Recovery options says what to add and names
+  a warehouse that has the stock.
 - **Repeating deliveries** (`repeatEveryDays`: 7, 14 or 28): the next delivery is
   `confirmedArrivalAt`, later ones follow the original schedule (`arrivalsOf`). Reporting one late
   moves only that delivery; later ones still count for the delay plan.

@@ -110,13 +110,13 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
 
   const sectionCopy: Record<SectionName, { title: string; subtitle: string }> = {
     Setup: { title: 'Set up your business', subtitle: 'Add your locations, products, stock, orders and shipments at your own pace.' },
-    Overview: { title: 'Operations overview', subtitle: workspace.disruptions.length === 0 ? 'What Rehearsal is watching for you.' : 'The delay, the orders at risk, and the next best response.' },
-    Orders: { title: 'Orders', subtitle: workspace.disruptions.length === 0 ? 'Your open customer orders.' : 'Orders hit by the delayed shipment, and the ones that are not.' },
+    Overview: { title: 'Operations overview', subtitle: rehearsal.impact.groups.length === 0 && workspace.disruptions.length === 0 ? 'What Rehearsal is watching for you.' : 'What is wrong, the orders at risk, and the next best response.' },
+    Orders: { title: 'Orders', subtitle: rehearsal.impact.groups.length === 0 ? 'Your open customer orders.' : 'Orders at risk, and the ones that are fine.' },
     Inventory: { title: 'Inventory', subtitle: 'Stock by product or by warehouse, incoming shipments, and transfers.' },
     Suppliers: { title: 'Suppliers', subtitle: 'Deliveries you are expecting, and backup suppliers for when things go wrong.' },
     Rehearsals: { title: 'Recovery options', subtitle: 'Compare checked responses before changing the plan.' },
   }
-  const noDisruption = workspace.disruptions.length === 0
+  const noDisruption = workspace.disruptions.length === 0 && rehearsal.impact.groups.length === 0
   const workspaceLabel = isReal ? 'Your data' : 'Sample data'
 
   return (

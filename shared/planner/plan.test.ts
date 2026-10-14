@@ -121,24 +121,47 @@ describe('more locations and products', () => {
     ],
   }
 
+  const delayIn = (data: Workspace) => rehearse(data).impact.groups.find((group) => group.kind === 'delay')
+
   it('a delay at North Hub does not touch orders at another location', () => {
-    expect(rehearse(bigger).impact.unaffectedOrderIds).toContain('ORD-E1')
+    expect(delayIn(bigger)?.affectedOrderIds).not.toContain('ORD-E1')
   })
 
   it('a delayed coffee shipment does not touch orders for other products', () => {
-    const { impact } = rehearse(bigger)
-    expect(impact.unaffectedOrderIds).toContain('ORD-N9')
-    expect(impact.exposedQuantity).toBe(24)
+    expect(delayIn(bigger)?.affectedOrderIds).not.toContain('ORD-N9')
+    expect(delayIn(bigger)?.exposedQuantity).toBe(24)
   })
 
   it('an order with several products only counts the delayed product', () => {
     const mixed: Order = { ...sampleWorkspace.orders[1], lines: [{ productId: 'harbor-blend', quantity: 12 }, { productId: 'oat-milk', quantity: 99 }] }
     const data = { ...bigger, orders: bigger.orders.map((order) => order.id === mixed.id ? mixed : order) }
-    expect(rehearse(data).impact.exposedQuantity).toBe(24)
+    expect(delayIn(data)?.exposedQuantity).toBe(24)
+  })
+
+  it('an empty store short with nothing late is its own problem, separate from the delay', () => {
+    const shortage = rehearse(bigger).impact.groups.find((group) => group.kind === 'shortage')
+    expect(shortage).toMatchObject({ locationId: 'east', productId: 'harbor-blend', affectedOrderIds: ['ORD-E1'], exposedQuantity: 40, delayedUntil: null })
   })
 })
 
 describe('warehouse transfer options', () => {
+  it('an order short with nothing late still gets recovery options: move stock from the warehouse that has it', () => {
+    // North Hub has no coffee and nothing coming; South Hub has 14; the transfer arrives before the order is due.
+    const data: Workspace = withStock({
+      ...sampleWorkspace,
+      disruptions: [], shipments: [],
+      orders: [{ id: 'SK-1', customer: 'Shiva Kirana', locationId: 'north', dueAt: '2026-10-16T22:00:00+05:30', priority: 'protected', lines: [{ productId: 'harbor-blend', quantity: 3 }], evidence: typed }],
+    }, 'north', 0)
+    const { impact, plans } = rehearse(data)
+    expect(impact.groups).toEqual([expect.objectContaining({ kind: 'shortage', exposedQuantity: 3, affectedOrderIds: ['SK-1'] })])
+    expect(plans.find((plan) => plan.id === transferPlan)).toMatchObject({ status: 'ready', quantity: 8, outcome: { exposedQuantity: 0, protectsPriority: true } })
+    expect(recommendPlan(plans)?.id).toBe(transferPlan)
+  })
+
+  it('a covered order raises no problem at all', () => {
+    const data: Workspace = { ...sampleWorkspace, disruptions: [], shipments: [], orders: [{ ...sampleWorkspace.orders[0], lines: [{ productId: 'harbor-blend', quantity: 5 }] }] }
+    expect(rehearse(data)).toMatchObject({ plans: [], impact: { groups: [] } })
+  })
   it('allows a transfer within receiving capacity and calculates remaining exposure', () => {
     expect(planIn(sampleWorkspace, transferPlan)).toMatchObject({
       status: 'ready', quantity: 8, cost: { amount: 95, currency: 'INR' },

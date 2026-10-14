@@ -33,7 +33,9 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
     const here = stockAt(group.locationId)
     const product = words.productName(group.productId)
     return [
-      ...once({ id: `delay-${group.shipmentId}`, label: 'Delayed inbound shipment', value: shipment ? `${shipment.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')} from ${shipment.supplierName} to ${words.locationName(shipment.locationId)}; now expected ${format.dateTime(shipment.confirmedArrivalAt)}` : null, evidenceStatus: 'confirmed', source: shipment?.updateSource ?? 'Supplier update' }),
+      ...(group.kind === 'shortage'
+        ? once({ id: `short-${group.locationId}-${group.productId}`, label: 'Stock shortage (nothing late)', value: `${words.quantity(group.exposedQuantity ?? 0, group.productId)} of ${product} short at ${words.locationName(group.locationId)}: stock plus recorded deliveries do not cover the orders`, evidenceStatus: 'confirmed', source: 'Planner' })
+        : once({ id: `delay-${group.shipmentId}`, label: 'Delayed inbound shipment', value: shipment ? `${shipment.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')} from ${shipment.supplierName} to ${words.locationName(shipment.locationId)}; now expected ${format.dateTime(shipment.confirmedArrivalAt)}` : null, evidenceStatus: 'confirmed', source: shipment?.updateSource ?? 'Supplier update' })),
       ...once(fact(`stock-${group.locationId}-${group.productId}`, `${words.locationName(group.locationId)} stock of ${product}`, here ? words.quantity(here.available.value, group.productId) : null, here?.available.evidence ?? null)),
       ...workspace.routes.filter((route) => route.toLocationId === group.locationId).flatMap((route) => {
         const source = stockAt(route.fromLocationId)

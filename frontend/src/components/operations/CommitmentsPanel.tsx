@@ -23,7 +23,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
   const editable = Boolean(onEditOrder)
-  const noDisruption = workspace.disruptions.length === 0
+  const noDisruption = impact.groups.length === 0
   const orderById = new Map(workspace.orders.map((order) => [order.id, order]))
   const manyProducts = workspace.products.length > 1
   const affectedRows = impact.groups.flatMap((group) => group.allocations.map((allocation) => ({ group, allocation })))
@@ -88,7 +88,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
         })}
       </div>
       {unaffected.length > 0 && <>
-        {!noDisruption && <p className="orders-subheading">Not part of this shortage · due after the delayed stock arrives, or for other products and locations</p>}
+        {!noDisruption && <p className="orders-subheading">Not at risk · covered by stock or deliveries, or for other products and locations</p>}
         <div className="orders-table">
           {unaffected.map((order) => {
             const lines = coverage.filter((line) => line.orderId === order.id)

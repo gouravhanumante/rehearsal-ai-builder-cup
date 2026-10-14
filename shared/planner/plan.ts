@@ -59,11 +59,13 @@ export type Conflict = {
 }
 
 export type ImpactGroup = {
+  /** A reported delay, or orders short with nothing late (stock plus deliveries don't cover them). */
+  kind: 'delay' | 'shortage'
   disruptionId: string
-  shipmentId: string
+  shipmentId: string | null
   locationId: string
   productId: string
-  delayedUntil: string
+  delayedUntil: string | null
   /** Null when this location's stock of the product was never recorded: unknown, not zero. */
   exposedQuantity: number | null
   affectedOrderIds: string[]
@@ -184,6 +186,7 @@ export function rehearse(workspace: Workspace) {
   const conflicts: Conflict[] = []
   const plans: Plan[] = []
   const affected = new Set<string>()
+  const problems: { kind: ImpactGroup['kind']; disruptionId: string; shipmentId: string | null; locationId: string; productId: string; delayedUntil: string | null; demands: Demand[]; inbound: Batch[] }[] = []
 
   for (const disruption of workspace.disruptions) {
     const shipment = shipmentById.get(disruption.shipmentId)
@@ -191,21 +194,46 @@ export function rehearse(workspace: Workspace) {
     for (const productId of new Set(shipment.lines.map((line) => line.productId))) {
       const locationId = shipment.locationId
       const delayedUntil = shipment.confirmedArrivalAt
-      const stock = stockByKey.get(stockKey(locationId, productId))
       const demands: Demand[] = workspace.orders
         .filter((order) => order.locationId === locationId && time(order.dueAt) < time(delayedUntil))
         .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
         .filter((demand) => demand.quantity > 0)
-      demands.forEach((demand) => affected.add(demand.order.id))
       // The delayed delivery itself is excluded; later deliveries of a repeating schedule still count.
-      const otherInbound: Batch[] = workspace.shipments
+      const inbound: Batch[] = workspace.shipments
         .filter((other) => other.locationId === locationId && lineQuantity(other, productId) > 0)
         .flatMap((other) => {
           const dates = arrivalsOf(other, time(delayedUntil))
           return (other.id === shipment.id ? dates.slice(1) : dates).map((at) => ({ at, quantity: lineQuantity(other, productId) }))
         })
         .filter((batch) => time(batch.at) < time(delayedUntil))
-      const onHand: Batch[] = [{ at: null, quantity: stock?.available.value ?? 0 }, ...otherInbound]
+      problems.push({ kind: 'delay', disruptionId: disruption.id, shipmentId: shipment.id, locationId, productId, delayedUntil, demands, inbound })
+    }
+  }
+
+  // Orders short with nothing late: same options, for warehouses not already in a reported delay.
+  const inDelay = new Set(problems.map((problem) => stockKey(problem.locationId, problem.productId)))
+  const shortPairs = new Set(orderCoverage(workspace)
+    .filter((line) => line.status === 'short' && !inDelay.has(stockKey(line.locationId, line.productId)))
+    .map((line) => stockKey(line.locationId, line.productId)))
+  for (const pair of shortPairs) {
+    const [locationId, productId] = pair.split('|')
+    const demands: Demand[] = workspace.orders
+      .filter((order) => order.locationId === locationId)
+      .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+      .filter((demand) => demand.quantity > 0)
+    const horizon = Math.max(...demands.map((demand) => time(demand.order.dueAt)))
+    const inbound: Batch[] = workspace.shipments
+      .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
+      .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
+    problems.push({ kind: 'shortage', disruptionId: `short:${locationId}:${productId}`, shipmentId: null, locationId, productId, delayedUntil: null, demands, inbound })
+  }
+
+  for (const problem of problems) {
+    {
+      const { locationId, productId, demands, delayedUntil } = problem
+      const stock = stockByKey.get(stockKey(locationId, productId))
+      demands.forEach((demand) => affected.add(demand.order.id))
+      const onHand: Batch[] = [{ at: null, quantity: stock?.available.value ?? 0 }, ...problem.inbound]
 
       // Conflicts: a priority order left short while earlier standard orders were served.
       const defaultAllocation = allocate(demands, onHand, new Set())
@@ -233,7 +261,7 @@ export function rehearse(workspace: Workspace) {
       }
       const baseline = outcome([])
       groups.push({
-        disruptionId: disruption.id, shipmentId: shipment.id, locationId, productId, delayedUntil,
+        kind: problem.kind, disruptionId: problem.disruptionId, shipmentId: problem.shipmentId, locationId, productId, delayedUntil,
         affectedOrderIds: demands.map((item) => item.order.id),
         exposedQuantity: stock ? baseline.exposedQuantity : null,
         allocations: stock ? baseline.allocations : [],
@@ -249,10 +277,10 @@ export function rehearse(workspace: Workspace) {
       // Room is measured against today's count; stock leaving for orders before arrival is not credited.
       const cap = storageCap(workspace, locationId, productId)
       const spaceLeft = cap === null ? null : Math.max(0, cap - stock.available.value)
-      const common = { disruptionId: disruption.id, productId, locationId, spaceLeft }
+      const common = { disruptionId: problem.disruptionId, productId, locationId, spaceLeft }
       const fits = (quantity: number) => (spaceLeft === null ? quantity : Math.min(quantity, spaceLeft))
       const firstShort = baseline.allocations.find((item) => item.covered < item.ordered)
-      const neededBy = demands.find((item) => item.order.id === firstShort?.orderId)?.order.dueAt ?? delayedUntil
+      const neededBy = demands.find((item) => item.order.id === firstShort?.orderId)?.order.dueAt ?? delayedUntil ?? demands[0].order.dueAt
 
       for (const route of workspace.routes.filter((item) => item.toLocationId === locationId)) {
         const source = stockByKey.get(stockKey(route.fromLocationId, productId))

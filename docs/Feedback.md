@@ -10,6 +10,8 @@
   - Repeating deliveries: Add delivery has Repeats (every 1, 2 or 4 weeks). Each delivery counts; reporting one late moves only that one.
   - Suppliers page split into **Incoming deliveries** (Expected / Regular delivery / Late, Report late) and **Backup suppliers**.
   - Blank limits read "No limit (∞)"; fields show an example ("e.g. 50") and a unit after the box ("packages", "per day").
+  - Short orders are rehearsed like delays: "Not enough stock" card on the Overview, transfers and backup suppliers offered, and a note naming what to add when there is no option yet.
+- **Next (agreed, not built):** warn on step 1 of Add order as you type (not only on Review); show the product name on each order row.
 - **Still open:** see docs/TODO.md (replies not tied to a delay, storage room uses today's count only, unloading limit not checked on shipments).
 - **Working rule (2026-10-14):** log feedback here; code changes happen when the user asks.
 

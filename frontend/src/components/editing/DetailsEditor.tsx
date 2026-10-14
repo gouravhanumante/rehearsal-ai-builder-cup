@@ -221,7 +221,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
             {nextWords && newShortages.length > 0 && <ul className="editor-shortages">{newShortages.map((line) => (
               <li key={`${line.orderId}-${line.productId}`}><strong>{nextWords.customer(line.orderId)} · {nextWords.productName(line.productId)}</strong><small>{nextWords.shortageText(line)}</small></li>
             ))}</ul>}
-            {workspace.disruptions.length === 0 && next && next.disruptions.length === 0
+            {before.impact.groups.length === 0 && after.impact.groups.length === 0
               ? newShortages.length === 0 && <small>Nothing is late right now, and every order is still covered.</small>
               : exposedBefore === exposedAfter && atRiskBefore === atRiskAfter
               ? <small>The shortage stays at {words.totalQuantity(exposedBefore)} across {atRiskBefore} orders until you approve a plan.</small>
@@ -229,7 +229,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                 <span>Exposed <strong>{words.totalQuantity(exposedBefore)} → {words.totalQuantity(exposedAfter ?? 0)}</strong></span>
                 <span>Orders at risk <strong>{atRiskBefore} → {atRiskAfter}</strong></span>
               </div>}
-            {workspace.disruptions.length === 0 && next && next.disruptions.length === 0 ? null : planChanges.length === 0
+            {before.impact.groups.length === 0 && after.impact.groups.length === 0 ? null : planChanges.length === 0
               ? <small>No recovery option changes.</small>
               : <ul>{planChanges.map(({ now, previous, id }) => (
                 <li key={id}><strong>{now.title}</strong><span>{previous ? `${previous.statusLabel} → ` : 'New option · '}{now.statusLabel}</span><small>{now.impact}</small></li>
