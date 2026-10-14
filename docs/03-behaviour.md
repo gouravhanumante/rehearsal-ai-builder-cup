@@ -54,8 +54,11 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - A delayed shipment affects only orders **at the same location, for the same product**, due
   **before** the delayed stock arrives. An order with several products counts only the delayed
   product. Everything else is listed as **Not affected**. (`rehearse` in `shared/planner/plan.ts`)
-- A location with no stock count for the product has **unknown** exposure, never zero, and no
-  options are offered for it until a count is added.
+- A location with no stock count for the product **counts as 0** (user decision 2026-10-15; it
+  replaces the earlier "unknown, never zero" rule because most missing counts really are none, and
+  unknown blocked every fix). It is never silent: the order says "No stock count for Broom at
+  Warehouse A, so it counts as 0" with **Add count**, the Overview counts such locations, and the
+  order form says so under Quantity (`ImpactGroup.counted`, `OrderCoverage.counted`).
 - Stock only counts for an order if it has arrived by that order's due time. By default the
   order **due first** gets the stock (user decision 2026-10-14: it leaves more time to find stock
   for the later order).
@@ -107,7 +110,7 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - **Every order is checked, delay or not** (user decision 2026-10-14, `orderCoverage`): stock on
   hand at its warehouse plus deliveries arriving by its due time, shared with orders due first.
   Covered / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows
-  deliveries the user entered) / Stock unknown when the warehouse was never counted.
+  deliveries the user entered); a warehouse never counted counts as 0 and is labelled so.
 - **Shortages are rehearsed too** (user decision 2026-10-14): a warehouse+product with a Short
   order and no reported delay becomes its own problem (`ImpactGroup.kind: 'shortage'`), shown on
   the Overview as "Not enough stock", with the same options (transfers in, backup suppliers) and

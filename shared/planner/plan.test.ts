@@ -37,12 +37,12 @@ describe('which orders the delay affects', () => {
     expect(rehearse(sampleWorkspace).impact.unaffectedOrderIds).toEqual(['ORD-1104'])
   })
 
-  it('treats a location with no recorded stock as unknown exposure, never as zero stock', () => {
+  it('a location with no stock count counts as 0 (and says so), so recovery options still appear', () => {
     const data = { ...sampleWorkspace, stock: sampleWorkspace.stock.filter((record) => record.locationId !== 'north') }
     const { impact, plans } = rehearse(data)
-    expect(impact.groups[0].exposedQuantity).toBeNull()
-    expect(impact.unknownGroups).toBe(1)
-    expect(plans).toEqual([])
+    expect(impact.groups[0]).toMatchObject({ exposedQuantity: 38, counted: false })
+    expect(impact.uncountedGroups).toBe(1)
+    expect(plans.find((plan) => plan.id === transferPlan)?.status).toBe('ready')
   })
 })
 
@@ -77,9 +77,9 @@ describe('is every order covered by its warehouse, even with nothing late', () =
     expect(coverageOf(data, 'TUE')).toMatchObject({ covered: 4, status: 'short' })
   })
 
-  it('a warehouse that was never counted is unknown, not short', () => {
+  it('a warehouse that was never counted counts as 0: the order is short, and marked not counted', () => {
     const data = quiet([order('BIG', 20, thursdayMorning)], { stock: sampleWorkspace.stock.filter((record) => record.locationId !== 'south') })
-    expect(coverageOf(data, 'BIG')?.status).toBe('unknown')
+    expect(coverageOf(data, 'BIG')).toMatchObject({ status: 'short', covered: 0, counted: false })
   })
 
   describe('regular deliveries', () => {

@@ -203,10 +203,10 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
               </>
               : <>
                 <IncidentOverview onReportDelay={isReal ? reportDelay : undefined} onResolve={isReal ? resolveDelay : undefined} />
-                <CommitmentsPanel onToggleAll={() => setActiveSection('Orders')} showAll={false} />
+                <CommitmentsPanel onAddCount={(locationId, productId) => openEditor({ type: 'stock', locationId, productId })} onToggleAll={() => setActiveSection('Orders')} showAll={false} />
                 <OverviewRecommendation onApprove={requestApproval} onViewOptions={() => setActiveSection('Rehearsals')} />
               </>)}
-            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} onSetStatus={setStatus} showAll />}
+            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} onAddCount={(locationId, productId) => openEditor({ type: 'stock', locationId, productId })} onSetStatus={setStatus} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Between locations' && <TransfersView onAnswerDelivery={answerDelivery} onAskAgain={askAgain} onEdit={openEditor} onForgetDelivery={forgetDelivery} onRemoveRoute={setRemovingRouteId} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} onRemoveSupplier={setRemovingSupplierId} />}

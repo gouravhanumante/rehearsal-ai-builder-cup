@@ -77,8 +77,8 @@ export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: In
         <div className="impact-stat impact-stat-alert"><span className="impact-icon"><Package size={17} /></span><strong>{format.number(impact.exposedQuantity)}</strong><span>{words.totalUnit(impact.exposedQuantity)} exposed</span></div>
         <div className="impact-stat"><span className="impact-icon"><TriangleAlert size={17} /></span><strong>{impact.affectedOrderIds.length}</strong><span>orders at risk</span></div>
         <p>
-          {impact.unknownGroups > 0
-            ? `${impact.unknownGroups} affected location${impact.unknownGroups === 1 ? ' has' : 's have'} no stock count, so exposure there is unknown.`
+          {impact.uncountedGroups > 0
+            ? `${impact.uncountedGroups} affected location${impact.uncountedGroups === 1 ? ' has' : 's have'} no stock count, so it counts as 0. Add a count in Inventory if that is wrong.`
             : workspace.disruptions.length > 0 ? 'The delayed stock arrives after these commitments are due.' : 'See the recovery options below, or add stock and deliveries.'}
         </p>
       </div>

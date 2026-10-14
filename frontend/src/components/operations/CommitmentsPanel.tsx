@@ -16,12 +16,13 @@ type CommitmentsPanelProps = {
   onImportOrders?: () => void
   /** Delivered / cancel on open orders; reopen on closed ones. */
   onSetStatus?: (orderId: string, status: 'open' | 'delivered' | 'cancelled') => void
+  onAddCount?: (locationId: string, productId: string) => void
 }
 
 const avatarTones = ['green', 'blue', 'yellow'] as const
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join('')
 
-export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder, onImportOrders, onSetStatus }: CommitmentsPanelProps) {
+export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder, onImportOrders, onSetStatus, onAddCount }: CommitmentsPanelProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
   const editable = Boolean(onEditOrder)
@@ -37,11 +38,18 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
   const affectedCount = impact.affectedOrderIds.length
   const coverage = useMemo(() => orderCoverage(workspace), [workspace])
 
-  const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode; note?: string }) => (
+  const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode; note?: string; uncounted?: { locationId: string; productId: string }[] }) => (
     <div className={`order-row ${rowClass} ${isOpen(order) ? '' : 'order-row--closed'}`} key={key}>
       <div className="order-customer">
         <span className={`customer-avatar avatar-${avatarTones[workspace.orders.indexOf(order) % avatarTones.length]}`}>{initialsOf(order.customer)}</span>
-        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{cells.note && <small className="order-shortage">{cells.note}</small>}{showAll && <EvidenceMark evidence={order.evidence} />}</span>
+        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{cells.note && <small className="order-shortage">{cells.note}</small>}
+          {cells.uncounted?.map((item) => (
+            <small className="order-uncounted" key={`${item.locationId}|${item.productId}`}>
+              No stock count for {words.productName(item.productId)} at {words.locationName(item.locationId)}, so it counts as 0.
+              {onAddCount && <button onClick={() => onAddCount(item.locationId, item.productId)} type="button">Add count</button>}
+            </small>
+          ))}
+          {showAll && <EvidenceMark evidence={order.evidence} />}</span>
       </div>
       <div className="order-due">{format.day(order.dueAt)}<small>{format.time(order.dueAt)}</small></div>
       <strong className="order-quantity">{cells.quantity}</strong>
@@ -91,14 +99,12 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
           const order = orderById.get(allocation.orderId)
           if (!order) return null
           const quantity = `${words.quantity(allocation.ordered, group.productId)}${manyProducts ? ` · ${words.productName(group.productId)}` : ''}`
-          if (group.exposedQuantity === null) {
-            return row(`${group.disruptionId}-${group.productId}-${order.id}`, order, { quantity, covered: 'Unknown', badge: <StatusBadge tone="warning" dot>Stock unknown</StatusBadge> })
-          }
           const atRisk = allocation.covered < allocation.ordered
           return row(`${group.disruptionId}-${group.productId}-${order.id}`, order, {
             quantity,
             covered: words.quantity(allocation.covered, group.productId),
             badge: <StatusBadge tone={atRisk ? 'danger' : 'success'} dot>{atRisk ? 'At risk' : 'Covered'}</StatusBadge>,
+            uncounted: group.counted ? [] : [{ locationId: group.locationId, productId: group.productId }],
           })
         })}
       </div>
@@ -108,15 +114,14 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
           {unaffected.map((order) => {
             const lines = coverage.filter((line) => line.orderId === order.id)
             const short = lines.filter((line) => line.status === 'short')
-            const unknown = lines.some((line) => line.status === 'unknown')
             return row(order.id, order, {
               quantity: order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', '),
-              covered: lines.map((line) => (line.status === 'unknown' ? 'Unknown' : words.quantity(line.covered, line.productId))).join(', ') || '—',
+              covered: lines.map((line) => words.quantity(line.covered, line.productId)).join(', ') || '—',
               badge: short.length > 0
                 ? <StatusBadge tone="danger" dot>Short</StatusBadge>
-                : unknown ? <StatusBadge tone="warning" dot>Stock unknown</StatusBadge>
                 : <StatusBadge tone="success" dot>Covered</StatusBadge>,
               note: short.map(words.shortageText).join(' · ') || undefined,
+              uncounted: lines.filter((line) => !line.counted).map((line) => ({ locationId: line.locationId, productId: line.productId })),
             })
           })}
         </div>

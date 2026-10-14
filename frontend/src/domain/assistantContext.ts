@@ -36,7 +36,9 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
       ...(group.kind === 'shortage'
         ? once({ id: `short-${group.locationId}-${group.productId}`, label: 'Stock shortage (nothing late)', value: `${words.quantity(group.exposedQuantity ?? 0, group.productId)} of ${product} short at ${words.locationName(group.locationId)}: stock plus recorded deliveries do not cover the orders`, evidenceStatus: 'confirmed', source: 'Planner' })
         : once({ id: `delay-${group.shipmentId}`, label: 'Delayed inbound shipment', value: shipment ? `${shipment.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')} from ${shipment.supplierName} to ${words.locationName(shipment.locationId)}; now expected ${format.dateTime(shipment.confirmedArrivalAt)}` : null, evidenceStatus: 'confirmed', source: shipment?.updateSource ?? 'Supplier update' })),
-      ...once(fact(`stock-${group.locationId}-${group.productId}`, `${words.locationName(group.locationId)} stock of ${product}`, here ? words.quantity(here.available.value, group.productId) : null, here?.available.evidence ?? null)),
+      ...once(here
+        ? fact(`stock-${group.locationId}-${group.productId}`, `${words.locationName(group.locationId)} stock of ${product}`, words.quantity(here.available.value, group.productId), here.available.evidence)
+        : { id: `stock-${group.locationId}-${group.productId}`.slice(0, 64), label: `${words.locationName(group.locationId)} stock of ${product}`, value: `${words.quantity(0, group.productId)} (never counted, so treated as 0)`, evidenceStatus: 'confirmed', source: 'Rehearsal' }),
       ...workspace.routes.filter((route) => route.toLocationId === group.locationId).flatMap((route) => {
         const source = stockAt(route.fromLocationId)
         return [

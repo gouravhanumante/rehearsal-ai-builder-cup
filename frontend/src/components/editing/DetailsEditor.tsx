@@ -235,14 +235,14 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                     const hint = stockHints[field.key]
                     const where = words.locationName(hint.locationId)
                     const promised = hint.onHand > hint.spare ? ` (it has ${format.number(hint.onHand)}; the rest is promised to other orders)` : ''
-                    return <small aria-live="polite" className={hint.short || !hint.counted ? 'editor-stock-warning' : 'editor-hint'}>
-                      {!hint.counted
-                        ? `${where} has no stock count for ${words.productName(hint.productId)} yet, so this can't be checked.`
-                        : hint.short
-                          ? `More than ${where} can spare: at most ${words.quantity(hint.spare, hint.productId)}${promised}. You can still save the order; Rehearsal will look for ways to cover it.`
-                          : hint.coveredByDeliveries
-                            ? `Covered: ${where} can spare ${words.quantity(hint.spare, hint.productId)} now, and deliveries arrive before the due date.`
-                            : `${where} can spare up to ${words.quantity(hint.spare, hint.productId)}${promised}.`}
+                    return <small aria-live="polite" className={hint.short ? 'editor-stock-warning' : 'editor-hint'}>
+                      {hint.short
+                        ? `More than ${where} can spare: at most ${words.quantity(hint.spare, hint.productId)}${promised}${hint.counted ? '' : ` (no stock count for ${words.productName(hint.productId)} there, so it counts as 0)`}. You can still save the order; Rehearsal will look for ways to cover it.`
+                        : hint.coveredByDeliveries
+                          ? `Covered: ${where} can spare ${words.quantity(hint.spare, hint.productId)} now, and deliveries arrive before the due date.`
+                          : hint.counted
+                            ? `${where} can spare up to ${words.quantity(hint.spare, hint.productId)}${promised}.`
+                            : `${where} has no stock count for ${words.productName(hint.productId)}, so it counts as 0.`}
                     </small>
                   })()}
                 </div>

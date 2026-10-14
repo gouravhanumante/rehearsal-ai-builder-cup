@@ -74,8 +74,9 @@ export type ImpactGroup = {
   locationId: string
   productId: string
   delayedUntil: string | null
-  /** Null when this location's stock of the product was never recorded: unknown, not zero. */
-  exposedQuantity: number | null
+  exposedQuantity: number
+  /** False when this location never had a count for the product; it is treated as 0. */
+  counted: boolean
   affectedOrderIds: string[]
   allocations: Allocation[]
 }
@@ -148,7 +149,9 @@ export type OrderCoverage = {
   covered: number
   /** Arriving at this warehouse by the order's due time, from incoming shipments (before other orders take any). */
   arriving: number
-  status: 'covered' | 'short' | 'unknown'
+  status: 'covered' | 'short'
+  /** False when this warehouse never had a count for the product: it is treated as 0 (user decision 2026-10-15). */
+  counted: boolean
 }
 
 /**
@@ -183,7 +186,8 @@ export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderC
       const arriving = inbound.filter((batch) => time(batch.at) <= time(dueAt)).reduce((total, batch) => total + batch.quantity, 0)
       result.push({
         orderId: allocation.orderId, productId, locationId, ordered: allocation.ordered, covered: allocation.covered, arriving,
-        status: !stock ? 'unknown' : allocation.covered < allocation.ordered ? 'short' : 'covered',
+        status: allocation.covered < allocation.ordered ? 'short' : 'covered',
+        counted: Boolean(stock),
       })
     }
   }
@@ -322,20 +326,22 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
       groups.push({
         kind: problem.kind, disruptionId: problem.disruptionId, shipmentId: problem.shipmentId, locationId, productId, delayedUntil,
         affectedOrderIds: demands.map((item) => item.order.id),
-        exposedQuantity: stock ? baseline.exposedQuantity : null,
-        allocations: stock ? baseline.allocations : [],
+        exposedQuantity: baseline.exposedQuantity,
+        allocations: baseline.allocations,
+        counted: Boolean(stock),
       })
-      if (!stock || baseline.exposedQuantity === 0) continue
+      if (baseline.exposedQuantity === 0) continue
 
+      const onHandCount = stock?.available.value ?? 0
       const baseUnverified: UnverifiedFact[] = [
-        ...(isManual(stock.available.evidence) ? [{ type: 'stock' as const, locationId, productId, quantity: stock.available.value }] : []),
+        ...(stock && isManual(stock.available.evidence) ? [{ type: 'stock' as const, locationId, productId, quantity: stock.available.value }] : []),
         ...demands.filter((item) => isManual(item.order.evidence)).map((item) => ({ type: 'order' as const, orderId: item.order.id })),
       ]
       const earliestPriorityDue = Math.min(...demands.filter((item) => item.order.priority === 'protected').map((item) => time(item.order.dueAt)))
       const destinationLimit = locationById.get(locationId)?.receivingLimitPerDay ?? null
       // Room is measured against today's count; stock leaving for orders before arrival is not credited.
       const cap = storageCap(workspace, locationId, productId)
-      const spaceLeft = cap === null ? null : Math.max(0, cap - stock.available.value)
+      const spaceLeft = cap === null ? null : Math.max(0, cap - onHandCount)
       const common = { disruptionId: problem.disruptionId, productId, locationId, spaceLeft }
       const fits = (quantity: number) => (spaceLeft === null ? quantity : Math.min(quantity, spaceLeft))
       const firstShort = baseline.allocations.find((item) => item.covered < item.ordered)
@@ -470,14 +476,13 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
 
   const kindOrder = { transfer: 0, 'ship-from': 1, supplier: 2, 'bulk-transfer': 3 }
   plans.sort((first, second) => kindOrder[first.kind] - kindOrder[second.kind])
-  const knownGroups = groups.filter((group) => group.exposedQuantity !== null)
   return {
     impact: {
       groups,
       affectedOrderIds: [...affected],
       unaffectedOrderIds: workspace.orders.filter((order) => !affected.has(order.id)).map((order) => order.id),
-      exposedQuantity: knownGroups.reduce((total, group) => total + (group.exposedQuantity ?? 0), 0),
-      unknownGroups: groups.length - knownGroups.length,
+      exposedQuantity: groups.reduce((total, group) => total + group.exposedQuantity, 0),
+      uncountedGroups: groups.filter((group) => !group.counted).length,
     },
     conflicts,
     plans,

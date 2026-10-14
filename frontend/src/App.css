@@ -441,6 +441,8 @@
 .order-quantity { color: #415247; font-weight: 700; }
 .order-available { color: #77847b; }
 .order-shortage { display: block; margin-top: 3px; color: #944b33 !important; font-weight: 650; }
+.order-uncounted { display: block; margin-top: 3px; color: #7a5a1f !important; }
+.order-uncounted button { margin-left: 6px; padding: 0; border: 0; color: #2f5a40; background: none; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .editor-shortages li { padding: 8px 10px; border-left: 3px solid #c97a5a; border-radius: 4px; background: #fbf1ec; }
 .editor-shortages li small { color: #944b33 !important; }
 .editor-live-warning { display: grid; gap: 6px; margin-top: 12px; padding: 12px; border: 1px solid #efcfc0; border-radius: 8px; background: #fffaf7; color: #7a3c26; font-size: 12px; }

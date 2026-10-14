@@ -20,7 +20,7 @@
 - **Next (agreed, not built):** warn on step 1 of Add order as you type (not only on Review); show the product name on each order row.
 - **Problems Rehearsal does not solve yet (2026-10-14 review, checked against the code):**
   - *Big:* (1) FIXED: transfers now move only the shortfall from spare stock; (2) only one fix at a time, never "transfer 8 + buy 16"; (3) FIXED: approving now records the transfer / purchase / order move; (4) no "Mark received" for deliveries, so after one arrives and stock is recounted it can count twice.
-  - *Medium:* a delivery that would overflow storage is not flagged (limits only cap rescue options); stock above its limit shows in Inventory but not as a problem; a warehouse never counted is "Stock unknown" with no prompt to count it; unloading limit not checked on supplier deliveries; backup replies and transfer arrival times go stale (not tied to a problem).
+  - *Medium:* a delivery that would overflow storage is not flagged (limits only cap rescue options); stock above its limit shows in Inventory but not as a problem; a warehouse never counted now counts as 0, labelled with an Add count link (2026-10-15); unloading limit not checked on supplier deliveries; backup replies and transfer arrival times go stale (not tied to a problem).
   - *Small:* conflicts (priority vs earlier order) only appear inside a problem; a supplier reply covering part of the need isn't combined with other options.
 - **Still open:** see docs/TODO.md (replies not tied to a delay, storage room uses today's count only, unloading limit not checked on shipments).
 - **Working rule (2026-10-14):** log feedback here; code changes happen when the user asks.
