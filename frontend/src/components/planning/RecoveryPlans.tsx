@@ -51,7 +51,9 @@ export function RecoveryPlans({ onApprove, onAddDetails, onDecideConflict }: Rec
         {approval.withWarning ? <TriangleAlert size={16} /> : <Check size={16} />}
         <span><strong>{words.planText(approved).title} approved for this demo{approval.withWarning ? ' with a warning' : ''}.</strong>{approval.defaultedConflicts > 0 ? ` Earliest due was used for ${approval.defaultedConflicts} unanswered conflict${approval.defaultedConflicts === 1 ? '' : 's'}.` : ''} No business records were changed.</span>
       </div>}
-      {plans.length === 0 && <p className="editor-empty">No options to check: either nothing is short, or a stock count is missing.</p>}
+      {plans.length === 0 && <p className="editor-empty">{workspace.disruptions.length === 0
+        ? 'Nothing to rehearse yet. When a shipment is late, report the delay and the options appear here.'
+        : 'No options to check: either nothing is short, or a stock count is missing.'}</p>}
       <div className="recovery-options">
         {plans.map((plan, index) => {
           const text = words.planText(plan)

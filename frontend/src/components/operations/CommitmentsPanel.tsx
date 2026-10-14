@@ -5,6 +5,7 @@ import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Order } from '../../../../shared/planner/model'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
+import { EmptyState } from '../layout/EmptyState'
 
 type CommitmentsPanelProps = {
   showAll: boolean
@@ -19,11 +20,12 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder }: Commitme
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
   const editable = Boolean(onEditOrder)
+  const noDisruption = workspace.disruptions.length === 0
   const orderById = new Map(workspace.orders.map((order) => [order.id, order]))
   const manyProducts = workspace.products.length > 1
   const affectedRows = impact.groups.flatMap((group) => group.allocations.map((allocation) => ({ group, allocation })))
   const visibleRows = showAll ? affectedRows : affectedRows.slice(0, 2)
-  const unaffected = showAll ? workspace.orders.filter((order) => impact.unaffectedOrderIds.includes(order.id)) : []
+  const unaffected = showAll || noDisruption ? workspace.orders.filter((order) => impact.unaffectedOrderIds.includes(order.id)) : []
   const affectedCount = impact.affectedOrderIds.length
 
   const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode }) => (
@@ -42,10 +44,19 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder }: Commitme
 
   const routesIn = impact.groups.flatMap((group) => workspace.routes.filter((route) => route.toLocationId === group.locationId).map((route) => ({ group, route })))
 
+  if (workspace.orders.length === 0) {
+    return (
+      <section className="orders-section" aria-labelledby="orders-title">
+        <div className="section-heading"><div><p className="section-kicker">CUSTOMER ORDERS</p><h2 id="orders-title">No orders yet</h2></div></div>
+        <EmptyState body="Add or import your open customer orders. Rehearsal uses them to see who is affected when a shipment is late." title="Nothing to watch yet" />
+      </section>
+    )
+  }
+
   return (
     <section className="orders-section" aria-labelledby="orders-title">
       <div className="section-heading">
-        <div><p className="section-kicker">{showAll ? 'CUSTOMER ORDERS' : 'IMPACTED CUSTOMER ORDERS'}</p><h2 id="orders-title">{affectedCount} {affectedCount === 1 ? 'delivery needs' : 'deliveries need'} attention</h2></div>
+        <div><p className="section-kicker">{showAll || noDisruption ? 'CUSTOMER ORDERS' : 'IMPACTED CUSTOMER ORDERS'}</p><h2 id="orders-title">{noDisruption ? `${format.number(workspace.orders.length)} open order${workspace.orders.length === 1 ? '' : 's'}` : `${affectedCount} ${affectedCount === 1 ? 'delivery needs' : 'deliveries need'} attention`}</h2></div>
         {onToggleAll && <Button className="expand-orders" icon={showAll ? <ChevronUp size={15} /> : <ChevronDown size={15} />} onClick={onToggleAll} variant="quiet">
           {showAll ? 'Show fewer' : `View all ${workspace.orders.length} orders`}
         </Button>}
@@ -68,12 +79,12 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder }: Commitme
         })}
       </div>
       {unaffected.length > 0 && <>
-        <p className="orders-subheading">Not part of this shortage · due after the delayed stock arrives, or for other products and locations</p>
+        {!noDisruption && <p className="orders-subheading">Not part of this shortage · due after the delayed stock arrives, or for other products and locations</p>}
         <div className="orders-table">
           {unaffected.map((order) => row(order.id, order, {
             quantity: order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', '),
             covered: '—',
-            badge: <StatusBadge tone="neutral" dot>Not affected</StatusBadge>,
+            badge: <StatusBadge tone="neutral" dot>{noDisruption ? 'Watching' : 'Not affected'}</StatusBadge>,
           }))}
         </div>
       </>}

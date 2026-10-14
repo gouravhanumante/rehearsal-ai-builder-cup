@@ -6,6 +6,7 @@ import { LIMITS } from '../../../../shared/planner/validate'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
+import { EmptyState } from '../layout/EmptyState'
 
 type SuppliersViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
@@ -37,6 +38,9 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
           <Button disabled={atLimit} icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="primary">Add supplier</Button>
         </div>
       </div>
+      {workspace.shipments.length === 0 && workspace.suppliers.length === 0 && <EmptyState body="Add the shipments you are waiting for, and any backup suppliers you could buy from in a shortage." icon={<Truck size={20} />} title="No suppliers or shipments yet">
+        <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="primary">Add supplier</Button>
+      </EmptyState>}
       <div className="supplier-list">
         {workspace.shipments.map((shipment) => (
           <article className={`supplier-row ${delayed.has(shipment.id) ? 'supplier-confirmed' : ''}`} key={shipment.id}>

@@ -1,14 +1,18 @@
-import { Boxes, ClipboardCheck, ClipboardList, LayoutDashboard, Truck } from 'lucide-react'
+import { Boxes, ClipboardCheck, ClipboardList, LayoutDashboard, ListChecks, Truck } from 'lucide-react'
 
-export type SectionName = 'Overview' | 'Orders' | 'Inventory' | 'Suppliers' | 'Rehearsals'
+export type SectionName = 'Setup' | 'Overview' | 'Orders' | 'Inventory' | 'Suppliers' | 'Rehearsals'
 
 type SectionNavigationProps = {
   activeSection: SectionName
   affectedOrderCount: number
+  showSetup: boolean
+  setupRemaining: number
+  mode: 'demo' | 'real'
   onNavigate: (section: SectionName) => void
 }
 
 const sections = [
+  { name: 'Setup' as const, icon: ListChecks },
   { name: 'Overview' as const, icon: LayoutDashboard },
   { name: 'Orders' as const, icon: ClipboardList },
   { name: 'Inventory' as const, icon: Boxes },
@@ -16,11 +20,11 @@ const sections = [
   { name: 'Rehearsals' as const, icon: ClipboardCheck },
 ]
 
-export function SectionNavigation({ activeSection, affectedOrderCount, onNavigate }: SectionNavigationProps) {
+export function SectionNavigation({ activeSection, affectedOrderCount, showSetup, setupRemaining, mode, onNavigate }: SectionNavigationProps) {
   return (
     <nav aria-label="Workspace sections" className="section-navigation">
       <p className="navigation-label">WORKSPACE</p>
-      {sections.map(({ icon: Icon, name }) => (
+      {sections.filter(({ name }) => name !== 'Setup' || showSetup).map(({ icon: Icon, name }) => (
         <button
           aria-current={activeSection === name ? 'page' : undefined}
           className={`section-nav-item ${activeSection === name ? 'is-active' : ''}`}
@@ -30,10 +34,11 @@ export function SectionNavigation({ activeSection, affectedOrderCount, onNavigat
         >
           <Icon aria-hidden="true" size={17} strokeWidth={1.8} />
           <span>{name}</span>
+          {name === 'Setup' && setupRemaining > 0 && <span aria-label={`${setupRemaining} setup steps left`} className="navigation-count navigation-count--soft">{setupRemaining}</span>}
           {name === 'Orders' && affectedOrderCount > 0 && <span aria-label={`${affectedOrderCount} orders at risk`} className="navigation-count">{affectedOrderCount}</span>}
         </button>
       ))}
-      <div className="navigation-footnote"><span /> Sample workspace</div>
+      <div className="navigation-footnote"><span /> {mode === 'demo' ? 'Sample workspace' : 'Your workspace'}</div>
     </nav>
   )
 }

@@ -168,11 +168,27 @@ Two separate choices:
 - **User role** (Owner / Planner / Warehouse staff / Viewer) — controls who can view, edit,
   approve, or execute.
 
-## 9a. Demo and Real workspaces (V1 decision)
-- **Demo** is a resettable, no-signup sample workspace for judges.
-- **Real** is a separate workspace whose confirmed records and uploaded source files remain in the current browser in V1; it does not sync across devices and does not require sign-in yet.
-- A user can explicitly send a question and its relevant facts or an uploaded receipt to Google Gemini for processing. Rehearsal does not persist those Real-mode requests or files on its server. Sign-in and synced Real workspaces are V2.
-- The UI must identify the active workspace and data source so sample facts cannot be mistaken for Real facts.
+## 9a. Demo and Real workspaces (V1 decision; blank start implemented 2026-10-14)
+- The first screen offers **Set up my business** or **Try the sample**; a returning visitor also gets **Continue**
+  (`frontend/src/App.tsx`, `StartScreen.tsx`).
+- **Demo** is a resettable, no-signup sample workspace for judges (`mode: 'demo'`, saved in localStorage).
+- **Real** (`mode: 'real'`) starts completely empty (`shared/planner/blank.ts`): name and country (which set
+  currency, number format and timezone). The user adds locations, products, stock, orders and shipments in any
+  order; the **Setup** tab lists what is added and what is next (`presentation/setup.ts`). Nothing blocks
+  anything: missing facts stay unknown, and a plan that needs one says so.
+- A Real workspace is saved in this browser (IndexedDB, `data/realStore.ts`) and kept in step across tabs. The menu
+  has **Download backup**, **Restore from backup** (checked like any saved data; always restored as the user's
+  own workspace, never the sample) and **Delete this workspace** (asks first). Browser storage can be cleared by the
+  user or the browser, so a backup is the safety net; the app asks the browser to keep the data (best effort).
+- With no disruption reported, the Overview says "No disruption right now" and what is being watched, instead of
+  showing a recommendation. Orders, Inventory, Suppliers and Rehearsals each have an empty state with the next action.
+- Reset exists only for the sample; it never touches a Real workspace.
+- A user can explicitly send a question and its relevant facts or an uploaded receipt to Google Gemini for processing.
+  Rehearsal does not persist those requests or files on its server.
+- The UI identifies the active workspace ("Sample workspace" / "Your workspace"), so sample facts cannot be mistaken
+  for the user's own.
+- Not built yet: spreadsheet import, adding orders/shipments/routes, reporting a delay on a shipment, and
+  cloud save/sign-in (see `TODO.md`).
 
 ## 10. Objectives
 - User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or

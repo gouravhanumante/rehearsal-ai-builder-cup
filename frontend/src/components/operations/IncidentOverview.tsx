@@ -1,10 +1,36 @@
-import { ArrowRight, CircleCheck, Package, TriangleAlert } from 'lucide-react'
+import { ArrowRight, CircleCheck, Package, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
-export function IncidentOverview() {
+type IncidentOverviewProps = {
+  onReportDelay?: () => void
+  onAddShipment?: () => void
+}
+
+export function IncidentOverview({ onReportDelay, onAddShipment }: IncidentOverviewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
+
+  if (workspace.disruptions.length === 0) {
+    const watched = workspace.orders.length
+    return (
+      <section className="incident-section" aria-label="Disruptions">
+        <div className="calm-card">
+          <span className="calm-icon"><ShieldCheck size={20} /></span>
+          <div className="calm-main">
+            <h2>No disruption right now</h2>
+            <p>{watched > 0
+              ? `You're watching ${format.number(watched)} open order${watched === 1 ? '' : 's'} across ${format.number(workspace.locations.length)} location${workspace.locations.length === 1 ? '' : 's'}. When a shipment is late, report it and Rehearsal shows who is affected.`
+              : 'Add your orders and shipments, and Rehearsal will watch them for you. When a shipment is late, report it here.'}</p>
+          </div>
+          {workspace.shipments.length > 0
+            ? onReportDelay && <Button icon={<TriangleAlert size={15} />} onClick={onReportDelay} variant="primary">Report a delay</Button>
+            : onAddShipment && <Button onClick={onAddShipment} variant="secondary">Add a shipment first</Button>}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="incident-section" aria-label="Disruptions">

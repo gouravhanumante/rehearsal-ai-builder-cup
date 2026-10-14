@@ -5,6 +5,7 @@ import { StatusBadge } from '../../design-system/StatusBadge'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
+import { EmptyState } from '../layout/EmptyState'
 
 type InventoryViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
@@ -16,7 +17,19 @@ export function InventoryView({ onEdit }: InventoryViewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const [selectedProductId, setSelectedProductId] = useState(workspace.products[0]?.id ?? '')
   const product = workspace.products.find((item) => item.id === selectedProductId) ?? workspace.products[0]
-  if (!product) return null
+  if (!product) {
+    return (
+      <section className="data-view" aria-labelledby="inventory-title">
+        <div className="section-heading data-view-heading">
+          <div><p className="section-kicker">INVENTORY</p><h2 id="inventory-title">Stock by location</h2></div>
+        </div>
+        <EmptyState body="Add the products you stock. Then add your locations and how much of each product is at each one." icon={<PackagePlus size={20} />} title="No products yet">
+          <Button icon={<PackagePlus size={14} />} onClick={() => onEdit({ type: 'new-product' }, 'manual')} variant="primary">Add product</Button>
+          <Button icon={<MapPinPlus size={14} />} onClick={() => onEdit({ type: 'new-location' }, 'manual')} variant="secondary">Add location</Button>
+        </EmptyState>
+      </section>
+    )
+  }
   const pressured = new Set(rehearsal.impact.groups.filter((group) => group.productId === product.id && (group.exposedQuantity ?? 1) > 0).map((group) => group.locationId))
 
   return (
@@ -38,6 +51,9 @@ export function InventoryView({ onEdit }: InventoryViewProps) {
           <Button icon={<MapPinPlus size={14} />} onClick={() => onEdit({ type: 'new-location' }, 'manual')} variant="secondary">Add location</Button>
         </div>
       </div>
+      {workspace.locations.length === 0 && <EmptyState body="Add a warehouse, store or distribution centre to record stock there." icon={<MapPinPlus size={20} />} title="No locations yet">
+        <Button icon={<MapPinPlus size={14} />} onClick={() => onEdit({ type: 'new-location' }, 'manual')} variant="primary">Add location</Button>
+      </EmptyState>}
       <div className="inventory-grid">
         {workspace.locations.map((location) => {
           const record = workspace.stock.find((item) => item.locationId === location.id && item.productId === product.id)

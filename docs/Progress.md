@@ -47,13 +47,15 @@
 - browser saves from the first version are carried into the new format; unreadable saves are reported, not dropped
 - live check after scale-up: same sample numbers (24 exposed, transfer leaves 16); Gemini read a quote's arrival time in India time and correctly declined a USD price for a ₹ workspace
 
+- blank workspace: start screen (set up my business / try the sample), empty Real workspace saved in the browser, Setup guide, empty states, backup download/restore, delete (2026-10-14)
+
 ## In progress
 - review provisional distributor sample quantities, dates, and estimated costs together
 - finalize the exact V1 demo flow and confirm hackathon theme
 
 ## Pending
 - configure the Gemini key as a Cloud Run secret for deployment
-- finish separate Demo/Real workspace selector and Real browser-local storage
+- cloud save for Real workspaces (sign-in + Firestore); spreadsheet import; add orders/shipments and report a delay on a shipment
 - evidence-backed two-stage receipt review/apply flow for Real workspace stock (Demo supplier/stock/order edits done)
 - Firestore sample-workspace implementation, then Firebase Hosting and Cloud Run deployment
 - expand planning rules only after the sample assumptions are confirmed
