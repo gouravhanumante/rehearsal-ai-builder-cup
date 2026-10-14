@@ -1,6 +1,7 @@
 import { FileUp, PencilLine, TriangleAlert, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { RecoveryPlan, UnverifiedFact } from '../../data/demoDistributor'
+import { useEscapeKey } from '../../lib/useEscapeKey'
 
 type ApprovalWarningProps = {
   plan: RecoveryPlan
@@ -10,6 +11,7 @@ type ApprovalWarningProps = {
 }
 
 export function ApprovalWarning({ plan, onApproveAnyway, onVerify, onClose }: ApprovalWarningProps) {
+  useEscapeKey(onClose)
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel approval" className="assistant-scrim" onClick={onClose} type="button" />
