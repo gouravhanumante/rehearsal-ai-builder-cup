@@ -32,6 +32,10 @@ Out (later):
 | Every data change needs user confirmation | 2026-10-13 |
 | First version prepares external actions, does not send them | 2026-10-13 |
 | No AI training/fine-tuning; prompting + structured output + function calling | 2026-10-13 |
+| TypeScript/Node backend; AI Studio API key held server-side | 2026-10-14 |
+| Demo and Real are separate workspaces; Real is browser-local in V1, sign-in/sync in V2 | 2026-10-14 |
+| Real-mode stock counts require attached evidence; extraction and applying changes are separately confirmed | 2026-10-14 |
+| Real-mode questions/selected evidence may be sent to Gemini for processing; Rehearsal does not persist those requests/files | 2026-10-14 |
 | Docs first, then code. Folder: /Users/gourav.hanumante/AIBuilder2026 | 2026-10-13 |
 
 ## OPEN questions (ask the user)
@@ -40,7 +44,7 @@ Out (later):
      sellers and distributors are the larger user group.
    - Manufacturing lists supply and demand, operational data → actions.
 2. **Demo hero business:** which template leads the video? (Others shown briefly.)
-3. **Stack:** Python vs TypeScript backend; React confirmed or not.
+3. **Stack:** React + TypeScript/Node selected; Cloud Run/Firebase project setup remains.
 4. **Name:** keep "Rehearsal"? Not checked for conflicts.
 5. **Languages:** English only, or also voice in Hindi/other languages for the demo?
 6. **Team:** who is on the team (2–4 required, formation closes 14 Oct)? User does all work.

@@ -63,7 +63,7 @@ function App() {
           </footer>
         </main>
       </div>
-      {assistantOpen && <AskAiPanel onClose={() => setAssistantOpen(false)} />}
+      {assistantOpen && <AskAiPanel onClose={() => setAssistantOpen(false)} onViewOptions={() => { setActiveSection('Rehearsals'); setAssistantOpen(false) }} />}
     </div>
   )
 }

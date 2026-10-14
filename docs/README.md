@@ -4,7 +4,7 @@ Working name: **Rehearsal**. Entry for the **Google Cloud AI Builder Cup 2026** 
 
 > If you are an AI assistant picking this up: read this file, then the docs in order.
 > Treat these docs as the current agreement. Anything marked **OPEN** is not decided yet —
-> ask the user before deciding it. No code has been written yet (as of 2026-10-13).
+> ask the user before deciding it. Current status is updated 2026-10-14.
 
 ## One-line pitch
 When something goes wrong in a small business (a late shipment, a stock-out, a warehouse or
@@ -16,9 +16,9 @@ real constraints, and carries the approved response into action.
 |---|---|
 | Idea | Agreed |
 | Product behaviour | Agreed in discussion, written in docs |
-| Tech stack | Proposed, not confirmed |
+| Tech stack | React + TypeScript, Node API, AI Studio key selected; Cloud Run/Firebase/Firestore pending |
 | Hackathon theme (one only) | **OPEN** |
-| Code | First distributor UI and deterministic sample planner started |
+| Code | Distributor UI, deterministic planner, and local Gemini API implemented; cloud wiring pending |
 | Deck / video / deployment | Not started |
 
 ## Key dates
@@ -43,9 +43,9 @@ real constraints, and carries the approved response into action.
 ## Folder layout
 ```
 AIBuilder2026/
-  docs/       this documentation
-  frontend/   web app (empty — not started)
-  backend/    API + planning engine (empty — not started)
+  docs/       product agreement, UX rules, progress, and backlog
+  frontend/   React app and deterministic distributor planner
+  backend/    TypeScript API for Gemini (local; cloud deploy pending)
 ```
 
 ## Working rules agreed with the user
@@ -53,5 +53,7 @@ AIBuilder2026/
 - Gemini proposes; code checks. Numbers (quantities, dates, money) are never trusted from
   the model without being recomputed by code.
 - Nothing changes business data without the user confirming it.
+- Demo and Real are separate workspaces. Real records stay in this browser in V1; no sign-in or cross-device sync until V2.
+- Receipt extraction and applying its calculated effect are separate confirmations.
 - Do not claim the idea is novel; prior-art check has not been done.
 - Use no employer-owned code, data, or internal tools.

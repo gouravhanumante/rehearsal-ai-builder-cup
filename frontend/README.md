@@ -1,43 +1,42 @@
-# React + TypeScript + Vite
+# Rehearsal frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React and TypeScript client for the distributor workflow. It calls the local TypeScript API at `/api`; the Gemini key belongs only in the backend environment.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Use two terminals.
 
-## React Compiler
+```sh
+cd backend
+cp .env.example .env
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Add your Gemini API key directly to `backend/.env`, then start the API:
 
-## Expanding the ESLint configuration
+```sh
+npm install
+npm run dev
+```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+In the second terminal:
 
-```js
-export default defineConfig([
-  # Rehearsal frontend
-  {
-  React and TypeScript app for the Rehearsal distributor demo. The current workflow uses sample data only; it does not call a backend or external services.
-    extends: [
-  ## Development
+```sh
+cd frontend
+npm install
+npm run dev
+```
 
-  ```sh
-  npm install
-  npm run dev
-  ```
-      // Alternatively, use this for stricter rules
-  ## Checks
-      // Optionally, add this for stylistic rules
-  - `npm test` — deterministic distributor planning rules
-  - `npm run lint` — ESLint
-  - `npm run build` — TypeScript and production build
+Vite proxies `/api` to `http://localhost:8080`.
 
-  ## Source layout
-    ],
-  - `src/components/` — page and domain component groups
-  - `src/design-system/` — reusable primitives, semantic tokens, and design-system notes
-  - `src/data/` — sample facts and plan types
-  - `src/domain/` — deterministic calculations and focused tests
-])
+## Checks
+
+- `npm test` — deterministic distributor planner tests
+- `npm run lint` — ESLint
+- `npm run build` — TypeScript and production build
+
+## Code layout
+
+- `src/components/` — navigation, data views, planner options, and Ask AI panel
+- `src/design-system/` — shared tokens and UI primitives
+- `src/data/` — sample workspace data
+- `src/domain/` — deterministic planning logic

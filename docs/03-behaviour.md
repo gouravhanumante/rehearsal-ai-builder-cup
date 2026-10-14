@@ -18,6 +18,10 @@ Rules:
 - Conflicting facts are shown to the user, never silently overwritten.
 - An alternative supplier is a *possible* option, not an available one, until stock, price
   and date are known.
+- Fact states are explicit: **proposed**, **confirmed**, **unknown**, **conflicting**, or **outdated**. Unknown is never treated as zero or as available.
+- Real workspace stock counts require attached evidence in V1. A receipt scan can propose a received quantity, but does not change available stock until the user confirms the extracted fields and then confirms the resulting inventory update.
+- These are two distinct checks: “Did Rehearsal read this evidence correctly?” and “Should this confirmed update change the workspace?”
+- A purchase order or supplier confirmation changes expected inbound supply only. On-hand stock changes only after a received quantity is confirmed; damaged or held goods are not available stock.
 
 ## 2. Reading receipts and documents
 - Gemini reads the document/photo and produces a **proposed update** (e.g. "Shipment #12 from
@@ -27,6 +31,12 @@ Rules:
 - Low-confidence fields are highlighted.
 - Names on documents often do not match records ("Choc chips 5kg" vs item "CHOC-500").
   The user maps it once; the mapping is remembered.
+
+### Confirmation sequence
+1. Gemini extracts a proposed record and points to its source; uncertain fields are highlighted.
+2. The user confirms or edits the extraction. This confirms what the source says, not that stock is available.
+3. Rehearsal previews the calculated effect on orders and inventory.
+4. The user separately confirms applying that effect. Only then does the confirmed workspace state change.
 
 ## 3. Missing information: ask or proceed?
 **Analyse immediately; never present an unsupported plan as feasible.**
@@ -98,6 +108,12 @@ Two separate choices:
   workspace is created, not at every login. Drives terminology, setup questions, constraints.
 - **User role** (Owner / Planner / Warehouse staff / Viewer) — controls who can view, edit,
   approve, or execute.
+
+## 9a. Demo and Real workspaces (V1 decision)
+- **Demo** is a resettable, no-signup sample workspace for judges.
+- **Real** is a separate workspace whose confirmed records and uploaded source files remain in the current browser in V1; it does not sync across devices and does not require sign-in yet.
+- A user can explicitly send a question and its relevant facts or an uploaded receipt to Google Gemini for processing. Rehearsal does not persist those Real-mode requests or files on its server. Sign-in and synced Real workspaces are V2.
+- The UI must identify the active workspace and data source so sample facts cannot be mistaken for Real facts.
 
 ## 10. Objectives
 - User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or

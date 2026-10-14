@@ -8,19 +8,24 @@
 - [x] clarify status wording and use icon, label, and color together
 - [x] establish the Rehearsal brand treatment and increase contrast/type/action sizes
 - [ ] test the overview and plan comparison with a non-technical user
-- [ ] connect Ask AI to Gemini so it can answer questions and suggest options for deterministic validation
+- [x] add stateless Ask AI API route, server-held key, schema validation, and ready-option filtering
+- [x] configure local `GEMINI_API_KEY` and verify a live Gemini response
+- [x] label AI service status and show referenced planner-checked options in the drawer
 - [ ] implement disruption intake flow
-- [ ] create structured fact confirmation step
+- [ ] create evidence-backed extraction confirmation, followed by separate apply confirmation
 - [x] calculate sample impact and receiving-capacity feasibility
 - [x] show plan options, conditional facts, and rejection reason
 - [ ] let the user select a planning objective and compare options against it
 - [ ] persist business changes only after user confirmation
 - [ ] prepare action drafts after approval
-- deploy working prototype on Google Cloud stack
-- create demo script and 3-minute flow
+- [ ] connect synthetic Demo workspace to Firestore
+- [ ] deploy working prototype on Google Cloud stack
+- [ ] create demo script and 3-minute flow
 
 ## Priority P1 — important for a solid hackathon demo
-- [ ] connect demo workspace to Firestore
+- [ ] add separate Demo and Real workspace selector
+- [ ] persist Real workspace facts and evidence in browser-local storage only
+- [ ] add receipt upload with Gemini extraction and privacy notice
 - [ ] add Gemini-backed disruption extraction with proposed-update confirmation
 - voice input flow
 - document upload / OCR extraction
