@@ -1,10 +1,11 @@
 import { ArrowRight, CircleCheck, Package, TriangleAlert } from 'lucide-react'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import { distributorDemo } from '../../data/distributorDemo'
-import { distributorImpact } from '../../domain/rehearseDistributor'
+import type { DistributorData } from '../../data/distributorDemo'
+import type { Rehearsal } from '../../domain/rehearseDistributor'
 
-export function IncidentOverview() {
-  const { product, shipment } = distributorDemo
+export function IncidentOverview({ data, rehearsal }: { data: DistributorData; rehearsal: Rehearsal }) {
+  const { product, shipment } = data
+  const distributorImpact = rehearsal.impact
   const originalArrival = new Date(shipment.originalArrivalAt).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata',
   })

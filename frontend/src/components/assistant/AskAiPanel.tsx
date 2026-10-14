@@ -2,8 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Bot, CheckCircle2, CircleAlert, LoaderCircle, Send, Sparkles, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
-import { distributorDemo } from '../../data/distributorDemo'
-import { distributorRecoveryPlans } from '../../domain/rehearseDistributor'
+import type { DistributorData, Evidence } from '../../data/distributorDemo'
+import type { Rehearsal } from '../../domain/rehearseDistributor'
+import { formatDateTime } from '../../lib/istTime'
 
 type ServiceState = 'checking' | 'ready' | 'missing-key' | 'offline'
 
@@ -14,6 +15,8 @@ type AssistantReply = {
 }
 
 type AskAiPanelProps = {
+  data: DistributorData
+  rehearsal: Rehearsal
   onClose: () => void
   onViewOptions: () => void
 }
@@ -23,32 +26,42 @@ const suggestions = [
   'How can I protect Common Ground Cafe’s order?',
 ]
 
-const facts = [
-  { id: 'shipment', label: 'Confirmed inbound shipment', value: `${distributorDemo.shipment.cases} cases from ${distributorDemo.shipment.supplier}; expected ${distributorDemo.shipment.confirmedArrivalAt}`, evidenceStatus: 'confirmed', source: distributorDemo.shipment.updateSource },
-  { id: 'north-stock', label: `${distributorDemo.warehouses.north.name} stock`, value: `${distributorDemo.inventory.northCases} cases of ${distributorDemo.product.name}`, evidenceStatus: 'confirmed', source: 'Sample opening stock count' },
-  { id: 'south-stock', label: `${distributorDemo.warehouses.south.name} stock`, value: `${distributorDemo.inventory.southUnallocatedCases} unallocated cases`, evidenceStatus: 'confirmed', source: 'Sample opening stock count' },
-  ...distributorDemo.orders.map((order) => ({
-    id: order.id,
-    label: `${order.customer} order due ${order.dueLabel}`,
-    value: `${order.cases} cases${order.dueTime ? ` due at ${order.dueTime}` : ''}; ${order.priority} priority`,
-    evidenceStatus: 'confirmed',
-    source: 'Sample customer order',
-  })),
-  { id: 'supplier-b', label: `${distributorDemo.alternativeSupplier.name} emergency stock`, value: null, evidenceStatus: 'unknown', source: 'Not confirmed' },
-  { id: 'supplier-b-price', label: `${distributorDemo.alternativeSupplier.name} quoted price`, value: null, evidenceStatus: 'unknown', source: 'Not confirmed' },
-  { id: 'supplier-b-arrival', label: `${distributorDemo.alternativeSupplier.name} arrival date`, value: null, evidenceStatus: 'unknown', source: 'Not confirmed' },
-]
+const evidenceStatus = (evidence: Evidence | null) => !evidence ? 'unknown' : evidence.kind === 'manual' ? 'unverified' : 'confirmed'
+const sourceOf = (evidence: Evidence | null) => !evidence ? 'Not known yet' : evidence.kind === 'manual' ? 'Typed in by the user, no document' : evidence.kind === 'document' ? `Document: ${evidence.source}` : 'Sample data'
 
-const options = distributorRecoveryPlans.map((plan) => ({
-  id: plan.id,
-  title: plan.title,
-  status: plan.status,
-  reason: plan.detail,
-  outcome: plan.impact,
-  cost: plan.cost,
-}))
+function buildContext(data: DistributorData, rehearsal: Rehearsal) {
+  const { inventory, warehouses, shipment, product } = data
+  const facts = [
+    { id: 'shipment', label: 'Confirmed inbound shipment', value: `${shipment.cases} cases from ${shipment.supplier}; expected ${formatDateTime(shipment.confirmedArrivalAt)}`, evidenceStatus: 'confirmed', source: shipment.updateSource },
+    { id: 'north-stock', label: `${warehouses.north.name} stock`, value: `${inventory.northCases.value} cases of ${product.name}`, evidenceStatus: evidenceStatus(inventory.northCases.evidence), source: sourceOf(inventory.northCases.evidence) },
+    { id: 'south-stock', label: `${warehouses.south.name} stock`, value: `${inventory.southUnallocatedCases.value} unallocated cases`, evidenceStatus: evidenceStatus(inventory.southUnallocatedCases.evidence), source: sourceOf(inventory.southUnallocatedCases.evidence) },
+    ...data.orders.map((order) => ({
+      id: order.id,
+      label: `${order.customer} order`.slice(0, 100),
+      value: `${order.cases} cases due ${formatDateTime(order.dueAt)}; ${order.priority} priority`,
+      evidenceStatus: evidenceStatus(order.evidence),
+      source: sourceOf(order.evidence),
+    })),
+    ...data.suppliers.flatMap((supplier) => [
+      { id: `${supplier.id}-stock`, label: `${supplier.name} stock available`, value: supplier.availableCases.value === null ? null : `${supplier.availableCases.value} cases`, evidence: supplier.availableCases.evidence },
+      { id: `${supplier.id}-price`, label: `${supplier.name} price per case`, value: supplier.pricePerCase.value === null ? null : `$${supplier.pricePerCase.value}`, evidence: supplier.pricePerCase.evidence },
+      { id: `${supplier.id}-arrival`, label: `${supplier.name} arrival`, value: supplier.arrivalAt.value === null ? null : formatDateTime(supplier.arrivalAt.value), evidence: supplier.arrivalAt.evidence },
+    ].map(({ evidence, ...fact }) => ({ ...fact, label: fact.label.slice(0, 100), evidenceStatus: evidenceStatus(evidence), source: sourceOf(evidence) }))),
+  ].slice(0, 40)
 
-export function AskAiPanel({ onClose, onViewOptions }: AskAiPanelProps) {
+  const options = rehearsal.plans.slice(0, 8).map((plan) => ({
+    id: plan.id,
+    title: plan.title.slice(0, 140),
+    status: plan.status,
+    reason: `${plan.detail}${plan.unverifiedFacts.length ? ` Relies on typed-in, unverified details: ${plan.unverifiedFacts.map((fact) => fact.label).join(', ')}.` : ''}`.slice(0, 500),
+    outcome: plan.impact,
+    cost: plan.cost,
+  }))
+  return { facts, options }
+}
+
+export function AskAiPanel({ data, rehearsal, onClose, onViewOptions }: AskAiPanelProps) {
+  const { facts, options } = buildContext(data, rehearsal)
   const [prompt, setPrompt] = useState('')
   const [serviceState, setServiceState] = useState<ServiceState>('checking')
   const [sending, setSending] = useState(false)
@@ -83,7 +96,7 @@ export function AskAiPanel({ onClose, onViewOptions }: AskAiPanelProps) {
       const response = await fetch('/api/assistant/ask', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ workspaceName: distributorDemo.businessName, question, facts, options }),
+        body: JSON.stringify({ workspaceName: data.businessName, question, facts, options }),
       })
       const result = await response.json() as AssistantReply | { error?: { code?: string; message?: string } }
       if (!response.ok) {

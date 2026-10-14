@@ -1,47 +1,68 @@
-import { distributorDemo, type DemoOrder } from '../data/distributorDemo'
-import type { RecoveryPlan } from '../data/demoDistributor'
+import type { DemoOrder, DistributorData } from '../data/distributorDemo'
+import type { RecoveryPlan, UnverifiedFact } from '../data/demoDistributor'
+import { formatDateTime } from '../lib/istTime'
 
-export function rehearseDistributor(data = distributorDemo) {
-  const { inventory, orders, shipment, warehouses, alternativeSupplier, sampleTransferCosts, transfer } = data
-  const commitmentsBeforeInbound = orders
-    .filter((order) => Date.parse(order.dueAt) < Date.parse(shipment.confirmedArrivalAt))
-    .sort((first, second) => {
-      const priorityOrder = Number(second.priority === 'protected') - Number(first.priority === 'protected')
-      return priorityOrder || Date.parse(first.dueAt) - Date.parse(second.dueAt)
-    })
-  const totalDemandBeforeInbound = commitmentsBeforeInbound.reduce((total, order) => total + order.cases, 0)
-  const baselineShortage = Math.max(0, totalDemandBeforeInbound - inventory.northCases)
-  const feasibleTransferCases = Math.min(inventory.southUnallocatedCases, warehouses.north.receivingLimitPerDay)
+type SupplyEvent = { cases: number; at: string }
 
-  function allocateNorthStock(commitments: DemoOrder[]) {
-    let remainingCases = inventory.northCases
-    return commitments.map((order) => {
-      const availableCases = Math.min(order.cases, remainingCases)
-      remainingCases -= availableCases
-      return { orderId: order.id, availableCases }
-    })
+const byDueThenPriority = (first: DemoOrder, second: DemoOrder) =>
+  Date.parse(first.dueAt) - Date.parse(second.dueAt)
+  || Number(second.priority === 'protected') - Number(first.priority === 'protected')
+
+/**
+ * Hands out stock to orders in due-date order. Stock only counts for an order if it
+ * has arrived by the time that order is due.
+ */
+function allocate(commitments: DemoOrder[], onHand: number, extraSupply: SupplyEvent[]) {
+  let used = 0
+  return [...commitments].sort(byDueThenPriority).map((order) => {
+    const arrived = onHand + extraSupply
+      .filter((supply) => Date.parse(supply.at) <= Date.parse(order.dueAt))
+      .reduce((total, supply) => total + supply.cases, 0)
+    const availableCases = Math.max(0, Math.min(order.cases, arrived - used))
+    used += availableCases
+    return { orderId: order.id, availableCases }
+  })
+}
+
+const money = (value: number) => `$${Number.isInteger(value) ? value : value.toFixed(2)}`
+
+export function rehearseDistributor(data: DistributorData) {
+  const { inventory, orders, shipment, warehouses, suppliers, sampleTransferCosts, transfer } = data
+  const northCases = inventory.northCases.value
+  const southCases = inventory.southUnallocatedCases.value
+  const commitmentsBeforeInbound = orders.filter((order) => Date.parse(order.dueAt) < Date.parse(shipment.confirmedArrivalAt))
+  const unaffectedOrderIds = orders.filter((order) => !commitmentsBeforeInbound.includes(order)).map((order) => order.id)
+  const priorityCommitments = commitmentsBeforeInbound.filter((order) => order.priority === 'protected')
+
+  function outcome(extraSupply: SupplyEvent[]) {
+    const allocations = allocate(commitmentsBeforeInbound, northCases, extraSupply)
+    const shortfall = (order: DemoOrder) => order.cases - (allocations.find((item) => item.orderId === order.id)?.availableCases ?? 0)
+    return {
+      allocations,
+      exposedCases: commitmentsBeforeInbound.reduce((total, order) => total + shortfall(order), 0),
+      priorityProtected: priorityCommitments.every((order) => shortfall(order) === 0),
+    }
   }
 
-  const northAllocations = allocateNorthStock(commitmentsBeforeInbound)
-  const priorityCommitment = commitmentsBeforeInbound.find((order) => order.priority === 'protected')
+  const baseline = outcome([])
+  const describeOutcome = (result: ReturnType<typeof outcome>) =>
+    `${priorityCommitments.length === 0 || result.priorityProtected ? 'Protects the priority order' : 'Priority order remains exposed'}; ${result.exposedCases} cases remain exposed`
+
+  const manualFacts: UnverifiedFact[] = [
+    ...(inventory.northCases.evidence.kind === 'manual' ? [{ label: `${warehouses.north.name} stock`, value: `${northCases} cases`, target: { type: 'inventory' as const } }] : []),
+    ...commitmentsBeforeInbound
+      .filter((order) => order.evidence.kind === 'manual')
+      .map((order) => ({ label: `${order.customer} order`, value: `${order.cases} cases due ${formatDateTime(order.dueAt)}`, target: { type: 'order' as const, orderId: order.id } })),
+  ]
+  const southManual: UnverifiedFact[] = inventory.southUnallocatedCases.evidence.kind === 'manual'
+    ? [{ label: `${warehouses.south.name} stock`, value: `${southCases} cases`, target: { type: 'inventory' } }]
+    : []
+
+  const feasibleTransferCases = Math.min(southCases, warehouses.north.receivingLimitPerDay)
   const transferArrivalKnown = transfer.confirmed && transfer.expectedArrivalAt !== null
+  const withTransfer = outcome(transferArrivalKnown ? [{ cases: feasibleTransferCases, at: transfer.expectedArrivalAt }] : [])
   const transferOnTime = transferArrivalKnown
-    && priorityCommitment !== undefined
-    && Date.parse(transfer.expectedArrivalAt) <= Date.parse(priorityCommitment.dueAt)
-  const priorityProtectedWithTransfer = transferOnTime
-    && priorityCommitment !== undefined
-    && inventory.northCases + feasibleTransferCases >= priorityCommitment.cases
-  const shortageAfterTransfer = Math.max(0, totalDemandBeforeInbound - inventory.northCases - feasibleTransferCases)
-  const emergencyCases = 12
-  const shortageAfterEmergencySupplier = Math.max(0, totalDemandBeforeInbound - inventory.northCases - emergencyCases)
-  const rejectedTransferExcess = inventory.southUnallocatedCases - warehouses.north.receivingLimitPerDay
-  const emergencySupplierKnown = alternativeSupplier.confirmed
-    && alternativeSupplier.availableCases !== null
-    && alternativeSupplier.availableCases >= emergencyCases
-    && alternativeSupplier.quotedPrice !== null
-    && alternativeSupplier.confirmedArrivalAt !== null
-    && priorityCommitment !== undefined
-    && Date.parse(alternativeSupplier.confirmedArrivalAt) <= Date.parse(priorityCommitment.dueAt)
+    && priorityCommitments.every((order) => Date.parse(transfer.expectedArrivalAt) <= Date.parse(order.dueAt))
   const transferStatus = feasibleTransferCases <= 0
     ? 'rejected'
     : !transferArrivalKnown
@@ -49,58 +70,115 @@ export function rehearseDistributor(data = distributorDemo) {
       : transferOnTime
         ? 'ready'
         : 'rejected'
+  const rejectedTransferExcess = southCases - warehouses.north.receivingLimitPerDay
 
-  const impact = {
-    affectedOrderCount: commitmentsBeforeInbound.length,
-    casesExposed: baselineShortage,
-    nextCommitment: commitmentsBeforeInbound[0],
-    northAllocations,
-  }
+  const statusLabel = (status: RecoveryPlan['status'], unverified: UnverifiedFact[]) =>
+    status === 'ready' ? (unverified.length ? 'Ready · unverified' : 'Ready to use') : status === 'conditional' ? 'Needs information' : "Can't be done"
 
+  const transferUnverified = [...manualFacts, ...southManual]
   const plans: RecoveryPlan[] = [
     {
       id: 'transfer',
-      title: 'Transfer stock from South Hub',
-      description: `Move ${feasibleTransferCases} available cases to North Hub before Thursday dispatch.`,
-      impact: `${priorityProtectedWithTransfer ? 'Protects the priority order' : 'Priority order remains exposed'}; ${shortageAfterTransfer} cases remain exposed`,
+      title: `Transfer stock from ${warehouses.south.name}`,
+      description: `Move ${feasibleTransferCases} available cases to ${warehouses.north.name} before the priority order is due.`,
+      impact: describeOutcome(withTransfer),
       cost: `Estimated: $${sampleTransferCosts.eightCases} transfer cost`,
       status: transferStatus,
-      statusLabel: transferStatus === 'ready' ? 'Ready to use' : transferStatus === 'conditional' ? 'Needs information' : "Can't be done",
-      detail: !transferArrivalKnown
-        ? 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
-        : !transferOnTime
-          ? 'The confirmed transfer arrival is after the priority order promise.'
-          : `${feasibleTransferCases} cases fit within North Hub’s receiving limit of ${warehouses.north.receivingLimitPerDay} cases per day and arrive before the priority order is due.`,
+      statusLabel: statusLabel(transferStatus, transferUnverified),
+      unverifiedFacts: transferUnverified,
+      outcome: { exposedCases: withTransfer.exposedCases, protectsPriority: withTransfer.priorityProtected },
+      detail: feasibleTransferCases <= 0
+        ? `${warehouses.south.name} has no unallocated stock to move.`
+        : !transferArrivalKnown
+          ? 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
+          : !transferOnTime
+            ? 'The confirmed transfer arrival is after the priority order promise.'
+            : `${feasibleTransferCases} cases fit within ${warehouses.north.name}’s receiving limit of ${warehouses.north.receivingLimitPerDay} cases per day and arrive before the priority order is due.`,
     },
-    {
-      id: 'expedite',
-      title: 'Request an emergency supplier shipment',
-      description: `Ask ${alternativeSupplier.name} to deliver ${emergencyCases} cases by Thursday morning.`,
-      impact: `All Thursday commitments covered; ${shortageAfterEmergencySupplier} Friday cases remain exposed`,
-      cost: alternativeSupplier.quotedPrice === null ? 'Price and availability unconfirmed' : `Quoted price: $${alternativeSupplier.quotedPrice}`,
-      status: emergencySupplierKnown ? 'ready' : 'conditional',
-      statusLabel: emergencySupplierKnown ? 'Ready to use' : 'Needs information',
-      detail: emergencySupplierKnown
-        ? `${alternativeSupplier.availableCases} cases, quoted price, and on-time arrival are confirmed.`
-        : `${alternativeSupplier.name} stock, price, and on-time arrival must all be confirmed. This is not yet a feasible plan.`,
-    },
-    {
+    ...suppliers.map((supplier): RecoveryPlan => {
+      const id = `supplier-${supplier.id}`
+      const title = `Buy emergency stock from ${supplier.name}`
+      const stock = supplier.availableCases.value
+      const price = supplier.pricePerCase.value
+      const arrival = supplier.arrivalAt.value
+
+      if (stock === null || price === null || arrival === null) {
+        const missing = [stock === null && 'stock available', price === null && 'price per case', arrival === null && 'arrival time']
+          .filter((item): item is string => Boolean(item))
+        return {
+          id, title, supplierId: supplier.id,
+          description: `Ask ${supplier.name} for stock that arrives before the delayed shipment.`,
+          impact: 'Cannot be checked yet',
+          cost: 'Price unknown',
+          status: 'conditional',
+          statusLabel: 'Needs information',
+          unverifiedFacts: [],
+          detail: `Missing: ${missing.join(', ')}. Add these to check whether this option works.`,
+        }
+      }
+
+      const casesToBuy = Math.min(stock, baseline.exposedCases)
+      const withSupplier = outcome([{ cases: casesToBuy, at: arrival }])
+      const helps = casesToBuy > 0 && withSupplier.exposedCases < baseline.exposedCases
+      const supplierManual: UnverifiedFact[] = [
+        { label: 'Stock available', value: `${stock} cases`, evidence: supplier.availableCases.evidence },
+        { label: 'Price per case', value: money(price), evidence: supplier.pricePerCase.evidence },
+        { label: 'Arrival time', value: formatDateTime(arrival), evidence: supplier.arrivalAt.evidence },
+      ].filter((fact) => fact.evidence?.kind === 'manual')
+        .map((fact): UnverifiedFact => ({ label: `${supplier.name} · ${fact.label}`, value: fact.value, target: { type: 'supplier', supplierId: supplier.id } }))
+      const unverified = [...manualFacts, ...supplierManual]
+
+      return {
+        id, title, supplierId: supplier.id,
+        description: `Buy ${casesToBuy} cases from ${supplier.name}, arriving ${formatDateTime(arrival)}.`,
+        impact: helps ? describeOutcome(withSupplier) : 'Does not reduce the shortage',
+        cost: `Estimated: ${money(casesToBuy * price)} (${casesToBuy} × ${money(price)})`,
+        status: helps ? 'ready' : 'rejected',
+        statusLabel: statusLabel(helps ? 'ready' : 'rejected', unverified),
+        unverifiedFacts: helps ? unverified : [],
+        outcome: { exposedCases: withSupplier.exposedCases, protectsPriority: withSupplier.priorityProtected },
+        detail: helps
+          ? `Arrives before ${withSupplier.priorityProtected ? 'the priority order is due' : 'some affected orders are due'} and cuts the shortage from ${baseline.exposedCases} to ${withSupplier.exposedCases} cases.`
+          : stock <= 0
+            ? `${supplier.name} has no stock to offer.`
+            : 'Arrives after every affected order is due, so it does not help.',
+      }
+    }),
+    // Only worth showing when moving everything would break the receiving limit; otherwise it is
+    // the same move as the transfer above.
+    ...(rejectedTransferExcess > 0 ? [{
       id: 'bulk-transfer',
-      title: `Transfer all ${inventory.southUnallocatedCases} cases in one day`,
-      description: 'Move the full available South Hub balance to North Hub.',
+      title: `Transfer all ${southCases} cases in one day`,
+      description: `Move the full available ${warehouses.south.name} balance to ${warehouses.north.name}.`,
       impact: 'Would cover more near-term demand if receiving capacity allowed',
       cost: `Estimated: $${sampleTransferCosts.fourteenCases} transfer cost`,
-      status: rejectedTransferExcess > 0 ? 'rejected' : 'ready',
-      statusLabel: rejectedTransferExcess > 0 ? "Can't be done" : 'Ready to use',
-      detail: rejectedTransferExcess > 0
-        ? `North Hub can receive at most ${warehouses.north.receivingLimitPerDay} cases per day. This transfer exceeds capacity by ${rejectedTransferExcess} cases.`
-        : `This transfer fits within North Hub’s receiving limit of ${warehouses.north.receivingLimitPerDay} cases per day.`,
-    },
+      status: 'rejected' as const,
+      statusLabel: "Can't be done",
+      unverifiedFacts: [],
+      detail: `${warehouses.north.name} can receive at most ${warehouses.north.receivingLimitPerDay} cases per day. This transfer exceeds capacity by ${rejectedTransferExcess} cases.`,
+    }] : []),
   ]
+
+  const impact = {
+    affectedOrderCount: commitmentsBeforeInbound.length,
+    casesExposed: baseline.exposedCases,
+    northAllocations: baseline.allocations,
+    unaffectedOrderIds,
+  }
 
   return { impact, plans }
 }
 
-const demoRehearsal = rehearseDistributor()
-export const distributorImpact = demoRehearsal.impact
-export const distributorRecoveryPlans = demoRehearsal.plans
+export type Rehearsal = ReturnType<typeof rehearseDistributor>
+
+/**
+ * The Overview shows one plan: a ready plan that protects the priority order first, then the one
+ * leaving the fewest cases exposed, then the one relying on fewer typed-in details.
+ */
+export function recommendPlan(plans: RecoveryPlan[]) {
+  return plans
+    .filter((plan) => plan.status === 'ready' && plan.outcome)
+    .sort((first, second) => Number(second.outcome?.protectsPriority) - Number(first.outcome?.protectsPriority)
+      || (first.outcome?.exposedCases ?? 0) - (second.outcome?.exposedCases ?? 0)
+      || first.unverifiedFacts.length - second.unverifiedFacts.length)[0]
+}

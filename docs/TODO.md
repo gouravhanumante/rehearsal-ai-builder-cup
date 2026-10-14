@@ -12,7 +12,7 @@
 - [x] configure local `GEMINI_API_KEY` and verify a live Gemini response
 - [x] label AI service status and show referenced planner-checked options in the drawer
 - [ ] implement disruption intake flow
-- [ ] create evidence-backed extraction confirmation, followed by separate apply confirmation
+- [x] create evidence-backed extraction confirmation, followed by separate apply confirmation (Demo edits)
 - [x] calculate sample impact and receiving-capacity feasibility
 - [x] show plan options, conditional facts, and rejection reason
 - [ ] let the user select a planning objective and compare options against it
@@ -25,8 +25,14 @@
 ## Priority P1 — important for a solid hackathon demo
 - [ ] add separate Demo and Real workspace selector
 - [ ] persist Real workspace facts and evidence in browser-local storage only
-- [ ] add receipt upload with Gemini extraction and privacy notice
+- [x] add document upload with Gemini extraction and privacy notice (supplier quotes, stock sheets, orders)
 - [ ] add Gemini-backed disruption extraction with proposed-update confirmation
+- [ ] known gaps from the edit pass (2026-10-14), deliberately left out:
+  - the delayed Meridian shipment, transfer arrival, and receiving limit are not editable yet
+  - no Add order / delete order / delete supplier
+  - "check for mistakes" is a human review of the listed typed-in details; there is no AI cross-check
+  - an order due after the delayed shipment is shown as "Due after arrival"; whether the late shipment actually covers it is not calculated
+  - document names are not mapped to records ("Choc chips 5kg" vs item code)
 - voice input flow
 - document upload / OCR extraction
 - guided questions for missing facts

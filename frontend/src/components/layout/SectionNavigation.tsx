@@ -4,6 +4,7 @@ export type SectionName = 'Overview' | 'Orders' | 'Inventory' | 'Suppliers' | 'R
 
 type SectionNavigationProps = {
   activeSection: SectionName
+  affectedOrderCount: number
   onNavigate: (section: SectionName) => void
 }
 
@@ -15,7 +16,7 @@ const sections = [
   { name: 'Rehearsals' as const, icon: ClipboardCheck },
 ]
 
-export function SectionNavigation({ activeSection, onNavigate }: SectionNavigationProps) {
+export function SectionNavigation({ activeSection, affectedOrderCount, onNavigate }: SectionNavigationProps) {
   return (
     <nav aria-label="Workspace sections" className="section-navigation">
       <p className="navigation-label">WORKSPACE</p>
@@ -29,7 +30,7 @@ export function SectionNavigation({ activeSection, onNavigate }: SectionNavigati
         >
           <Icon aria-hidden="true" size={17} strokeWidth={1.8} />
           <span>{name}</span>
-          {name === 'Orders' && <span className="navigation-count">3</span>}
+          {name === 'Orders' && affectedOrderCount > 0 && <span aria-label={`${affectedOrderCount} orders at risk`} className="navigation-count">{affectedOrderCount}</span>}
         </button>
       ))}
       <div className="navigation-footnote"><span /> Sample workspace</div>

@@ -33,6 +33,12 @@
 - deterministic impact and recovery-option calculations implemented
 - planner tests cover stock exposure, receiving capacity, and unknown supplier facts
 - responsive browser checks for incident details, approval, reset, and mobile overflow
+- editable Demo data (stock counts, orders, backup suppliers) with two paths: type it in (marked unverified) or attach a photo/PDF that Gemini reads (marked verified by document)
+- two-step edit: check values, then review the effect on the shortage and options before saving; Demo edits kept in the browser until Reset
+- Add supplier; each backup supplier is its own option with an Add details action instead of a dead-end "Waiting for details"
+- plans relying on typed-in details show "Ready · unverified" and warn before approval, with Attach proof per record
+- Orders view lists orders due after the delayed shipment separately
+- live check: a sample supplier quote PDF was read by Gemini (all 4 fields, with quotes) and moved Supplier B to Ready to use
 
 ## In progress
 - review provisional distributor sample quantities, dates, and estimated costs together
@@ -42,8 +48,7 @@
 ## Pending
 - configure the Gemini key as a Cloud Run secret for deployment
 - finish separate Demo/Real workspace selector and Real browser-local storage
-- evidence-backed two-stage receipt review/apply flow
-- Gemini receipt image extraction with proposed field confirmation
+- evidence-backed two-stage receipt review/apply flow for Real workspace stock (Demo supplier/stock/order edits done)
 - Firestore sample-workspace implementation, then Firebase Hosting and Cloud Run deployment
 - expand planning rules only after the sample assumptions are confirmed
 - approval/apply workflow
