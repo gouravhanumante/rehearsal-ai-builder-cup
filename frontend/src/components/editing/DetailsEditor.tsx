@@ -8,6 +8,7 @@ import { createWording } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { choicesOf, displayValue, parseField, type EditorConfig, type ParsedValue } from './editorConfigs'
+import { MultiPicker } from './MultiPicker'
 import { originAfterTyping, resolveEvidence, reviewFieldKeys, type Origin } from './editorRules'
 
 type ExtractedField = { key: string; value: string | null; quote: string | null }
@@ -186,18 +187,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                   <label htmlFor={inputId}>{field.label}{!field.required && <small> · optional</small>}</label>
                   {field.hint && <small className="editor-hint" id={`${inputId}-hint`}>{field.hint}</small>}
                   {field.type === 'multiselect'
-                    ? <div aria-describedby={field.hint ? `${inputId}-hint` : undefined} aria-label={field.label} className="editor-choices" id={inputId} role="group">
-                      {field.options?.map((option) => {
-                        const chosen = choicesOf(values[field.key])
-                        const checked = chosen.includes(option.value)
-                        return (
-                          <label className={`editor-choice ${checked ? 'is-checked' : ''}`} key={option.value}>
-                            <input checked={checked} onChange={() => updateValue(field.key, JSON.stringify(checked ? chosen.filter((value) => value !== option.value) : [...chosen, option.value]))} type="checkbox" />
-                            {option.label}
-                          </label>
-                        )
-                      })}
-                    </div>
+                    ? <MultiPicker chosen={choicesOf(values[field.key])} describedBy={field.hint ? `${inputId}-hint` : undefined} id={inputId} label={field.label} onChange={(chosen) => updateValue(field.key, JSON.stringify(chosen))} options={field.options ?? []} />
                     : field.type === 'select'
                     ? <select id={inputId} onChange={(event) => updateValue(field.key, event.target.value)} value={values[field.key]}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
                     : <span className="editor-input-wrap"><input aria-describedby={field.hint ? `${inputId}-hint` : undefined} id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.placeholder ?? (field.required ? '' : 'Unknown')} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />{field.suffix && <span className="editor-suffix">{field.suffix}</span>}</span>}

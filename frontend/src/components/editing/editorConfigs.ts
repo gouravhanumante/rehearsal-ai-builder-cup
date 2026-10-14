@@ -197,7 +197,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       fields: isNew ? [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Vibgyor Mines' },
         contactField,
-        { key: 'productIds', label: 'Products they can supply', type: 'multiselect', required: true, extractable: false, isFact: false, options: productOptions, hint: 'Tick every product you could buy from them.' },
+        { key: 'productIds', label: 'Products they can supply', type: 'multiselect', required: true, extractable: false, isFact: false, options: productOptions, hint: 'Search and pick every product you could buy from them.' },
         { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
       ] : [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: true, isFact: false },
