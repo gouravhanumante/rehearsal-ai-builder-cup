@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Boxes, ClipboardPlus, FileUp, Info, MapPinPlus, PackagePlus, Route, TriangleAlert, Truck, X } from 'lucide-react'
 import { Topbar } from './components/layout/Topbar'
 import { SectionNavigation, type SectionName } from './components/layout/SectionNavigation'
-import { AskAiPanel } from './components/assistant/AskAiPanel'
+import { AskAiPanel, type ChatTurn } from './components/assistant/AskAiPanel'
 import { DetailsEditor } from './components/editing/DetailsEditor'
 import { editorFor } from './components/editing/editorConfigs'
 import { CommitmentsPanel } from './components/operations/CommitmentsPanel'
@@ -51,6 +51,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const [pendingApproval, setPendingApproval] = useState<Plan | null>(null)
   const [editor, setEditor] = useState<OpenEditor | null>(null)
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const [chatTurns, setChatTurns] = useState<ChatTurn[]>([])
   const [importKind, setImportKind] = useState<ImportKind | null>(null)
   const [removingRouteId, setRemovingRouteId] = useState<string | null>(null)
   const [removingSupplierId, setRemovingSupplierId] = useState<string | null>(null)
@@ -198,7 +199,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
             </footer>
           </main>
         </div>
-        {assistantOpen && <AskAiPanel onClose={() => setAssistantOpen(false)} onViewOptions={() => { setActiveSection('Rehearsals'); setAssistantOpen(false) }} />}
+        {assistantOpen && <AskAiPanel onClose={() => setAssistantOpen(false)} onTurnsChange={setChatTurns} onViewOptions={() => { setActiveSection('Rehearsals'); setAssistantOpen(false) }} turns={chatTurns} />}
         {pendingApproval && <ApprovalWarning
           onAnswerConflicts={() => { setPendingApproval(null); setActiveSection('Rehearsals') }}
           onApproveAnyway={() => approve(pendingApproval, true)}

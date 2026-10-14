@@ -1,5 +1,5 @@
 import type { Evidence, Workspace } from '../../../shared/planner/model'
-import type { Rehearsal } from '../../../shared/planner/plan'
+import { rankPlans, type Rehearsal } from '../../../shared/planner/plan'
 import type { Format } from '../presentation/format'
 import type { Wording } from '../presentation/planText'
 
@@ -8,11 +8,11 @@ export const MAX_ASSISTANT_OPTIONS = 8
 
 type AssistantFact = { id: string; label: string; value: string | null; evidenceStatus: 'confirmed' | 'unverified' | 'unknown'; source: string }
 
-const evidenceStatus = (evidence: Evidence | null): AssistantFact['evidenceStatus'] =>
-  !evidence ? 'unknown' : evidence.kind === 'manual' ? 'unverified' : 'confirmed'
+// Ask AI only needs to know whether a value is known; whether it was typed in or proven is shown in the app, not discussed in chat.
+const evidenceStatus = (evidence: Evidence | null): AssistantFact['evidenceStatus'] => (evidence ? 'confirmed' : 'unknown')
 
 const sourceOf = (evidence: Evidence | null) =>
-  !evidence ? 'Not known yet' : evidence.kind === 'manual' ? 'Typed in by the user, no document' : evidence.kind === 'document' ? `Document: ${evidence.source}`.slice(0, 160) : 'Sample data'
+  !evidence ? 'Not known yet' : evidence.kind === 'document' ? `Document: ${evidence.source}`.slice(0, 160) : evidence.kind === 'sample' ? 'Sample data' : 'Your records'
 
 /**
  * What Ask AI is allowed to see. Facts behind the shortage come first; anything that does not
@@ -86,16 +86,15 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
     source: 'Rehearsal',
   }]
 
-  const shown = rehearsal.plans.slice(0, MAX_ASSISTANT_OPTIONS)
+  const shown = rankPlans(rehearsal.plans).slice(0, MAX_ASSISTANT_OPTIONS)
   const options = shown.map((plan, index) => {
     const text = words.planText(plan)
-    const unverified = plan.unverified.map((item) => words.unverifiedText(item).label)
     return {
       // Planner ids can be long; short ids keep within the API's limit.
       id: `option-${index + 1}`,
       title: text.title.slice(0, 140),
       status: plan.status,
-      reason: `${text.detail}${unverified.length ? ` Relies on typed-in, unverified details: ${unverified.join(', ')}.` : ''}`.slice(0, 500),
+      reason: text.detail.slice(0, 500),
       outcome: text.impact.slice(0, 300),
       cost: text.cost.slice(0, 120),
     }
@@ -105,7 +104,7 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
     facts,
     options,
     // Shown in the panel only; the API gets plain statuses.
-    optionLabels: Object.fromEntries(shown.map((plan, index) => [`option-${index + 1}`, words.planText(plan).statusLabel])),
+    optionLabels: Object.fromEntries(shown.map((plan, index) => [`option-${index + 1}`, plan.status === 'ready' ? 'Ready to use' : words.planText(plan).statusLabel])),
     omittedFacts: omittedCount,
     omittedOptions: Math.max(0, rehearsal.plans.length - MAX_ASSISTANT_OPTIONS),
   }

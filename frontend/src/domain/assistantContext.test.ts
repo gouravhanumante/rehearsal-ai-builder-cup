@@ -46,4 +46,15 @@ describe('what Ask AI is allowed to see', () => {
     const { options } = contextFor(sampleWorkspace.orders)
     expect(options[0].cost).toContain('₹95')
   })
+
+  it('does not tell the chat which details were typed in: a typed stock count is just a known fact', () => {
+    const typed = { kind: 'manual' as const, source: 'Entered manually', recordedAt: '2026-10-15T09:00:00+05:30' }
+    const workspace: Workspace = { ...sampleWorkspace, stock: sampleWorkspace.stock.map((record) => ({ ...record, available: { ...record.available, evidence: typed } })) }
+    const format = createFormat(settingsForCountry('IN'))
+    const { facts, options, optionLabels } = buildAssistantContext(workspace, rehearse(workspace), format, createWording(workspace, format))
+    const sent = JSON.stringify({ facts, options })
+    expect(sent).not.toMatch(/unverified|typed[- ]in/i)
+    expect(facts.find((fact) => fact.id === 'stock-north-harbor-blend')?.evidenceStatus).toBe('confirmed')
+    expect(Object.values(optionLabels)).not.toContain('Ready · unverified')
+  })
 })

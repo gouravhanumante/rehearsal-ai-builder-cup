@@ -17,9 +17,18 @@ const checkedOptionSchema = z.object({
   cost: z.string().max(120),
 }).strict()
 
+export const MAX_HISTORY_TURNS = 6
+
+const turnSchema = z.object({
+  question: z.string().trim().min(1).max(1200),
+  answer: z.string().trim().min(1).max(1400),
+}).strict()
+
 export const assistantRequestSchema = z.object({
   workspaceName: z.string().min(1).max(80),
   question: z.string().trim().min(1).max(1200),
+  /** Earlier questions and answers in this conversation, oldest first, so follow-ups make sense. */
+  history: z.array(turnSchema).max(MAX_HISTORY_TURNS).optional(),
   facts: z.array(factSchema).max(40),
   options: z.array(checkedOptionSchema).max(8),
 }).strict()

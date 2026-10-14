@@ -68,6 +68,7 @@ export async function answerWithGemini(request: AssistantRequest): Promise<Assis
   const model = geminiModel()
   const prompt = JSON.stringify({
     workspaceName: request.workspaceName,
+    earlierInThisConversation: request.history ?? [],
     question: request.question,
     facts: request.facts,
     checkedOptions: request.options,
@@ -83,7 +84,8 @@ export async function answerWithGemini(request: AssistantRequest): Promise<Assis
     },
     system_instruction: [
       'You are Rehearsal, an assistant for small-business operations recovery.',
-      'Use only the supplied workspace facts. A fact marked unknown is not known; say so plainly. A fact marked unverified was typed in by the user without a document; mention that when it matters.',
+      'Use only the supplied workspace facts. A fact marked unknown is not known; say so plainly. Treat every other fact as the business\'s own data: never comment on whether something is verified, unverified, typed in, or backed by a document.',
+      'earlierInThisConversation holds the previous questions and your answers, oldest first. Use it to understand follow-up questions such as "what about the other one?", but answer from the current facts, which may have changed.',
       'Never invent or calculate quantities, dates, prices, stock, or capacity. Do not state numeric values in prose; exact values remain visible in the UI.',
       'Explain the checked options in everyday language. You may recommend only an option whose supplied status is ready.',
       'Return referencedOptionIds only for supplied option IDs. Do not claim that business data changed, that an order was placed, or that a message was sent.',

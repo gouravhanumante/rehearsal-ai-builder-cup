@@ -63,6 +63,21 @@ describe('assistant API', () => {
       expect(await response.json()).toMatchObject({ error: { code: 'INVALID_REQUEST' } })
     })
   })
+
+  it('accepts a follow-up that carries the earlier turns, but only the last few', async () => {
+    delete process.env.GEMINI_API_KEY
+    const turn = { question: 'What is at risk?', answer: 'The priority order at North Hub.' }
+    const ask = (url: string, history: unknown[]) => fetch(`${url}/api/assistant/ask`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceName: 'Northstar', question: 'And what about the other one?', history, facts: [], options: [] }),
+    })
+    await withServer(async (url) => {
+      // Valid request: it gets as far as the missing key, not a 400.
+      expect((await ask(url, [turn, turn])).status).toBe(503)
+      expect((await ask(url, Array.from({ length: 7 }, () => turn))).status).toBe(400)
+    })
+  })
 })
 
 describe('server plan check before approval', () => {
