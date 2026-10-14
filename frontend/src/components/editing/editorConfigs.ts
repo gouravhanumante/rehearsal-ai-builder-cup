@@ -2,7 +2,7 @@ import type { Evidence, InboundShipment, LocationKind, Order, Supplier, Supplier
 import { pluralUnit, type Format } from '../../presentation/format'
 import type { EditTarget } from '../../presentation/planText'
 
-export type FieldType = 'integer' | 'money' | 'datetime' | 'text' | 'select'
+export type FieldType = 'integer' | 'money' | 'datetime' | 'text' | 'select' | 'multiselect'
 export type FieldSpec = {
   key: string
   label: string
@@ -21,6 +21,16 @@ export type FieldSpec = {
 }
 export type ParsedValue = number | string | null
 
+/** A multiselect keeps its choices as a JSON list in the form's text value. */
+export const choicesOf = (raw: string): string[] => {
+  try {
+    const list: unknown = JSON.parse(raw || '[]')
+    return Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 export type EditorConfig = {
   title: string
   subtitle: string
@@ -37,6 +47,11 @@ export type EditorConfig = {
 
 /** Turns what the user typed into a value, or an error message. Blank optional fields mean "unknown". */
 export function parseField(field: FieldSpec, raw: string, format: Format): { value: ParsedValue } | { error: string } {
+  if (field.type === 'multiselect') {
+    const chosen = choicesOf(raw).filter((value) => field.options?.some((option) => option.value === value))
+    if (chosen.length === 0) return field.required ? { error: 'Choose at least one' } : { value: null }
+    return { value: JSON.stringify(chosen) }
+  }
   const text = raw.trim()
   if (!text) return field.required ? { error: 'Required' } : { value: null }
   switch (field.type) {
@@ -62,6 +77,7 @@ export function displayValue(field: FieldSpec, raw: string, format: Format) {
   if (field.type === 'money') return format.money(parsed.value as number)
   if (field.type === 'integer') return format.number(parsed.value as number)
   if (field.type === 'select') return field.options?.find((option) => option.value === parsed.value)?.label ?? String(parsed.value)
+  if (field.type === 'multiselect') return choicesOf(parsed.value as string).map((value) => field.options?.find((option) => option.value === value)?.label ?? value).join(', ')
   return String(parsed.value)
 }
 
@@ -181,7 +197,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       fields: isNew ? [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: false, isFact: false, placeholder: 'e.g. Vibgyor Mines' },
         contactField,
-        { key: 'productId', label: 'Product they can supply', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
+        { key: 'productIds', label: 'Products they can supply', type: 'multiselect', required: true, extractable: false, isFact: false, options: productOptions, hint: 'Tick every product you could buy from them.' },
         { key: 'locationId', label: 'Deliver to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
       ] : [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: true, isFact: false },
@@ -193,29 +209,32 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       initial: {
         name: supplier?.name ?? '',
         contact: supplier?.contact ?? '',
-        productId: offer?.productId ?? (target.type === 'new-supplier' ? target.productId : undefined) ?? firstGroup?.lines[0]?.productId ?? workspace.products[0]?.id ?? '',
+        productIds: JSON.stringify([(target.type === 'new-supplier' ? target.productId : undefined) ?? firstGroup?.lines[0]?.productId ?? workspace.products[0]?.id].filter(Boolean)),
         locationId: offer?.locationId ?? (target.type === 'new-supplier' ? target.locationId : undefined) ?? firstGroup?.locationId ?? workspace.locations[0]?.id ?? '',
         available: offer?.available.value?.toString() ?? '',
         pricePerUnit: offer?.pricePerUnit.value?.toString() ?? '',
         arrivalAt: offer?.arrivalAt.value ? format.toInput(offer.arrivalAt.value) : '',
       },
       initialEvidence: {
-        name: null, contact: null, productId: null, locationId: null,
+        name: null, contact: null, productIds: null, locationId: null,
         available: offer?.available.evidence ?? null,
         pricePerUnit: offer?.pricePerUnit.evidence ?? null,
         arrivalAt: offer?.arrivalAt.evidence ?? null,
       },
       apply: (values, evidence) => {
+        if (isNew) {
+          const offers: SupplierOffer[] = choicesOf(values.productIds as string).map((productId) => ({
+            productId, locationId: values.locationId as string, available: fact(null, null), pricePerUnit: fact(null, null), arrivalAt: fact(null, null),
+          }))
+          const created: Supplier = { id: newId('supplier'), name: values.name as string, contact: asText(values.contact), offers }
+          return { ...workspace, suppliers: [...workspace.suppliers, created] }
+        }
         const nextOffer: SupplierOffer = {
-          productId: offer?.productId ?? (values.productId as string),
-          locationId: offer?.locationId ?? (values.locationId as string),
+          productId: offer!.productId,
+          locationId: offer!.locationId,
           available: fact(asNumber(values.available), evidence.available),
           pricePerUnit: fact(asNumber(values.pricePerUnit), evidence.pricePerUnit),
           arrivalAt: fact(asText(values.arrivalAt), evidence.arrivalAt),
-        }
-        if (isNew) {
-          const created: Supplier = { id: newId('supplier'), name: values.name as string, contact: asText(values.contact), offers: [nextOffer] }
-          return { ...workspace, suppliers: [...workspace.suppliers, created] }
         }
         const updated: Supplier = { ...supplier, name: values.name as string, contact: asText(values.contact), offers: supplier.offers.map((item) => item === offer ? nextOffer : item) }
         return { ...workspace, suppliers: workspace.suppliers.map((item) => item.id === supplier.id ? updated : item) }

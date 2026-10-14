@@ -68,15 +68,19 @@ Agreed with the user: both paths exist, and the difference is always visible.
   shown only when someone quoted a price for exactly that quantity. A route with unknown arrival
   is **Needs information** with **Add details** (no dead end).
 - Each supplier offer for that product and location is its own option. At setup a backup
-  supplier is only who / contact / product / where; stock, price and arrival are their **reply**
+  supplier is only who / contact / products / where; **Add backup supplier** ticks every product
+  they supply and saves one supplier with one offer per product (user decision 2026-10-14,
+  `editorConfigs.ts`). Stock, price and arrival are their **reply**, recorded per product,
   when a delay happens. Until all three are recorded the option is **Waiting for reply**, with
   **Record reply**. Arrives after every affected order is due → **Can't be done**. It buys only
   what is short and fits (`min(offer, shortage, storage room)`) at the quoted price per unit.
+  The Suppliers page shows one card per supplier, with a row per product.
 - **Ask your backup suppliers** (Recovery options, `AskSuppliers.tsx`, user decision 2026-10-14):
-  every supplier for the short product gets the same question — the shortage capped by storage
-  room, needed by the first order that is short (`plan.request`). Copy the message, or email
-  one / all waiting suppliers (BCC). Only a plain email address becomes a link (`emailOf`).
-  The app does not send anything itself.
+  each supplier gets **one message listing every missing product they supply** — each item is the
+  shortage capped by storage room, needed by the first order that is short (`plan.request`).
+  Items already answered drop out of the message. Copy it, or email that supplier; **Email all**
+  (BCC) appears only when every waiting supplier would get the same list. Only a plain email
+  address becomes a link (`emailOf`). The app does not send anything itself.
 - **Storage limits** (user decision 2026-10-14): set an optional limit for one product at one
   location on that stock count (`storageLimits`). A different warehouse can have a different
   limit; blank means unlimited for that pair (`storageCap`). Room = limit minus

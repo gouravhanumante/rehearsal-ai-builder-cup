@@ -13,6 +13,7 @@
   - Short orders are rehearsed like delays: "Not enough stock" card on the Overview, transfers and backup suppliers offered, and a note naming what to add when there is no option yet.
   - **Ship from another warehouse:** a short order can be sent from a warehouse that has enough left after its own orders; approving actually moves the order there.
   - When another warehouse has the product and no transfer route exists, Recovery options asks "Can you move stock from B to A?" Yes opens the route form; No hides the question for good.
+  - A backup supplier can supply several products: tick them all when adding. One message per supplier asks for every missing product they have; Suppliers page shows one card per supplier.
 - **Next (agreed, not built):** warn on step 1 of Add order as you type (not only on Review); show the product name on each order row.
 - **Problems Rehearsal does not solve yet (2026-10-14 review, checked against the code):**
   - *Big:* (1) a transfer can take stock the source warehouse needs for its own orders (shared/planner/plan.ts uses the full count at the source); (2) only one fix at a time, never "transfer 8 + buy 16"; (3) approving changes nothing except for "ship from another warehouse" (WorkspaceScreen approve only records the choice), so the problem stays after you "fix" it; (4) no "Mark received" for deliveries, so after one arrives and stock is recounted it can count twice.

@@ -82,29 +82,40 @@ export function SuppliersView({ onEdit }: SuppliersViewProps) {
           <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-supplier' }, 'manual')} variant="secondary">Add backup supplier</Button>
         </EmptyState>}
         <div className="supplier-list">
-        {workspace.suppliers.flatMap((supplier) => supplier.offers.map((offer, offerIndex) => {
-          const plan = rehearsal.plans.find((item) => item.supplierId === supplier.id && item.productId === offer.productId && item.locationId === offer.locationId)
-          const text = plan ? words.planText(plan) : null
-          const target = { type: 'offer' as const, supplierId: supplier.id, offerIndex }
-          return (
-            <article className={`supplier-row supplier-alternative supplier-${plan?.status ?? 'conditional'}`} key={`${supplier.id}-${offerIndex}`}>
+        {workspace.suppliers.map((supplier) => (
+          <article className="supplier-card" key={supplier.id}>
+            <header className="supplier-card-head">
               <div className="supplier-icon"><Truck size={18} /></div>
               <div className="supplier-main">
-                <div className="supplier-title"><h3>{supplier.name}</h3><StatusBadge tone={toneFor(plan?.status)} dot>{text?.statusLabel ?? 'Not needed now'}</StatusBadge></div>
-                <p>Backup supply{manyPlaces ? ` · ${words.productName(offer.productId)} to ${words.locationName(offer.locationId)}` : ''}{supplier.contact ? ` · ${supplier.contact}` : ''} · {text?.detail ?? 'Not needed now. When a delay leaves you short, ask them from Recovery options.'}</p>
+                <div className="supplier-title"><h3>{supplier.name}</h3></div>
+                <p>{supplier.contact || 'No contact saved'} · supplies {supplier.offers.map((offer) => words.productName(offer.productId)).join(', ')}</p>
               </div>
-              <div className="supplier-facts">
-                <FactLine fact={offer.available} label="Can send" show={(value) => words.quantity(value, offer.productId)} />
-                <FactLine fact={offer.pricePerUnit} label="Price" show={(value) => `${format.money(value)} / ${workspace.products.find((item) => item.id === offer.productId)?.unit ?? 'unit'}`} />
-                <FactLine fact={offer.arrivalAt} label="Arrives" show={format.dateTime} />
-              </div>
-              <div className="supplier-actions">
-                <Button aria-label={`Record reply from ${supplier.name}`} icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="secondary">Record reply</Button>
-                <Button aria-label={`Attach reply from ${supplier.name}`} icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="secondary">Attach reply</Button>
-              </div>
-            </article>
-          )
-        }))}
+            </header>
+            {supplier.offers.map((offer, offerIndex) => {
+              const plan = rehearsal.plans.find((item) => item.supplierId === supplier.id && item.productId === offer.productId && item.locationId === offer.locationId)
+              const text = plan ? words.planText(plan) : null
+              const target = { type: 'offer' as const, supplierId: supplier.id, offerIndex }
+              const what = words.productName(offer.productId)
+              return (
+                <div className={`supplier-offer supplier-alternative supplier-${plan?.status ?? 'conditional'}`} key={`${supplier.id}-${offerIndex}`}>
+                  <div className="supplier-main">
+                    <div className="supplier-title"><strong>{what}{manyPlaces ? ` to ${words.locationName(offer.locationId)}` : ''}</strong><StatusBadge tone={toneFor(plan?.status)} dot>{text?.statusLabel ?? 'Not needed now'}</StatusBadge></div>
+                    <p>{text?.detail ?? 'Not needed now. When you are short, ask them from Recovery options.'}</p>
+                  </div>
+                  <div className="supplier-facts">
+                    <FactLine fact={offer.available} label="Can send" show={(value) => words.quantity(value, offer.productId)} />
+                    <FactLine fact={offer.pricePerUnit} label="Price" show={(value) => `${format.money(value)} / ${workspace.products.find((item) => item.id === offer.productId)?.unit ?? 'unit'}`} />
+                    <FactLine fact={offer.arrivalAt} label="Arrives" show={format.dateTime} />
+                  </div>
+                  <div className="supplier-actions">
+                    <Button aria-label={`Record reply from ${supplier.name} for ${what}`} icon={<PencilLine size={14} />} onClick={() => onEdit(target, 'manual')} variant="secondary">Record reply</Button>
+                    <Button aria-label={`Attach reply from ${supplier.name} for ${what}`} icon={<FileUp size={14} />} onClick={() => onEdit(target, 'document')} variant="secondary">Attach reply</Button>
+                  </div>
+                </div>
+              )
+            })}
+          </article>
+        ))}
         </div>
         <p className="sample-data-note">Typed-in details are usable but marked unverified. Attach a quote or receipt to verify them.</p>
       </section>

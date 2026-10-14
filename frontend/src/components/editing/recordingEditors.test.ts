@@ -65,6 +65,16 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     expect(stock.storageLimits).toEqual([{ locationId: location.id, productId: item.id, limit: 20 }])
   })
 
+  it('a backup supplier who sells brooms and pens is one supplier with both products, each waiting for their reply', () => {
+    let workspace = smallBusiness()
+    workspace = enter(workspace, { type: 'new-product' }, { name: 'Pens', perPackage: '10' }).workspace
+    const [beans, pens] = workspace.products.map((product) => product.id)
+    const { workspace: next } = enter(workspace, { type: 'new-supplier' }, { name: 'Vibgyor', productIds: JSON.stringify([beans, pens]), locationId: workspace.locations[0].id })
+    expect(next.suppliers).toHaveLength(1)
+    expect(next.suppliers[0].offers.map((offer) => offer.productId)).toEqual([beans, pens])
+    expect(next.suppliers[0].offers.every((offer) => offer.available.value === null && offer.pricePerUnit.value === null)).toBe(true)
+  })
+
   it('watches the order without raising an alarm while every shipment is on time', () => {
     const workspace = smallBusiness()
     expect(workspace.orders).toHaveLength(1)
