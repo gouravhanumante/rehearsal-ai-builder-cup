@@ -129,3 +129,24 @@ flowchart LR
   class cut,money,api,num,rec test
   class esc manual
 ```
+
+## 7. Importing a file
+Where a wrong number could slip in, and what stops it. Every `[test]` is in `frontend/src/import/import.test.ts` or `backend/src/importMapping.test.ts`.
+
+```mermaid
+flowchart LR
+  f["File (csv/xlsx, read in the browser)"] --> cells["Quoted commas, semicolons, Windows line endings [test]"]
+  f --> cols["Column names matched; one column never used twice [test]"]
+  cols --> ai["Gemini suggests only real fields and real columns [test]"]
+  cells --> val["Dates in the country's order; impossible dates refused [test]"]
+  cells --> num["Unreadable count is never zero [test]"]
+  val --> ord["Bad row drops its whole order, so demand is never understated [test]"]
+  num --> ord
+  ord --> twice["Same file twice changes nothing [test]"]
+  twice --> mark["Marked Imported from file, not typed in [test]"]
+  ui["Preview and confirm screens [manual]"]
+  classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef manual fill:#FFECBD,stroke:#E8A302
+  class cells,cols,ai,val,num,ord,twice,mark test
+  class ui manual
+```

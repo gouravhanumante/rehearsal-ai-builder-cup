@@ -211,7 +211,7 @@ Two separate choices:
     means the end of that day. A new arrival date for a known shipment keeps the original promise and is not
     treated as a delay until the user reports one.
 - Not built yet: several products on one order when typing it in, importing routes and suppliers, and cloud
-  save/sign-in (see `TODO.md`).
+  save/sign-in (skipped for V1: data is per device; see `TODO.md`).
 
 ## 10. Objectives
 - User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or

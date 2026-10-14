@@ -14,9 +14,9 @@
 - [x] implement disruption intake flow (report a delay on a shipment; optional supplier-message reading)
 - [x] blank workspace: start screen, empty Real workspace in the browser, Setup guide, empty states, backup/restore/delete
 - [x] add orders and shipments by hand in a Real workspace (one product per order/shipment; several lines per order still to do)
-- [ ] spreadsheet import (CSV and Excel): column matching with Gemini suggestions, preview, confirm, saved as "Imported from file"
-- [ ] cloud save for Real workspaces (Google sign-in, Firestore, owner-only rules); fallback is local save + backup
-- [ ] search and paging for hundreds of locations/orders
+- [x] spreadsheet import (CSV and Excel): column matching with Gemini suggestions, preview, confirm, saved as "Imported from file"
+- [ ] SKIPPED for V1 (decision 2026-10-14): cloud save for Real workspaces. Data stays per device in the browser, with backup/restore. Groundwork (chunking, Firestore rules, rules tests) is parked on branch `cloud-save-wip`; the rules were never run against the emulator (needs Java 21)
+- [ ] SKIPPED for V1: search and paging for hundreds of locations/orders (lists render every row; the sample is small, a 100-store import is just long). Also: the inventory and order views do a linear lookup per row, which will be slow in the thousands
 - [ ] before real users: decide whether Gemini sees sample rows from imported files (free Gemini tier lets Google use content; test data only). Keep one switch to send headers only.
 - [x] create evidence-backed extraction confirmation, followed by separate apply confirmation (Demo edits)
 - [x] calculate sample impact and receiving-capacity feasibility
@@ -24,17 +24,19 @@
 - [ ] let the user select a planning objective and compare options against it
 - [ ] persist business changes only after user confirmation
 - [ ] prepare action drafts after approval
-- [ ] connect synthetic Demo workspace to Firestore
-- [ ] deploy working prototype on Google Cloud stack
+- [ ] OPEN RISK: Firestore is not used anywhere in the build. The hackathon requires Firebase, Firestore, Cloud Run and Gemini to all be genuinely used and described. Cheapest honest fix: Cloud Run writes an approval audit record to Firestore (server-side only, client access denied, no sign-in). Not decided
+- [x] deploy working prototype on Google Cloud stack (Cloud Run + Firebase Hosting, project rehearsal-ai-builder-cup-2026)
 - [ ] create demo script and 3-minute flow
 
 - [ ] before real users: set `SEND_SAMPLE_ROWS` to false in `frontend/src/import/suggest.ts` (send only column names to Gemini) and move to a paid Gemini tier or Vertex AI, because the free tier lets Google use submitted content
 - [ ] import suppliers/offers and transfer routes from files
-- [ ] several products on one order/shipment when typing it in
+- [ ] several products on one order/shipment when typing it in (import already supports several lines)
+- [ ] edit/delete a shipment, delete orders/locations/products (only add and edit exist; delete is not built)
+- [ ] sign-in and cross-device sync (V2)
 
 ## Priority P1 — important for a solid hackathon demo
-- [ ] add separate Demo and Real workspace selector
-- [ ] persist Real workspace facts and evidence in browser-local storage only
+- [x] add separate Demo and Real workspace selector (start screen)
+- [x] persist Real workspace facts and evidence in browser-local storage only (IndexedDB)
 - [x] add document upload with Gemini extraction and privacy notice (supplier quotes, stock sheets, orders)
 - [ ] add Gemini-backed disruption extraction with proposed-update confirmation
 - [ ] known gaps (updated 2026-10-14 after the scale-up), deliberately left out:
