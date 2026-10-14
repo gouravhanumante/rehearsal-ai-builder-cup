@@ -12,6 +12,8 @@ export type FieldSpec = {
   /** False for choices the user owns (priority, a name, a location) — those need no proof. */
   isFact: boolean
   options?: { value: string; label: string }[]
+  /** A short example shown under the label. */
+  hint?: string
 }
 export type ParsedValue = number | string | null
 
@@ -19,6 +21,8 @@ export type EditorConfig = {
   title: string
   subtitle: string
   documentHint: string
+  /** Creates a record rather than editing one, so the review lists every detail instead of before → after. */
+  isNew?: boolean
   fields: FieldSpec[]
   initial: Record<string, string>
   initialEvidence: Record<string, Evidence | null>
@@ -78,6 +82,7 @@ const fact = <T,>(value: T | null, evidence: Evidence | null) => ({ value, evide
 const kindOptions: { value: LocationKind; label: string }[] = [
   { value: 'warehouse', label: 'Warehouse' }, { value: 'store', label: 'Store' }, { value: 'distribution-centre', label: 'Distribution centre' },
 ]
+const priorityOptions = [{ value: 'protected', label: 'High priority' }, { value: 'standard', label: 'Standard' }]
 
 export function editorFor(target: EditTarget, workspace: Workspace, format: Format): EditorConfig | null {
   const productOptions = workspace.products.map((product) => ({ value: product.id, label: product.name }))
@@ -121,7 +126,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         ...order.lines.map((line): FieldSpec => ({ key: lineKey(line.productId), label: `${productName(line.productId)} (${unitOf(line.productId)}s)`, type: 'integer', required: true, extractable: true, isFact: true })),
         { key: 'dueAt', label: `Due (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
         { key: 'locationId', label: 'Ships from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
-        { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: [{ value: 'protected', label: 'Priority' }, { value: 'standard', label: 'Standard' }] },
+        { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: priorityOptions },
       ],
       initial: {
         customer: order.customer, dueAt: format.toInput(order.dueAt), locationId: order.locationId, priority: order.priority,
@@ -156,6 +161,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: isNew ? 'Add supplier' : `Supplier details · ${supplier.name}`,
       subtitle: isNew ? 'Leave anything you don’t know yet blank — it stays “Unknown”.' : `${productName(offer?.productId ?? '')} to ${locationName(offer?.locationId ?? '')} · blank means unknown`,
       documentHint: 'Supplier quote, pro-forma invoice, or delivery confirmation',
+      isNew,
       fields: [
         { key: 'name', label: 'Supplier name', type: 'text', required: true, extractable: true, isFact: false },
         ...(isNew ? [
@@ -220,13 +226,14 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: 'Add order',
       subtitle: 'A customer order you have promised to deliver',
       documentHint: 'Purchase order or order confirmation',
+      isNew: true,
       fields: [
         { key: 'customer', label: 'Customer', type: 'text', required: true, extractable: true, isFact: true },
         { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
         { key: 'quantity', label: 'Quantity', type: 'integer', required: true, extractable: true, isFact: true },
         { key: 'dueAt', label: `Due (${format.settings.timeZone})`, type: 'datetime', required: true, extractable: true, isFact: true },
         { key: 'locationId', label: 'Ships from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
-        { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: [{ value: 'protected', label: 'Priority' }, { value: 'standard', label: 'Standard' }] },
+        { key: 'priority', label: 'Priority', type: 'select', required: true, extractable: false, isFact: false, options: priorityOptions },
       ],
       initial: { customer: '', productId: workspace.products[0]?.id ?? '', quantity: '', dueAt: '', locationId: workspace.locations[0]?.id ?? '', priority: 'standard' },
       initialEvidence: { customer: null, productId: null, quantity: null, dueAt: null, locationId: null, priority: null },
@@ -250,6 +257,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: 'Add incoming shipment',
       subtitle: 'Stock a supplier is sending you',
       documentHint: 'Dispatch note, invoice or delivery confirmation',
+      isNew: true,
       fields: [
         { key: 'supplierName', label: 'Supplier', type: 'text', required: true, extractable: true, isFact: false },
         { key: 'productId', label: 'Product', type: 'select', required: true, extractable: false, isFact: false, options: productOptions },
@@ -310,6 +318,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: 'Add transfer route',
       subtitle: 'Moving stock from one of your locations to another',
       documentHint: 'Carrier booking or dispatch confirmation',
+      isNew: true,
       fields: [
         { key: 'fromLocationId', label: 'Move from', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
         { key: 'toLocationId', label: 'Move to', type: 'select', required: true, extractable: false, isFact: false, options: locationOptions },
@@ -338,10 +347,11 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: location ? `Edit ${location.name}` : 'Add location',
       subtitle: 'A warehouse, store, or distribution centre',
       documentHint: 'Site details',
+      isNew: !location,
       fields: [
         { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false },
         { key: 'kind', label: 'Type', type: 'select', required: true, extractable: false, isFact: false, options: kindOptions },
-        { key: 'receivingLimitPerDay', label: 'Most units it can receive per day (blank = no limit)', type: 'integer', required: false, extractable: false, isFact: false },
+        { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, hint: 'How much can arrive here in one day, not how much it can store. Leave blank for no limit.' },
       ],
       initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '' },
       initialEvidence: { name: null, kind: null, receivingLimitPerDay: null },
@@ -361,12 +371,13 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
     title: product ? `Edit ${product.name}` : 'Add product',
     subtitle: 'Something you stock and sell',
     documentHint: 'Product sheet',
+    isNew: !product,
     fields: [
       { key: 'name', label: 'Name', type: 'text', required: true, extractable: false, isFact: false },
-      { key: 'pack', label: 'Pack (e.g. 1 kg case)', type: 'text', required: true, extractable: false, isFact: false },
-      { key: 'unit', label: 'Counted in (e.g. case)', type: 'text', required: true, extractable: false, isFact: false },
+      { key: 'pack', label: 'How it is packed', type: 'text', required: true, extractable: false, isFact: false, hint: 'Describe one pack, e.g. “20 kg bag” or “12 bottles per box”.' },
+      { key: 'unit', label: 'Unit you count stock in', type: 'text', required: true, extractable: false, isFact: false, hint: 'One word for a single thing you count, e.g. “bag” or “box”. Stock and orders use this unit.' },
     ],
-    initial: { name: product?.name ?? '', pack: product?.pack ?? '', unit: product?.unit ?? 'case' },
+    initial: { name: product?.name ?? '', pack: product?.pack ?? '', unit: product?.unit ?? '' },
     initialEvidence: { name: null, pack: null, unit: null },
     apply: (values) => {
       const next = { id: product?.id ?? newId('product'), name: values.name as string, pack: values.pack as string, unit: values.unit as string }

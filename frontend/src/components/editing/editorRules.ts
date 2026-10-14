@@ -29,3 +29,16 @@ export function changedFieldKeys(
       || (origin[field.key] === 'document' && initialEvidence[field.key]?.kind !== 'document'))
     .map((field) => field.key)
 }
+
+/** What the review step shows: for a new record, every detail being saved (preselected choices too); for an edit, only what changed. */
+export function reviewFieldKeys(
+  isNew: boolean,
+  fields: FieldSpec[],
+  values: Record<string, string>,
+  initial: Record<string, string>,
+  origin: Record<string, Origin>,
+  initialEvidence: Record<string, Evidence | null>,
+) {
+  if (!isNew) return changedFieldKeys(fields, values, initial, origin, initialEvidence)
+  return fields.filter((field) => (values[field.key] ?? '').trim() !== '').map((field) => field.key)
+}

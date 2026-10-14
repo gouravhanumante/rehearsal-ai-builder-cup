@@ -8,7 +8,7 @@ import { createWording } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { displayValue, parseField, type EditorConfig, type ParsedValue } from './editorConfigs'
-import { changedFieldKeys, originAfterTyping, resolveEvidence, type Origin } from './editorRules'
+import { originAfterTyping, resolveEvidence, reviewFieldKeys, type Origin } from './editorRules'
 
 type ExtractedField = { key: string; value: string | null; quote: string | null }
 
@@ -57,7 +57,8 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
 
   const evidenceFor = (key: string, value: ParsedValue) => resolveEvidence(origin[key], value, config.initialEvidence[key], documentName, recordedAt)
 
-  const changedKeys = changedFieldKeys(config.fields, values, config.initial, origin, config.initialEvidence)
+  const isNew = config.isNew ?? false
+  const changedKeys = reviewFieldKeys(isNew, config.fields, values, config.initial, origin, config.initialEvidence)
   const changedFields = config.fields.filter((field) => changedKeys.includes(field.key))
 
   const next = useMemo(() => {
@@ -174,9 +175,10 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
               return (
                 <div className={`editor-field ${fieldOrigin === 'document' ? 'from-document' : ''}`} key={field.key}>
                   <label htmlFor={inputId}>{field.label}{!field.required && <small> · optional</small>}</label>
+                  {field.hint && <small className="editor-hint" id={`${inputId}-hint`}>{field.hint}</small>}
                   {field.type === 'select'
                     ? <select id={inputId} onChange={(event) => updateValue(field.key, event.target.value)} value={values[field.key]}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-                    : <input id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.required ? '' : 'Unknown'} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />}
+                    : <input aria-describedby={field.hint ? `${inputId}-hint` : undefined} id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.required ? '' : 'Unknown'} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />}
                   <div className="editor-field-meta">
                     {field.isFact && (values[field.key] ?? '').trim() !== '' && <EvidenceMark evidence={evidenceFor(field.key, values[field.key])} />}
                     {fieldOrigin === 'document' && quotes[field.key] && <small className="editor-quote">“{quotes[field.key]}”</small>}
@@ -191,14 +193,16 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
         </div>}
 
         {step === 'review' && <div className="assistant-body editor-body">
-          <p className="editor-review-intro">Is this right? Nothing is saved until you confirm.</p>
+          <p className="editor-review-intro">{isNew ? 'This adds a new record. Nothing is saved until you confirm.' : 'Is this right? Nothing is saved until you confirm.'}</p>
           {changedFields.length === 0
             ? <p className="editor-empty">No changes to save.</p>
             : <ul className="editor-changes">
               {changedFields.map((field) => (
                 <li key={field.key}>
                   <span>{field.label}</span>
-                  <span className="editor-change-values"><s>{displayValue(field, config.initial[field.key] ?? '', format)}</s><ArrowRight size={13} /><strong>{displayValue(field, values[field.key] ?? '', format)}</strong></span>
+                  {isNew
+                    ? <span className="editor-change-values"><strong>{displayValue(field, values[field.key] ?? '', format)}</strong></span>
+                    : <span className="editor-change-values"><s>{displayValue(field, config.initial[field.key] ?? '', format)}</s><ArrowRight size={13} /><strong>{displayValue(field, values[field.key] ?? '', format)}</strong></span>}
                   {field.isFact && (values[field.key] ?? '').trim() !== '' && <EvidenceMark evidence={evidenceFor(field.key, 'value' in parsed[field.key] ? (parsed[field.key] as { value: ParsedValue }).value : null)} />}
                 </li>
               ))}

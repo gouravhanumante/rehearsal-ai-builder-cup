@@ -112,7 +112,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
     Setup: { title: 'Set up your business', subtitle: 'Add your locations, products, stock, orders and shipments at your own pace.' },
     Overview: { title: 'Operations overview', subtitle: workspace.disruptions.length === 0 ? 'What Rehearsal is watching for you.' : 'The delay, the orders at risk, and the next best response.' },
     Orders: { title: 'Orders', subtitle: workspace.disruptions.length === 0 ? 'Your open customer orders.' : 'Orders hit by the delayed shipment, and the ones that are not.' },
-    Inventory: { title: 'Inventory by location', subtitle: 'Available stock, inbound shipments, transfers, and receiving limits.' },
+    Inventory: { title: 'Inventory', subtitle: 'Stock by product or by warehouse, incoming shipments, and transfers.' },
     Suppliers: { title: 'Supplier commitments', subtitle: 'Confirmed shipment changes, backup suppliers, and details still missing.' },
     Rehearsals: { title: 'Recovery options', subtitle: 'Compare checked responses before changing the plan.' },
   }

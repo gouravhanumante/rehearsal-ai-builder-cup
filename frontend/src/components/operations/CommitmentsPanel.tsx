@@ -34,7 +34,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
     <div className={`order-row ${editable ? 'order-row--editable' : ''}`} key={key}>
       <div className="order-customer">
         <span className={`customer-avatar avatar-${avatarTones[workspace.orders.indexOf(order) % avatarTones.length]}`}>{initialsOf(order.customer)}</span>
-        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'Priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{showAll && <EvidenceMark evidence={order.evidence} />}</span>
+        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{showAll && <EvidenceMark evidence={order.evidence} />}</span>
       </div>
       <div className="order-due">{format.day(order.dueAt)}<small>{format.time(order.dueAt)}</small></div>
       <strong className="order-quantity">{cells.quantity}</strong>

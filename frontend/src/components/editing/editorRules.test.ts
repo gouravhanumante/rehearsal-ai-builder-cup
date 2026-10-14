@@ -4,7 +4,7 @@ import { sampleWorkspace } from '../../../../shared/planner/sample'
 import { settingsForCountry } from '../../../../shared/planner/countries'
 import { createFormat } from '../../presentation/format'
 import { editorFor, type FieldSpec } from './editorConfigs'
-import { changedFieldKeys, originAfterTyping, resolveEvidence } from './editorRules'
+import { changedFieldKeys, originAfterTyping, resolveEvidence, reviewFieldKeys, type Origin } from './editorRules'
 
 const now = '2026-10-15T09:00:00+05:30'
 const typedBefore: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-14T09:00:00+05:30' }
@@ -40,6 +40,14 @@ describe('what the review step lists as a change', () => {
   it('does not list a value the user typed and then put back', () => {
     const keys = changedFieldKeys([stock], { stock: '20' }, { stock: '20' }, { stock: 'unchanged' }, { stock: typedBefore })
     expect(keys).toEqual([])
+  })
+
+  it('a new order shows the product and warehouse it will be saved with, even when the user left the preselected ones', () => {
+    const editor = editorFor({ type: 'new-order' }, sampleWorkspace, createFormat(settingsForCountry('IN')))!
+    const values = { ...editor.initial, customer: 'Stark Industries', quantity: '5', dueAt: '2026-10-20T10:00' }
+    const origin: Record<string, Origin> = { customer: 'typed', quantity: 'typed', dueAt: 'typed', productId: 'unchanged', locationId: 'unchanged', priority: 'unchanged' }
+    const keys = reviewFieldKeys(editor.isNew ?? false, editor.fields, values, editor.initial, origin, editor.initialEvidence)
+    expect(keys).toEqual(expect.arrayContaining(['productId', 'locationId', 'priority']))
   })
 })
 
