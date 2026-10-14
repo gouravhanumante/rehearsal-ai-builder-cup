@@ -48,6 +48,12 @@ describe('warehouse transfer options', () => {
     })
   })
 
+  it('does not reuse the 8-case transfer price when a different number of cases is moved', () => {
+    const data = { ...distributorDemo, inventory: { ...distributorDemo.inventory, southUnallocatedCases: { value: 5, evidence: typed } } }
+    expect(planIn(data, 'transfer')?.cost).toBe('Transfer cost not quoted for 5 cases')
+    expect(planIn(distributorDemo, 'transfer')?.cost).toBe('Estimated: $95 transfer cost')
+  })
+
   it('does not offer moving "everything" as a separate option when everything already fits', () => {
     const data = { ...distributorDemo, inventory: { ...distributorDemo.inventory, southUnallocatedCases: { value: 6, evidence: typed } } }
     expect(planIn(data, 'bulk-transfer')).toBeUndefined()

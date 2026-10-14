@@ -71,6 +71,10 @@ export function rehearseDistributor(data: DistributorData) {
         ? 'ready'
         : 'rejected'
   const rejectedTransferExcess = southCases - warehouses.north.receivingLimitPerDay
+  const quotedTransferCost: Record<number, number> = { 8: sampleTransferCosts.eightCases, 14: sampleTransferCosts.fourteenCases }
+  const transferCost = (cases: number) => cases in quotedTransferCost
+    ? `Estimated: $${quotedTransferCost[cases]} transfer cost`
+    : `Transfer cost not quoted for ${cases} cases`
 
   const statusLabel = (status: RecoveryPlan['status'], unverified: UnverifiedFact[]) =>
     status === 'ready' ? (unverified.length ? 'Ready · unverified' : 'Ready to use') : status === 'conditional' ? 'Needs information' : "Can't be done"
@@ -82,7 +86,7 @@ export function rehearseDistributor(data: DistributorData) {
       title: `Transfer stock from ${warehouses.south.name}`,
       description: `Move ${feasibleTransferCases} available cases to ${warehouses.north.name} before the priority order is due.`,
       impact: describeOutcome(withTransfer),
-      cost: `Estimated: $${sampleTransferCosts.eightCases} transfer cost`,
+      cost: transferCost(feasibleTransferCases),
       status: transferStatus,
       statusLabel: statusLabel(transferStatus, transferUnverified),
       unverifiedFacts: transferUnverified,
@@ -151,7 +155,7 @@ export function rehearseDistributor(data: DistributorData) {
       title: `Transfer all ${southCases} cases in one day`,
       description: `Move the full available ${warehouses.south.name} balance to ${warehouses.north.name}.`,
       impact: 'Would cover more near-term demand if receiving capacity allowed',
-      cost: `Estimated: $${sampleTransferCosts.fourteenCases} transfer cost`,
+      cost: transferCost(southCases),
       status: 'rejected' as const,
       statusLabel: "Can't be done",
       unverifiedFacts: [],
