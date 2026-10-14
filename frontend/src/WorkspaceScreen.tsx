@@ -19,7 +19,7 @@ import { SetupView, type SetupAction } from './components/setup/SetupView'
 import type { ImportKind } from '../../shared/import/fields'
 import type { Workspace } from '../../shared/planner/model'
 import { planningNow, rehearse, type Plan } from '../../shared/planner/plan'
-import { applyPlan } from '../../shared/planner/apply'
+import { applyPlan, setOrderStatus } from '../../shared/planner/apply'
 import { checkPlanOnServer } from './data/planCheck'
 import { createFormat } from './presentation/format'
 import { createWording, type EditTarget } from './presentation/planText'
@@ -55,6 +55,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
   const [importKind, setImportKind] = useState<ImportKind | null>(null)
   const [removingRouteId, setRemovingRouteId] = useState<string | null>(null)
   const [removingSupplierId, setRemovingSupplierId] = useState<string | null>(null)
+  const [closing, setClosing] = useState<{ orderId: string; status: 'delivered' | 'cancelled' } | null>(null)
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
   const editorConfig = editor ? editorFor(editor.target, workspace, format) : null
 
@@ -121,6 +122,16 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
     saveChange({ ...workspace, noTransfers: (workspace.noTransfers ?? []).filter((pair) => !(pair.fromLocationId === fromLocationId && pair.toLocationId === toLocationId)) })
   const removingRoute = workspace.routes.find((route) => route.id === removingRouteId)
   const removingSupplier = workspace.suppliers.find((supplier) => supplier.id === removingSupplierId)
+  const closingOrder = workspace.orders.find((order) => order.id === closing?.orderId)
+  const setStatus = (orderId: string, status: 'open' | 'delivered' | 'cancelled') => {
+    if (status !== 'open') { setClosing({ orderId, status }); return }
+    saveChange(setOrderStatus(workspace, orderId, 'open', planningNow(workspace)))
+    onNotice(`${orderId} is open again and counts toward stock.`)
+  }
+  const orderGoods = (orderId: string) => {
+    const order = workspace.orders.find((item) => item.id === orderId)
+    return order ? `${order.lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')} from ${words.locationName(order.locationId)}` : ''
+  }
   // A removed route is remembered as "can't move this way" so Rehearsal doesn't ask straight back.
   const removeRoute = () => {
     if (!removingRoute) return
@@ -188,7 +199,7 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
                 <CommitmentsPanel onToggleAll={() => setActiveSection('Orders')} showAll={false} />
                 <OverviewRecommendation onApprove={requestApproval} onViewOptions={() => setActiveSection('Rehearsals')} />
               </>)}
-            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} showAll />}
+            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} onSetStatus={setStatus} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Transfers' && <TransfersView onAskAgain={askAgain} onEdit={openEditor} onRemoveRoute={setRemovingRouteId} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} onRemoveSupplier={setRemovingSupplierId} />}
@@ -220,6 +231,19 @@ export function WorkspaceScreen({ workspace, notice, saveStatus, onChange, onNot
           onClose={() => setRemovingSupplierId(null)}
           onConfirm={() => { saveChange({ ...workspace, suppliers: workspace.suppliers.filter((item) => item.id !== removingSupplier.id) }); setRemovingSupplierId(null) }}
           title={`Remove ${removingSupplier.name}?`}
+        />}
+        {closing && closingOrder && <ConfirmDialog
+          body={closing.status === 'delivered'
+            ? `${orderGoods(closingOrder.id)} left with this order, so it comes off that warehouse's stock. The order stops counting toward shortages. You can reopen it if this was a mistake.`
+            : `The order stops counting toward shortages, and its stock is free for other orders. You can reopen it later.`}
+          confirmLabel={closing.status === 'delivered' ? 'Mark delivered' : 'Cancel order'}
+          onClose={() => setClosing(null)}
+          onConfirm={() => {
+            saveChange(setOrderStatus(workspace, closingOrder.id, closing.status, planningNow(workspace)))
+            onNotice(`${closingOrder.customer}'s order ${closingOrder.id} is ${closing.status}. It is listed under Orders → Delivered and cancelled.`)
+            setClosing(null)
+          }}
+          title={closing.status === 'delivered' ? `Mark ${closingOrder.customer}'s order delivered?` : `Cancel ${closingOrder.customer}'s order?`}
         />}
         {importKind && <ImportDialog kind={importKind} onApply={(next) => { saveChange(next); setImportKind(null) }} onClose={() => setImportKind(null)} />}
         {editor && editorConfig && <DetailsEditor

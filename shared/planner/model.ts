@@ -29,6 +29,9 @@ export type Order = {
   priority: 'protected' | 'standard'
   lines: OrderLine[]
   evidence: Evidence
+  /** Delivered or cancelled orders no longer need stock. Missing means open (older saves). */
+  status?: 'open' | 'delivered' | 'cancelled'
+  closedAt?: string
 }
 
 export type InboundShipment = {

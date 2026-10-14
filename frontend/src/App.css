@@ -728,6 +728,11 @@
 
 .orders-table-head.order-row--editable,
 .order-row.order-row--editable { grid-template-columns: minmax(225px, 2fr) minmax(112px, 0.9fr) minmax(90px, 0.75fr) minmax(105px, 0.9fr) 118px 64px; }
+.order-row.order-row--actions, .orders-table-head.order-row--actions { grid-template-columns: minmax(225px, 2fr) minmax(112px, 0.9fr) minmax(90px, 0.75fr) minmax(105px, 0.9fr) 118px 190px; }
+.order-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+.order-actions .ds-button { min-height: 32px; padding-inline: 7px; color: #355d45; font-size: 11px; }
+.order-row--closed { opacity: 0.7; }
+.order-row--closed .order-customer strong { text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, 0.25); }
 .order-edit { min-height: 34px; padding-inline: 8px; color: #355d45; font-size: 11px; }
 .orders-subheading { margin: 18px 0 6px; color: #617168; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
 
@@ -1145,7 +1150,8 @@
   .conflict-card { grid-template-columns: 32px minmax(0, 1fr); }
   .conflict-actions { grid-column: 1 / -1; }
   .conflict-actions .ds-button { flex: 1; }
-  .order-row.order-row--editable { grid-template-columns: minmax(0, 1fr) auto; }
+  .order-row.order-row--editable, .order-row.order-row--actions { grid-template-columns: minmax(0, 1fr) auto; }
+  .order-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .order-edit { grid-column: 1 / -1; justify-self: start; padding-inline: 0; }
   .data-view-heading { flex-direction: column; align-items: flex-start; }
   .editor-mode { grid-template-columns: 1fr; }

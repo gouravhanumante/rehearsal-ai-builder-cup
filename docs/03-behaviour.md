@@ -97,6 +97,13 @@ Agreed with the user: both paths exist, and the difference is always visible.
   supplier options are capped to the room; a full location rejects them as **Can't be done**.
 - "Transfer all … in one day" is only shown when it would break the receiving limit;
   otherwise it is the same move as the normal transfer.
+- **Closing orders** (user decision 2026-10-15, `setOrderStatus` in `shared/planner/apply.ts`):
+  **Delivered** takes the order's goods off its warehouse's stock; **Cancel** leaves stock alone.
+  Both ask first, and the order moves to "Delivered and cancelled" on the Orders page, where
+  **Reopen** undoes it (a delivered order's goods are counted back in). The planner only looks at
+  open orders (`isOpen`).
+- Adding or editing an order shows, under each quantity, how much the warehouse can **spare**
+  after its other orders, and an amber warning when the order needs more. It never blocks saving.
 - **Every order is checked, delay or not** (user decision 2026-10-14, `orderCoverage`): stock on
   hand at its warehouse plus deliveries arriving by its due time, shared with orders due first.
   Covered / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows

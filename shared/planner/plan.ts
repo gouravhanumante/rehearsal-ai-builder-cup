@@ -154,7 +154,13 @@ export type OrderCoverage = {
  * Every order line against its own warehouse, delay or not: stock on hand plus shipments that
  * arrive by the due time, shared with other orders due first. No stock count means unknown.
  */
-export function orderCoverage(workspace: Workspace, onlyLocationId?: string): OrderCoverage[] {
+export const isOpen = (order: Order) => (order.status ?? 'open') === 'open'
+/** The planner only works with open orders; delivered and cancelled ones need no stock. */
+const openOnly = (workspace: Workspace): Workspace =>
+  workspace.orders.every(isOpen) ? workspace : { ...workspace, orders: workspace.orders.filter(isOpen) }
+
+export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderCoverage[] {
+  const workspace = openOnly(input)
   const result: OrderCoverage[] = []
   const pairs = new Set(workspace.orders
     .filter((order) => onlyLocationId === undefined || order.locationId === onlyLocationId)
@@ -187,7 +193,8 @@ export function orderCoverage(workspace: Workspace, onlyLocationId?: string): Or
  * How much of a product a location can give away today and still cover every one of its own
  * orders as well as it does now (stock on hand plus deliveries arriving by each due time).
  */
-export function spareStock(workspace: Workspace, locationId: string, productId: string): number {
+export function spareStock(input: Workspace, locationId: string, productId: string): number {
+  const workspace = openOnly(input)
   const onHand = workspace.stock.find((record) => record.locationId === locationId && record.productId === productId)?.available.value ?? 0
   const demands: Demand[] = workspace.orders
     .filter((order) => order.locationId === locationId)
@@ -223,7 +230,8 @@ export function routeArrival(route: TransferRoute, now: string): { at: string | 
   return { at: route.arrivalAt.value, evidence: route.arrivalAt.evidence }
 }
 
-export function rehearse(workspace: Workspace, now: string = planningNow(workspace)) {
+export function rehearse(input: Workspace, now: string = planningNow(input)) {
+  const workspace = openOnly(input)
   const { settings } = workspace
   const stockKey = (locationId: string, productId: string) => `${locationId}|${productId}`
   const stockByKey = new Map(workspace.stock.map((record) => [stockKey(record.locationId, record.productId), record]))

@@ -36,6 +36,7 @@ const isWorkspaceShape = shape({
   orders: listOf(shape({
     id: isText(64), customer: isText(80), locationId: isText(64), dueAt: isTime,
     priority: oneOf('protected', 'standard'), lines: listOf(isLine, LIMITS.lines), evidence: isEvidence,
+    status: optional(oneOf('open', 'delivered', 'cancelled')), closedAt: optional(isTime),
   }), LIMITS.orders),
   shipments: listOf(shape({
     id: isText(64), supplierName: isText(80), locationId: isText(64), lines: listOf(isLine, LIMITS.lines),

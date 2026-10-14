@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Workspace } from './model.js'
-import { applyPlan } from './apply.js'
-import { rehearse } from './plan.js'
+import { applyPlan, setOrderStatus } from './apply.js'
+import { orderCoverage, rehearse } from './plan.js'
 import { SAMPLE_NOW, sampleEvidence, sampleWorkspace } from './sample.js'
 
 const planOf = (data: Workspace, id: string) => {
@@ -32,5 +32,24 @@ describe('approving a plan changes the records, so the picture stays true', () =
     expect(next.shipments.at(-1)).toMatchObject({ supplierName: 'Supplier B', locationId: 'north', lines: [{ quantity: 20 }] })
     expect(next.suppliers[0].offers[0].available.value).toBe(0)
     expect(exposure(next)).toBe(4)
+  })
+})
+
+describe('closing an order', () => {
+  // North Hub has 14 cases; Common Ground Cafe's 18-case order is the first one due.
+  it('a cancelled order stops counting: the others get its stock, and North Hub keeps all 14', () => {
+    const next = setOrderStatus(sampleWorkspace, 'ORD-1082', 'cancelled', SAMPLE_NOW)
+    expect(rehearse(next).impact.affectedOrderIds).not.toContain('ORD-1082')
+    expect(next.stock.find((record) => record.locationId === 'north')?.available.value).toBe(14)
+    expect(orderCoverage(next).find((line) => line.orderId === 'ORD-1086')?.covered).toBe(12)
+  })
+
+  it('a delivered order takes its goods off the warehouse stock, and reopening puts them back', () => {
+    const quiet: Workspace = { ...sampleWorkspace, disruptions: [], shipments: [], orders: [{ ...sampleWorkspace.orders[0], lines: [{ productId: 'harbor-blend', quantity: 5 }] }] }
+    const delivered = setOrderStatus(quiet, 'ORD-1082', 'delivered', SAMPLE_NOW)
+    expect(delivered.stock.find((record) => record.locationId === 'north')?.available.value).toBe(9)
+    expect(orderCoverage(delivered)).toEqual([])
+    const reopened = setOrderStatus(delivered, 'ORD-1082', 'open', SAMPLE_NOW)
+    expect(reopened.stock.find((record) => record.locationId === 'north')?.available.value).toBe(14)
   })
 })

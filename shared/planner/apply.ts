@@ -55,3 +55,23 @@ export function applyPlan(workspace: Workspace, plan: Plan, now: string): Worksp
 
   return workspace
 }
+
+/**
+ * Delivered: the goods left the warehouse, so its stock goes down by the order. Cancelled: nothing
+ * left, stock stays. Reopening undoes it (a delivered order's goods are counted back in).
+ */
+export function setOrderStatus(workspace: Workspace, orderId: string, status: 'open' | 'delivered' | 'cancelled', now: string): Workspace {
+  const order = workspace.orders.find((item) => item.id === orderId)
+  if (!order || (order.status ?? 'open') === status) return workspace
+  const wasDelivered = order.status === 'delivered'
+  const sign = status === 'delivered' ? -1 : wasDelivered ? 1 : 0
+  const evidence: Evidence = { kind: 'manual', source: `${status === 'delivered' ? 'Delivered' : 'Reopened'} ${order.id}`, recordedAt: now }
+  const stock = sign === 0 ? workspace.stock : workspace.stock.map((record) => {
+    if (record.locationId !== order.locationId) return record
+    const moved = order.lines.filter((line) => line.productId === record.productId).reduce((total, line) => total + line.quantity, 0)
+    return moved === 0 ? record : { ...record, available: { value: Math.max(0, record.available.value + sign * moved), evidence } }
+  })
+  const { closedAt: _previous, ...rest } = order
+  const next = status === 'open' ? { ...rest, status } : { ...rest, status, closedAt: now }
+  return { ...workspace, stock, orders: workspace.orders.map((item) => item.id === orderId ? next : item) }
+}
