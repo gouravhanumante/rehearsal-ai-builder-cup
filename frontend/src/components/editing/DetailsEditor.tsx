@@ -62,24 +62,27 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const changedKeys = reviewFieldKeys(isNew, config.fields, values, config.initial, origin, config.initialEvidence)
   const changedFields = config.fields.filter((field) => changedKeys.includes(field.key))
 
-  const next = useMemo(() => {
-    if (step !== 'review' || hasErrors) return null
+  // The change as typed so far, so a shortage can be flagged before Review.
+  const draft = useMemo(() => {
+    if (hasErrors) return null
     const parsedValues = Object.fromEntries(Object.entries(parsed).map(([key, result]) => [key, 'value' in result ? result.value : null]))
     const evidence = Object.fromEntries(Object.entries(parsedValues).map(([key, value]) => [key, resolveEvidence(origin[key], value, config.initialEvidence[key], documentName, recordedAt)]))
     return config.apply(parsedValues, evidence)
-  }, [step, hasErrors, parsed, origin, config, documentName, recordedAt])
+  }, [hasErrors, parsed, origin, config, documentName, recordedAt])
+  const next = step === 'review' ? draft : null
 
   const after = useMemo(() => (next ? rehearse(next) : null), [next])
   const nextWords = useMemo(() => (next ? createWording(next, format) : null), [next, format])
+  const draftWords = useMemo(() => (draft ? createWording(draft, format) : null), [draft, format])
   // Order lines this change leaves short that weren't short before (e.g. a new order for an empty warehouse).
   const newShortages = useMemo(() => {
-    if (!next) return []
+    if (!draft) return []
     const before = new Map(orderCoverage(workspace).map((line) => [`${line.orderId}|${line.productId}`, line]))
-    return orderCoverage(next).filter((line) => {
+    return orderCoverage(draft).filter((line) => {
       const earlier = before.get(`${line.orderId}|${line.productId}`)
       return line.status === 'short' && (!earlier || earlier.status !== 'short' || earlier.covered > line.covered)
     })
-  }, [next, workspace])
+  }, [draft, workspace])
 
   const updateValue = (key: string, value: string) => {
     setValues((previous) => ({ ...previous, [key]: value }))
@@ -202,6 +205,13 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
             })}
           </div>}
           {showErrors && crossError && <p className="editor-error" role="alert">{crossError}</p>}
+          {showForm && draftWords && newShortages.length > 0 && <div aria-live="polite" className="editor-live-warning">
+            <strong>Not enough stock</strong>
+            <ul className="editor-shortages">{newShortages.map((line) => (
+              <li key={`${line.orderId}-${line.productId}`}><strong>{draftWords.customer(line.orderId)} · {draftWords.productName(line.productId)}</strong><small>{draftWords.shortageText(line)}</small></li>
+            ))}</ul>
+            <small>You can still save it; Rehearsal will then show ways to cover it.</small>
+          </div>}
         </div>}
 
         {step === 'review' && <div className="assistant-body editor-body">
