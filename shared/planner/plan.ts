@@ -6,6 +6,7 @@ export type PlanStatus = 'ready' | 'conditional' | 'rejected'
 export type UnverifiedFact =
   | { type: 'stock'; locationId: string; productId: string; quantity: number }
   | { type: 'order'; orderId: string }
+  | { type: 'route'; routeId: string; arrivalAt: string }
   | { type: 'offer'; supplierId: string; productId: string; locationId: string; field: 'available' | 'pricePerUnit' | 'arrivalAt'; value: number | string }
 
 export type PlanReason =
@@ -185,7 +186,11 @@ export function rehearse(workspace: Workspace) {
           const quote = route.quotes.find((item) => item.quantity === amount)
           return quote ? { amount: quote.amount, currency: settings.currency } : null
         }
-        const unverified = [...baseUnverified, ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: route.fromLocationId, productId, quantity: sourceQuantity }] : [])]
+        const unverified: UnverifiedFact[] = [
+          ...baseUnverified,
+          ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: route.fromLocationId, productId, quantity: sourceQuantity }] : []),
+          ...(route.arrivalAt.value !== null && isManual(route.arrivalAt.evidence) ? [{ type: 'route' as const, routeId: route.id, arrivalAt: route.arrivalAt.value }] : []),
+        ]
         const arrivalAt = route.arrivalAt.value
         const base = { ...common, sourceLocationId: route.fromLocationId, routeId: route.id, arrivalAt, unverified }
 

@@ -114,6 +114,10 @@ describe('warehouse transfer options', () => {
       { type: 'stock', locationId: 'south', productId: 'harbor-blend', quantity: 14 },
     ])
   })
+  it('flags the transfer as unverified when its arrival time was typed in', () => {
+    const data = { ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], arrivalAt: { value: '2026-10-15T11:00:00+05:30', evidence: typed } }] }
+    expect(planIn(data, transferPlan)?.unverified).toEqual([{ type: 'route', routeId: 'south-to-north', arrivalAt: '2026-10-15T11:00:00+05:30' }])
+  })
 })
 
 describe('backup supplier options', () => {
