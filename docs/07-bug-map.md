@@ -168,7 +168,7 @@ The connected map uses current D-F. C above remains the historical behavior that
 | D: insufficient count / repeated product lines | Send checks each product's selected quantity against unreserved counted stock; incoming stock is not dispatchable | `sendOrder`, browser O06 (full quantity refused on count 14) |
 | E: correct after recount | Later count already includes actual movement; historical correction changes demand, not current count | `correctMovement`, same-number stocktake control, browser O08 and red/green week simulation |
 | D: partial and multi-product | Planner uses remaining quantities per product; fully sent coffee is not demanded again while tea remains | `outstandingOrders`, `plan.ts`, `ledger.test.ts`; browser O05 |
-| D: overdue remainder | Past due does not mean fulfilled; outstanding stays demand | `remainingLines`; browser O11 (works; overdue labelling needs a ruling) |
+| D: overdue remainder | Past due does not mean fulfilled; outstanding stays demand | `remainingLines`; `overdueOrderIds` shows it as Overdue; browser O11 |
 | E: isolated correction | Start stock 12; send 6 -> 6; correct sent to 4 -> 8; send final 6 -> 2. Totals sent 10; remaining 0 | Independent arithmetic example, not a passing-test claim |
 | F: cancel after 6 sent | Stock stays at 6; sent remains 6; cancel only 4; no goods return | `cancelRemaining`, `reopenOrder`; browser O09 |
 | Save: account write | Changed pieces are written under new content-based ids first; the core manifest is published in one revision-checked transaction. Old pieces are deleted only after publication | `cloudStore.write`, `publishCore`; `chunks.test.ts` |

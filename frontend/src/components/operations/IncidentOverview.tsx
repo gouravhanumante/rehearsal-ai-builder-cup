@@ -19,6 +19,8 @@ export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: In
 
   if (workspace.disruptions.length === 0 && shortages.length === 0) {
     const watched = workspace.orders.filter((order) => hasOutstanding(workspace, order)).length
+    const overdueCount = impact.overdueOrderIds.length
+    const timingCount = impact.watchOrderIds.filter((id) => !impact.overdueOrderIds.includes(id)).length
     return (
       <section className="incident-section" aria-label="Disruptions">
         <div className="calm-card">
@@ -26,7 +28,7 @@ export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: In
           <div className="calm-main">
             <h2>No disruption right now</h2>
             <p>{watched > 0
-              ? `Every one of your ${format.number(watched)} open order${watched === 1 ? ' is' : 's is'} covered at its warehouse by stock or recorded deliveries.${impact.watchOrderIds.length > 0 ? ` ${format.number(impact.watchOrderIds.length)} ${impact.watchOrderIds.length === 1 ? 'order needs' : 'orders need'} a timing check: it depends on incoming stock or customer travel time is unconfirmed.` : ''} When a shipment is late, report it and Rehearsal shows who is affected.`
+              ? `Every one of your ${format.number(watched)} open order${watched === 1 ? ' is' : 's is'} covered at its warehouse by stock or recorded deliveries.${overdueCount > 0 ? ` ${format.number(overdueCount)} ${overdueCount === 1 ? 'order is' : 'orders are'} overdue: past the due time and still owed.` : ''}${timingCount > 0 ? ` ${format.number(timingCount)} ${timingCount === 1 ? 'order needs' : 'orders need'} a timing check: it depends on incoming stock or customer travel time is unconfirmed.` : ''} When a shipment is late, report it and Rehearsal shows who is affected.`
               : 'Add your orders and shipments, and Rehearsal will watch them for you. When a shipment is late, report it here.'}</p>
           </div>
           {workspace.shipments.length > 0

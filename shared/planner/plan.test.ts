@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Evidence, Order, Supplier, Workspace } from './model.js'
 import { orderCoverage, rankPlans, recommendPlan, rehearse, storageCap } from './plan.js'
 import { sampleEvidence, sampleWorkspace } from './sample.js'
-import { stockFrom } from './ledger.js'
+import { sendOrder, stockFrom } from './ledger.js'
 
 const typed: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-15T09:00:00+05:30' }
 const quote: Evidence = { kind: 'document', source: 'supplier-b-quote.pdf', recordedAt: '2026-10-15T09:00:00+05:30' }
@@ -639,5 +639,27 @@ describe('customer due time means arrival, not warehouse availability', () => {
   it('marks a manually entered customer travel duration as unverified on plans that rely on it', () => {
     const plan = planIn(withArrival(3, '2026-10-16T16:00:00+05:30'), transferPlan)
     expect(plan?.unverified).toContainEqual({ type: 'customer-travel', locationId: 'north', hours: 3 })
+  })
+})
+
+describe('an order past its due time that is still owed (user decision 2026-10-15)', () => {
+  // Late Larder: 10 due Wed 14 Oct 5 pm, 4 already sent; the sample morning is Thu 15 Oct 9 am.
+  const late: Order = { id: 'LATE', customer: 'Late Larder', locationId: 'north', dueAt: '2026-10-14T17:00:00+05:30', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity: 10 }], evidence: typed, splitAllowed: true }
+  const withLate = (extra: Partial<Workspace> = {}): Workspace => ({ ...sampleWorkspace, shipments: [], disruptions: [], orders: [late], ...extra })
+
+  it('is overdue and needs attention, even when stock on hand covers it', () => {
+    const sent = sendOrder(withLate(), 'LATE', [{ productId: 'harbor-blend', quantity: 4 }], '2026-10-14T12:00:00+05:30', 'DSP-L')
+    if ('error' in sent) throw new Error(sent.error)
+    const { impact } = rehearse(sent.workspace)
+    expect(impact.overdueOrderIds).toEqual(['LATE'])
+    expect(impact.unaffectedOrderIds).not.toContain('LATE')
+  })
+
+  it('is not overdue once fully sent or cancelled, or before its due time', () => {
+    const sent = sendOrder(withLate(), 'LATE', [{ productId: 'harbor-blend', quantity: 10 }], '2026-10-14T12:00:00+05:30', 'DSP-L')
+    if ('error' in sent) throw new Error(sent.error)
+    expect(rehearse(sent.workspace).impact.overdueOrderIds).toEqual([])
+    expect(rehearse(withLate({ orders: [{ ...late, status: 'cancelled' }] })).impact.overdueOrderIds).toEqual([])
+    expect(rehearse(withLate({ orders: [{ ...late, dueAt: '2026-10-16T17:00:00+05:30' }] })).impact.overdueOrderIds).toEqual([])
   })
 })

@@ -18,7 +18,7 @@ Updated after the movement ledger and transfer lifecycle implementation. Diagram
 ## Found by seeded browser scenarios (2026-10-15, `browser-test-matrix.md`)
 - [x] **Ruled (P05):** customer messages after approving count the booked transfer, worded as expected, not certain (`approvalMessages`); test observed red first.
 - [x] **Ruled (I01):** imported stock counts are always saved as fresh shelf counts, even when the number matches (`buildImport` `recounted`); two `import.test.ts` cases observed red first.
-- [ ] **Needs ruling (O11):** a past-due order with stock is shown as Watch under "No order short"; nothing says its promised date has passed.
+- [x] **Ruled (O11):** an order still owed after its due time is shown as Overdue and counted as needing attention (`overdueOrderIds`); planner test observed red first.
 - [x] **Bug (B01):** restore accepted a backup with an impossible history (a 500-case send on a 12-case order). Fixed 2026-10-15: `parseBackup` refuses sends above the order or for a missing order (`impossibleSend`); two `backup.test.ts` cases observed red first. Browser storage loads (`parseWorkspace`) do not run this check.
 - [x] **Bug (U01):** dialogs did not move focus inside, keep Tab inside, or return focus on close. Fixed 2026-10-15 with `useDialogFocus` on all dialogs; browser keyboard check passes.
 - [ ] **Gap (T08b):** a booking larger than the source's current count after a recount shows "0 free" with no warning; departure is refused only on submit.

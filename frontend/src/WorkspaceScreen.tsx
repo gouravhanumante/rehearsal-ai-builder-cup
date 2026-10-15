@@ -287,7 +287,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
       <div className="app-shell" id="top">
         <Topbar accountEmail={accountEmail} businessName={workspace.businessName} mode={workspace.mode} onAsk={() => setAssistantOpen(true)} onDelete={onDelete} onExport={onExport} onReset={onResetDemo} onRestore={onRestore} onSignOut={onSignOut} onSwitch={onSwitch} onSwitchBusiness={onSwitchBusiness} saveStatus={saveStatus} saveToAccount={saveToAccount} />
         <div className="workspace-layout">
-          <SectionNavigation activeSection={activeSection} affectedOrderCount={rehearsal.impact.affectedOrderIds.length} mode={workspace.mode} onNavigate={setActiveSection} setupRemaining={progress.requiredTotal - progress.requiredDone} showSetup={isReal} />
+          <SectionNavigation activeSection={activeSection} affectedOrderCount={new Set([...rehearsal.impact.affectedOrderIds, ...rehearsal.impact.overdueOrderIds]).size} mode={workspace.mode} onNavigate={setActiveSection} setupRemaining={progress.requiredTotal - progress.requiredDone} showSetup={isReal} />
           <main className="dashboard-shell">
             <section className="page-heading">
               <div>

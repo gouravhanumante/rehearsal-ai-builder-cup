@@ -563,12 +563,15 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
 
   const kindOrder = { transfer: 0, 'ship-from': 1, supplier: 2, 'bulk-transfer': 3 }
   plans.sort((first, second) => kindOrder[first.kind] - kindOrder[second.kind])
+  // `workspace.orders` holds only what is still to be sent, so any order here past its due time is owed late.
+  const overdue = new Set(workspace.orders.filter((order) => Date.parse(order.dueAt) < Date.parse(now)).map((order) => order.id))
   return {
     impact: {
       groups,
       affectedOrderIds: [...affected],
       watchOrderIds: [...watched].filter((id) => !affected.has(id)),
-      unaffectedOrderIds: workspace.orders.filter((order) => !affected.has(order.id) && !watched.has(order.id)).map((order) => order.id),
+      overdueOrderIds: [...overdue],
+      unaffectedOrderIds: workspace.orders.filter((order) => !affected.has(order.id) && !watched.has(order.id) && !overdue.has(order.id)).map((order) => order.id),
       exposedQuantity: groups.reduce((total, group) => total + group.exposedQuantity, 0),
       uncountedGroups: groups.filter((group) => !group.counted).length,
     },

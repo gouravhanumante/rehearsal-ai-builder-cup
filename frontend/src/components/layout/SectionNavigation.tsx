@@ -37,7 +37,7 @@ export function SectionNavigation({ activeSection, affectedOrderCount, showSetup
           <Icon aria-hidden="true" size={17} strokeWidth={1.8} />
           <span>{name}</span>
           {name === 'Setup' && setupRemaining > 0 && <span aria-label={`${setupRemaining} setup steps left`} className="navigation-count navigation-count--soft">{setupRemaining}</span>}
-          {name === 'Orders' && affectedOrderCount > 0 && <span aria-label={`${affectedOrderCount} orders at risk`} className="navigation-count">{affectedOrderCount}</span>}
+          {name === 'Orders' && affectedOrderCount > 0 && <span aria-label={`${affectedOrderCount} orders need attention`} className="navigation-count">{affectedOrderCount}</span>}
         </button>
       ))}
       <div className="navigation-footnote"><span /> {mode === 'demo' ? 'Sample workspace' : 'Your workspace'}</div>

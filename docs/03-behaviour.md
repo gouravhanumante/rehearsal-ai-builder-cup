@@ -193,6 +193,12 @@ Agreed with the user: both paths exist, and the difference is always visible.
   Ask AI all use this; exposed quantities are unchanged. Example: Kaveri has 40 bags on hand and a
   15-bag transfer arriving; Hotel Annapoorna (30) is covered from stock (not at risk), Green Leaf
   (25) relies on the transfer (Watch), and the Orders heading reads "No order short · 1 to watch".
+- **Overdue** (user decision 2026-10-15, `overdueOrderIds` in `rehearse`): an open order still owed after
+  its due time is **Overdue**, even when stock covers it. It shows a red Overdue badge with "Was due Wed,
+  14 Oct, 5:00 pm and is still owed.", is never listed with the fine orders, and counts toward the Orders
+  badge and "deliveries need attention" heading. With no disruption, the Overview says "1 order is overdue:
+  past the due time and still owed." Fully sent or cancelled orders are never overdue; the due date is not
+  rewritten.
 - **Shortages are rehearsed too** (user decision 2026-10-14): a warehouse+product with a Short
   order and no reported delay becomes its own problem (`ImpactGroup.kind: 'shortage'`), shown on
   the Overview as "Not enough stock", with the same options (transfers in, backup suppliers) and

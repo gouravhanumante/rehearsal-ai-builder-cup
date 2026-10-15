@@ -42,13 +42,18 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
     return `Sent so far: ${productIds.map((productId) => `${total(sent, productId)} of ${words.quantity(total(order.lines, productId), productId)}${manyProducts ? ` ${words.productName(productId)}` : ''}`).join(', ')}`
   }
   const manyProducts = workspace.products.length > 1
+  const overdue = new Set(impact.overdueOrderIds)
   const affectedRows = impact.groups.flatMap((group) => group.allocations
-    .filter((allocation) => group.affectedOrderIds.includes(allocation.orderId) || group.watchOrderIds.includes(allocation.orderId))
+    .filter((allocation) => group.affectedOrderIds.includes(allocation.orderId) || group.watchOrderIds.includes(allocation.orderId) || overdue.has(allocation.orderId))
     .map((allocation) => ({ group, allocation })))
+  // Overdue orders with no problem group still need a row among those needing attention.
+  const overdueOnly = workspace.orders.filter((order) => overdue.has(order.id) && !affectedRows.some((item) => item.allocation.orderId === order.id))
   const visibleRows = showAll ? affectedRows : affectedRows.slice(0, 2)
   const unaffected = showAll || noDisruption ? workspace.orders.filter((order) => impact.unaffectedOrderIds.includes(order.id)) : []
-  const affectedCount = impact.affectedOrderIds.length
-  const watchCount = impact.watchOrderIds.length
+  const affectedCount = new Set([...impact.affectedOrderIds, ...impact.overdueOrderIds]).size
+  const watchCount = impact.watchOrderIds.filter((id) => !overdue.has(id)).length
+  const overdueBadge = <StatusBadge tone="danger" dot>Overdue</StatusBadge>
+  const overdueNote = (order: Order) => `Was due ${format.dateTime(order.dueAt)} and is still owed.`
   const coverage = useMemo(() => orderCoverage(workspace), [workspace])
 
   const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode; note?: string; uncounted?: { locationId: string; productId: string }[] }) => (
@@ -115,11 +120,21 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
           return row(`${group.disruptionId}-${group.productId}-${order.id}`, order, {
             quantity,
             covered: words.quantity(allocation.covered, group.productId),
-            badge: atRisk
+            badge: overdue.has(order.id) ? overdueBadge : atRisk
               ? <StatusBadge tone="danger" dot>At risk</StatusBadge>
               : <StatusBadge tone="warning" dot>Watch</StatusBadge>,
-            note: atRisk ? undefined : arrivalConfirmed ? 'Covered only by stock still on its way. If that delivery slips, this order is short.' : 'Stock coverage is estimated, but the customer arrival time is unconfirmed. Set this location’s travel time.',
+            note: overdue.has(order.id) ? `${overdueNote(order)}${atRisk ? ` ${words.quantity(allocation.ordered - allocation.covered, group.productId)} not covered yet.` : ''}` : atRisk ? undefined : arrivalConfirmed ? 'Covered only by stock still on its way. If that delivery slips, this order is short.' : 'Stock coverage is estimated, but the customer arrival time is unconfirmed. Set this location’s travel time.',
             uncounted: group.counted ? [] : [{ locationId: group.locationId, productId: group.productId }],
+          })
+        })}
+        {overdueOnly.map((order) => {
+          const lines = coverage.filter((line) => line.orderId === order.id)
+          return row(`overdue-${order.id}`, order, {
+            quantity: remainingLines(workspace, order).map((line) => words.quantity(line.quantity, line.productId)).join(', '),
+            covered: lines.map((line) => words.quantity(line.covered, line.productId)).join(', ') || '—',
+            badge: overdueBadge,
+            note: overdueNote(order),
+            uncounted: lines.filter((line) => !line.counted).map((line) => ({ locationId: line.locationId, productId: line.productId })),
           })
         })}
       </div>
