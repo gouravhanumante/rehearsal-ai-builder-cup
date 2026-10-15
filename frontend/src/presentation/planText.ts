@@ -38,6 +38,9 @@ export function createWording(workspace: Workspace, format: Format) {
   const orderDeadline = (plan: Plan, singular: boolean) => hasCustomerTravelTime(plan)
     ? singular ? 'dispatch cutoff' : 'dispatch cutoffs'
     : singular ? 'due time' : 'due times'
+  const missedNote = (plan: Plan) => plan.missedPriorityOrderIds?.length
+    ? ` Arrives after ${plan.missedPriorityOrderIds.map((id) => `${customer(id)}'s`).join(' and ')} priority order${plan.missedPriorityOrderIds.length > 1 ? 's are' : ' is'} due, so ${plan.missedPriorityOrderIds.length > 1 ? 'they stay' : 'it stays'} short.`
+    : ''
   /** "Warehouse B (Delhi)" when an area is set: helps the user answer where-can-it-deliver questions. */
   const placeName = (id: string) => {
     const location = workspace.locations.find((item) => item.id === id)
@@ -108,15 +111,17 @@ export function createWording(workspace: Workspace, format: Format) {
     const storageNote = plan.spaceLeft !== null && plan.quantity !== null && plan.quantity === plan.spaceLeft
       ? ` Storage at ${destination} only has room for ${quantity(plan.spaceLeft, plan.productId)}.` : ''
     switch (reason.code) {
-      case 'transfer-ok':
+      case 'transfer-ok': {
+        const which = plan.missedPriorityOrderIds?.length ? 'the later orders\'' : 'the affected orders\''
         return (reason.limit === null
-          ? `${quantity(reason.quantity, plan.productId)} reach ${destination} before the affected orders' ${orderDeadline(plan, false)}.`
-          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day${reason.booked ? ` (${quantity(reason.booked, plan.productId)} already received or booked for that day by transfer)` : ''} and reach the warehouse before the affected orders' ${orderDeadline(plan, false)}.`) + customerTimingNote(plan) + storageNote
+          ? `${quantity(reason.quantity, plan.productId)} reach ${destination} before ${which} ${orderDeadline(plan, false)}.`
+          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day${reason.booked ? ` (${quantity(reason.booked, plan.productId)} already received or booked for that day by transfer)` : ''} and reach the warehouse before ${which} ${orderDeadline(plan, false)}.`) + missedNote(plan) + customerTimingNote(plan) + storageNote
           + (plan.bookBy ? ` Book by ${format.dateTime(plan.bookBy)} to make it.` : '')
+      }
       case 'transfer-none-available': return `${locationName(plan.sourceLocationId ?? '')} has no ${productName(plan.productId)} to spare after its own orders.`
       case 'receiving-full': return `${destination} can receive ${quantity(reason.limit, plan.productId)} per day, and ${quantity(reason.booked, plan.productId)} are already received or booked for that day by transfer. No room for more.`
       case 'transfer-arrival-unknown': return 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
-      case 'transfer-late': return 'Does not reach a short priority order in time, or arrives too late to reduce the shortage.'
+      case 'transfer-late': return 'Arrives too late to reduce the shortage for any affected order.'
       case 'transfer-over-limit': return `${destination} can receive at most ${quantity(reason.limit, plan.productId)} per day${reason.booked ? `, and ${quantity(reason.booked, plan.productId)} are already received or booked for that day by transfer` : ''}. This transfer exceeds capacity by ${quantity(reason.excess, plan.productId)}.`
       case 'supplier-missing': return plan.request
         ? `Ask ${supplierName(plan.supplierId)} for ${quantity(plan.request.quantity, plan.productId)} by ${format.dateTime(plan.request.neededBy)}, then record their reply. Still missing: ${reason.missing.map((field) => missingLabels[field]).join(', ')}.`

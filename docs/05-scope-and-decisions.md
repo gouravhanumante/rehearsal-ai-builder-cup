@@ -3,7 +3,7 @@
 ## Feedback Decisions Approved 2026-10-15
 - Customer messages state the known shortage without inventing its cause; a relevant reported supplier delay may be mentioned (`approvalMessages`).
 - Gemini column matching receives headers only, not spreadsheet row contents (`suggestMapping`, implementation tracked in `Progress.md`).
-- Offer late-but-useful transfers with a warning naming customers still short, rather than ruling them out solely for missing a short priority order (`rehearse`, implementation pending).
+- Offer late-but-useful transfers with a warning naming customers still short, rather than ruling them out solely for missing a short priority order (`rehearse`, `Plan.missedPriorityOrderIds`; built 2026-10-15).
 - Incoming stock stays separate from on-hand, with dated storage projections that move when arrival dates change. Warn on existing overflow and block rescues that worsen it; do not assume unshipped orders have already left (`rehearse`, `InventoryView`, implementation pending).
 - Supplier replies need reconfirmation when demand/delays change or arrival passes; a purchase for unchanged demand does not invalidate the remaining reply (`SupplierOffer`, implementation pending).
 - Partial dispatch is approved: deduct 6 sent and keep 4 outstanding from an order of 10 under the original due date unless edited. Ask once per order whether the customer accepts splits. Correct only a selected dispatch by editing quantities and applying its stock difference, not a global undo (`Order`, implementation pending).

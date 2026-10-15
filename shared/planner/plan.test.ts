@@ -276,8 +276,29 @@ describe('warehouse transfer options', () => {
       routes: [{ ...sampleWorkspace.routes[0], travelHours: hours === null ? { value: null, evidence: null } : { value: hours, evidence } }],
     })
 
-  it('rejects a capacity-valid transfer that arrives after the priority promise: 30 hours is too slow', () => {
+  it('rejects a transfer that arrives too late for every short customer: 30 hours misses them all', () => {
     expect(planIn(withTravel(30), transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
+  })
+
+  // User decision 2026-10-15: a transfer that misses a short priority order but saves a later one is offered, with a warning.
+  const lateButUseful = (): Workspace => ({
+    ...withTravel(30),
+    shipments: [], disruptions: [],
+    orders: [
+      { ...sampleWorkspace.orders[0], lines: [{ productId: 'harbor-blend', quantity: 18 }] }, // Common Ground, priority, Thu 2 pm: 14 on hand, 4 short
+      { ...sampleWorkspace.orders[3], dueAt: '2026-10-17T10:00:00+05:30' }, // Lakeview, Sat 10 am: 10 short
+    ],
+  })
+
+  it('offers a transfer that misses the short priority order but covers a later one, and names who stays short', () => {
+    expect(planIn(lateButUseful(), transferPlan)).toMatchObject({
+      status: 'ready', reason: { code: 'transfer-ok' }, savedQuantity: 8, missedPriorityOrderIds: ['ORD-1082'],
+      outcome: { protectsPriority: false },
+    })
+  })
+
+  it('a transfer that reaches the priority order in time carries no missed-priority warning', () => {
+    expect(planIn(withTravel(3), transferPlan)?.missedPriorityOrderIds).toBeUndefined()
   })
 
   it('says when to book at the latest: a 3-hour route for an order due at 2 pm must be booked by 11 am', () => {

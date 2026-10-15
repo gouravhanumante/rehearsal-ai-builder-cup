@@ -25,6 +25,15 @@ describe('is a fix worth what it costs?', () => {
 })
 
 describe('transfer facts shown to the user', () => {
+  it('warns by name when a useful transfer arrives too late for a short priority order', () => {
+    const workspace: Workspace = {
+      ...sampleWorkspace, shipments: [], disruptions: [],
+      routes: [{ ...sampleWorkspace.routes[0], travelHours: { value: 30, evidence: sampleWorkspace.movements[0].evidence } }],
+      orders: [sampleWorkspace.orders[0], { ...sampleWorkspace.orders[3], dueAt: '2026-10-17T10:00:00+05:30' }],
+    }
+    const plan = rehearse(workspace).plans.find((item) => item.id === 'transfer:south-to-north:harbor-blend')!
+    expect(createWording(workspace, createFormat(workspace.settings)).planText(plan).detail).toMatch(/Arrives after Common Ground Cafe's priority order is due, so it stays short\./)
+  })
   it('labels a manually entered customer travel duration unverified and links to its location', () => {
     const workspace: Workspace = {
       ...sampleWorkspace,

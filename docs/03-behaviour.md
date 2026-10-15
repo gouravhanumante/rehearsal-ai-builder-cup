@@ -89,8 +89,12 @@ Agreed with the user: both paths exist, and the difference is always visible.
   that local day (`rehearse`, `localDay`; receipt movements with `fromLocationId`). A full day rejects another
   transfer; other products use the same capacity. Partial receipts use their actual arrival day;
   the remainder reserves capacity on its expected arrival day. Supplier receipts are recorded but
-  do not use this transfer-only limit. Transfers must reach any still-short priority order in time;
-  an already-covered priority order does not reject a useful later transfer. A route stores **how long a transfer takes**
+  do not use this transfer-only limit. A transfer is ruled out only when it arrives too late to
+  reduce the shortage for anyone. If it misses a short priority order but covers a later one, it is
+  still offered, with a warning naming who stays short ("Arrives after Common Ground Cafe's priority
+  order is due, so it stays short."); its outcome says "including a priority order", so the
+  deliveries-first goal still prefers an option that protects the priority order (`Plan.missedPriorityOrderIds`,
+  user decision 2026-10-15). A route stores **how long a transfer takes**
   (`travelHours`, user decision 2026-10-15); arrival = now + that time (`routeArrival`), so it never
   goes stale. The sample uses a fixed morning (`SAMPLE_NOW`); older saves with a fixed arrival time
   still work until edited. **Cost** (user decision 2026-10-15) = cost per trip + cost per package ×

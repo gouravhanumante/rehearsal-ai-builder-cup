@@ -56,6 +56,8 @@ export type Plan = {
   savedQuantity?: number
   /** Transfers with a known travel time: book by then to arrive before the first short order. */
   bookBy?: string
+  /** Ready transfers that arrive after these short priority orders are due: they stay short. */
+  missedPriorityOrderIds?: string[]
   /** Supplier cost is goods only: they haven't said what delivery costs. */
   costExcludesDelivery?: boolean
 }
@@ -396,7 +398,6 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
           ? [{ type: 'customer-travel' as const, locationId, hours: customerTravel.value }]
           : []),
       ]
-      const earliestPriorityDue = Math.min(...demands.filter((item) => item.order.priority === 'protected' && shortIds.includes(item.order.id)).map((item) => time(item.serveBy)))
       const destinationLimit = locationById.get(locationId)?.receivingLimitPerDay ?? null
       // Room is measured against today's count; stock leaving for orders before arrival is not credited.
       const cap = storageCap(workspace, locationId, productId)
@@ -449,7 +450,10 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
           plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'conditional', reason: { code: 'transfer-arrival-unknown' }, quantity, cost: costFor(quantity), outcome: null, unverified: [] })
         } else {
           const result = outcome([{ at: arrivalAt, quantity }])
-          const late = time(arrivalAt) > earliestPriorityDue || result.exposedQuantity >= baseline.exposedQuantity
+          const late = result.exposedQuantity >= baseline.exposedQuantity
+          const missedPriorityOrderIds = demands
+            .filter((item) => item.order.priority === 'protected' && shortIds.includes(item.order.id) && time(item.serveBy) < time(arrivalAt))
+            .map((item) => item.order.id)
           const hours = route.travelHours?.value ?? null
           const helpedIds = new Set(result.allocations.filter((item) => item.covered > (baseline.allocations.find((before) => before.orderId === item.orderId)?.covered ?? 0)).map((item) => item.orderId))
           const deadline = Math.min(...demands.filter((item) => helpedIds.has(item.order.id)).map((item) => time(item.serveBy)))
@@ -462,6 +466,7 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
             unverified: late ? [] : unverified,
             ...(late ? {} : { savedQuantity: baseline.exposedQuantity - result.exposedQuantity }),
             ...(!late && hours !== null && Number.isFinite(deadline) ? { bookBy: new Date(deadline - hours * 3_600_000).toISOString() } : {}),
+            ...(!late && missedPriorityOrderIds.length ? { missedPriorityOrderIds } : {}),
           })
         }
         // Only worth showing when moving all that is needed would break the receiving limit.
