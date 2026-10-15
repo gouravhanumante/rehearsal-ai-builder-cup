@@ -406,6 +406,10 @@ Two separate choices:
   menu has **Switch business** (back to the list), **Download backup**, **Restore from backup** (signed in: added
   as a new business; guest: replaces the guest business), **Delete this business** (asks first; removes only that
   one) and **Sign out**.
+- Restore refuses a backup whose history the app could never have recorded: goods sent for an order that is not in
+  the file, or more sent for an order than it asks for. The message names the order, e.g. "The backup says 504 cases
+  of Harbor Blend Coffee were sent for ORD-1086, but that order is for 12. It was not restored." Nothing is changed.
+  This catches cases a later stock count would hide (`impossibleSend` in `shared/planner/ledger.ts`, `parseBackup`).
 - With no disruption reported, the Overview says "No disruption right now" and what is being watched, instead of
   showing a recommendation. Orders, Inventory, Suppliers and Rehearsals each have an empty state with the next action.
 - Reset exists only for the sample; it never touches a Real workspace.

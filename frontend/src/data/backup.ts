@@ -1,5 +1,7 @@
 import type { Workspace } from '../../../shared/planner/model'
+import { impossibleSend } from '../../../shared/planner/ledger'
 import { parseWorkspace } from '../../../shared/planner/validate'
+import { pluralUnit } from '../presentation/format'
 
 const BACKUP_APP = 'rehearsal-backup'
 
@@ -20,6 +22,13 @@ export function parseBackup(text: string): { workspace: Workspace } | { error: s
   if (!candidate || candidate.app !== BACKUP_APP) return { error: 'That file is not a Rehearsal backup.' }
   const workspace = parseWorkspace(candidate.workspace)
   if (!workspace) return { error: 'The backup is damaged or from an incompatible version, so it was not restored.' }
+  const impossible = impossibleSend(workspace)
+  if (impossible?.kind === 'no-order') return { error: `The backup records goods sent for ${impossible.orderId}, but that order is not in it. It was not restored.` }
+  if (impossible) {
+    const product = workspace.products.find((item) => item.id === impossible.productId)
+    const unit = product?.unit ?? 'unit'
+    return { error: `The backup says ${impossible.sent} ${pluralUnit(unit, impossible.sent)} of ${product?.name ?? impossible.productId} were sent for ${impossible.orderId}, but that order is for ${impossible.ordered}. It was not restored.` }
+  }
   // A restored backup always becomes the user's own workspace, never the shared sample.
   return { workspace: { ...workspace, mode: 'real', approval: workspace.approval } }
 }

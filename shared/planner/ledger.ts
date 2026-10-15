@@ -112,6 +112,21 @@ export function sentLines(workspace: Workspace, orderId: string): OrderLine[] {
   return sentByOrder(workspace.movements).get(orderId) ?? []
 }
 
+export type ImpossibleSend =
+  | { kind: 'no-order'; orderId: string }
+  | { kind: 'over-order'; orderId: string; productId: string; sent: number; ordered: number }
+
+/** A send the app could never have recorded: for a missing order, or more than the order asked for. */
+export function impossibleSend(workspace: Workspace): ImpossibleSend | null {
+  for (const [orderId, sent] of sentByOrder(workspace.movements)) {
+    const order = workspace.orders.find((item) => item.id === orderId)
+    if (!order) return { kind: 'no-order', orderId }
+    const over = sent.find((line) => line.quantity > sum(order.lines, line.productId))
+    if (over) return { kind: 'over-order', orderId, productId: over.productId, sent: over.quantity, ordered: sum(order.lines, over.productId) }
+  }
+  return null
+}
+
 /** What is still to be sent, per product. A cancelled order has nothing left to send. */
 export function remainingLines(workspace: Workspace, order: Order): OrderLine[] {
   if (order.status === 'cancelled') return []
