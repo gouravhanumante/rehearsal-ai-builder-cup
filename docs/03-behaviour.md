@@ -451,7 +451,10 @@ Two separate choices:
   - A bad row is left out and listed with its row number; an unreadable count is never turned into zero, so that
     stock stays unknown. Rows with the same reference are lines of one order or shipment; if any row of it is bad,
     the whole order or shipment is left out so demand or supply is never understated.
-  - Importing the same file twice changes nothing the second time. Imported values are marked "Imported from file"
+  - Importing the same orders or shipments file twice changes nothing the second time. A stock count is different
+    (user decision 2026-10-15): every imported row is a fresh shelf count, even when the number matches current
+    stock, so a later correction to an earlier send is not added twice. The preview lists these as "recounted, same
+    number"; stock numbers do not change (`buildImport` `recounted`). Imported values are marked "Imported from file"
     and count as verified.
   - Dates follow the country's order (day first for India, month first for the US, changeable); a date with no time
     means the end of that day. An Excel time is read to the nearest minute, because Excel stores 10:00 as a fraction

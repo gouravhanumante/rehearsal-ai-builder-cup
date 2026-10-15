@@ -5,7 +5,7 @@ import { parseCsv } from './csv'
 import { autoMatch } from './match'
 import { toTable } from './table'
 import { sampleWorkspace, SAMPLE_NOW } from '../../../shared/planner/sample'
-import { sendOrder } from '../../../shared/planner/ledger'
+import { correctMovement, sendOrder } from '../../../shared/planner/ledger'
 
 const blank = () => createBlankWorkspace('Priya Traders', 'IN')
 const csv = (text: string, name = 'file.csv') => toTable(name, parseCsv(text.trim()))
@@ -67,13 +67,25 @@ describe('importing stock counts', () => {
     expect(result.added).toBe(3)
   })
 
-  it('importing the same file twice changes nothing the second time', () => {
+  it('importing the same counts again records them as fresh shelf counts without changing stock (user decision 2026-10-15)', () => {
     const first = run('stock', file)
     const second = run('stock', file, first.workspace)
-    expect(second.unchanged).toBe(3)
+    expect(second.recounted).toBe(3)
     expect(second.added + second.updated).toBe(0)
-    expect(second.workspace.stock).toHaveLength(3)
+    expect(second.workspace.movements.filter((movement) => movement.kind === 'count')).toHaveLength(6)
+    expect(second.workspace.stock.map((record) => record.available.value)).toEqual(first.workspace.stock.map((record) => record.available.value))
     expect(second.workspace.products).toHaveLength(2)
+  })
+
+  it('a same-number count from a file means a later fix to an earlier send does not add stock twice', () => {
+    // North Hub counted 14, sent 4 (shows 10). A shelf count file then says 10; the send is corrected to 3.
+    const order = sampleWorkspace.orders.find((item) => item.id === 'ORD-1086')!
+    const sent = sendOrder({ ...sampleWorkspace, orders: sampleWorkspace.orders.map((item) => item.id === order.id ? { ...item, splitAllowed: true } : item) }, order.id, [{ productId: 'harbor-blend', quantity: 4 }], SAMPLE_NOW, 'DSP-I01')
+    if ('error' in sent) throw new Error(sent.error)
+    const imported = run('stock', 'Location,Product,Qty\nNorth Hub,Harbor Blend Coffee,10', sent.workspace)
+    const fixed = correctMovement(imported.workspace, 'DSP-I01:harbor-blend', 3, new Date().toISOString())
+    if ('error' in fixed) throw new Error(fixed.error)
+    expect(fixed.workspace.stock.find((record) => record.locationId === 'north')?.available.value).toBe(10)
   })
 
   it('updates a count that changed, without duplicating it', () => {

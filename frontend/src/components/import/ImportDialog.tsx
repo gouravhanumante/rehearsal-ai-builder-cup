@@ -36,7 +36,7 @@ export function ImportDialog({ kind, onApply, onClose }: ImportDialogProps) {
   const result = useMemo(() => (step === 'review' && table ? buildImport(workspace, kind, table, mapping, { dateOrder }) : null), [step, table, workspace, kind, mapping, dateOrder])
   const missing = table ? missingRequired(kind, mapping) : []
   const hasDates = definition.fields.some((field) => field.type === 'date')
-  const changes = result ? result.added + result.updated : 0
+  const changes = result ? result.added + result.updated + result.recounted : 0
 
   const chooseFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -133,7 +133,9 @@ export function ImportDialog({ kind, onApply, onClose }: ImportDialogProps) {
           <div className="import-counts">
             <span><strong>{format.number(result.added)}</strong> new</span>
             <span><strong>{format.number(result.updated)}</strong> changed</span>
-            <span><strong>{format.number(result.unchanged)}</strong> already the same</span>
+            {kind === 'stock'
+              ? <span><strong>{format.number(result.recounted)}</strong> recounted, same number</span>
+              : <span><strong>{format.number(result.unchanged)}</strong> already the same</span>}
             <span className={result.problems.length > 0 ? 'has-problems' : ''}><strong>{format.number(result.problems.length)}</strong> to fix</span>
           </div>
           {(result.newLocations.length > 0 || result.newProducts.length > 0) && <div className="editor-impact">
@@ -155,7 +157,7 @@ export function ImportDialog({ kind, onApply, onClose }: ImportDialogProps) {
         <footer className="editor-footer">
           {step === 'file' && <Button onClick={onClose} variant="quiet">Cancel</Button>}
           {step === 'columns' && <><Button icon={<ArrowLeft size={15} />} onClick={() => { setStep('file'); setError(null) }} variant="quiet">Back</Button><Button disabled={missing.length > 0 || busy !== null} icon={<ArrowRight size={15} />} onClick={() => setStep('review')} variant="primary">Check the import</Button></>}
-          {step === 'review' && result && <><Button icon={<ArrowLeft size={15} />} onClick={() => setStep('columns')} variant="quiet">Back</Button><Button disabled={changes === 0 || result.blocked !== null} onClick={() => onApply(result.workspace, `${definition.label} imported from ${table?.fileName ?? 'a file'}: ${result.added} added, ${result.updated} updated${result.problems.length ? `, ${result.problems.length} rows left out` : ''}`.slice(0, 400))} variant="primary">{changes === 0 ? 'Nothing to save' : `Save ${format.number(changes)} ${changes === 1 ? 'row' : 'rows'}`}</Button></>}
+          {step === 'review' && result && <><Button icon={<ArrowLeft size={15} />} onClick={() => setStep('columns')} variant="quiet">Back</Button><Button disabled={changes === 0 || result.blocked !== null} onClick={() => onApply(result.workspace, `${definition.label} imported from ${table?.fileName ?? 'a file'}: ${result.added} added, ${result.updated} updated${result.recounted ? `, ${result.recounted} recounted` : ''}${result.problems.length ? `, ${result.problems.length} rows left out` : ''}`.slice(0, 400))} variant="primary">{changes === 0 ? 'Nothing to save' : `Save ${format.number(changes)} ${changes === 1 ? 'row' : 'rows'}`}</Button></>}
         </footer>
       </aside>
     </div>

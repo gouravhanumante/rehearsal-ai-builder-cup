@@ -13,6 +13,8 @@ export type ImportResult = {
   added: number
   updated: number
   unchanged: number
+  /** Stock rows equal to current stock, recorded again as fresh shelf counts. */
+  recounted: number
   newProducts: string[]
   newLocations: string[]
   problems: RowProblem[]
@@ -136,7 +138,7 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
   })
 
   const next: Workspace = { ...workspace }
-  let added = 0, updated = 0, unchanged = 0
+  let added = 0, updated = 0, unchanged = 0, recounted = 0
   const usedProducts = new Set<string>()
   const usedLocations = new Set<string>()
   const markUsed = (product: Product, location: Location) => { usedProducts.add(product.id); usedLocations.add(location.id) }
@@ -153,9 +155,11 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
       seen.add(key)
       markUsed(product, location)
       const existing = byKey.get(key)
-      if (existing?.available.value === values.quantity) { unchanged += 1; continue }
       counts.push({ id: newId('CNT'), kind: 'count', locationId: location.id, productId: product.id, quantity: values.quantity as number, at: evidence.recordedAt, evidence })
-      if (existing) updated += 1; else added += 1
+      // A matching number is still a new shelf count, so later send corrections are not added twice (user decision 2026-10-15).
+      if (existing?.available.value === values.quantity) recounted += 1
+      else if (existing) updated += 1
+      else added += 1
     }
     const counted = record(next, counts)
     if (!('error' in counted)) Object.assign(next, { movements: counted.workspace.movements, stock: counted.workspace.stock })
@@ -239,5 +243,5 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
 
   const tooBig = (['products', 'locations', 'stock', 'orders', 'shipments'] as const).find((list) => next[list].length > LIMITS[list])
   const blocked = tooBig ? `This would take you past the limit of ${LIMITS[tooBig].toLocaleString('en')} ${tooBig}.` : null
-  return { workspace: blocked ? workspace : next, added, updated, unchanged, newProducts: newProducts.map((p) => p.name), newLocations: newLocations.map((l) => l.name), problems, notes, blocked }
+  return { workspace: blocked ? workspace : next, added, updated, unchanged, recounted, newProducts: newProducts.map((p) => p.name), newLocations: newLocations.map((l) => l.name), problems, notes, blocked }
 }
