@@ -14,6 +14,7 @@
 - [x] **Ask AI repeated that wrong count**: it now gets short and watch orders labelled as such.
 - [ ] **Book-by uses the priority order even when it is already covered.** Kaveri: Hotel Annapoorna (priority, due Sat 10 am) is covered from stock; the shortage is Green Leaf's (due Sun noon). The transfer said "Book by Sat 5 am", a day earlier than needed.
 - [ ] Small: the route review shows "How long it takes 5" with no unit (hours). Ask AI does not send on Enter, only with the Send button.
+- [ ] **Receiving limit ignores transfers already approved (needs a ruling, found 2026-10-15).** Sample: North Hub can receive 8 a day. After approving 8 cases from South Hub (arriving Thu noon), Recovery options offers "Move 6 more", also arriving Thu noon: 14 in one day. The test "approving the same transfer twice is not offered: South can now spare only 6" (`apply.test.ts`) expects that 6 to be offered. Proposal: count deliveries already arriving that day against the limit, so the second transfer waits for the next day or is ruled out.
 - [x] Inventory row for a missing count now says "Not counted · counts as 0", matching the planner (`InventoryView.tsx`, 2026-10-15).
 - [x] `03-behaviour.md` now says a record-changing approval clears the approval mark, as the code does (`WorkspaceScreen.tsx`, 2026-10-15).
 
