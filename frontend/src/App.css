@@ -1010,6 +1010,9 @@
 .start-form .ds-button { margin-top: 6px; }
 .start-restore { display: inline-flex; align-items: center; gap: 7px; margin-top: 22px; color: var(--green); font-size: 12px; font-weight: 700; cursor: pointer; }
 .start-restore:focus-within { outline: var(--focus-ring); outline-offset: 3px; }
+.start-account { margin-top: 12px; color: var(--muted, #5b6b66); font-size: 12px; }
+.link-button { padding: 0; border: 0; background: none; color: var(--green); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.link-button:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Workspace menu */

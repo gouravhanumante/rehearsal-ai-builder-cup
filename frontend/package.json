@@ -8,9 +8,11 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:rules": "cd .. && npx firebase-tools emulators:exec --only firestore --project rehearsal-rules-test \"cd frontend && vitest run -c vitest.rules.config.ts\""
   },
   "dependencies": {
+    "firebase": "^13.0.0",
     "lucide-react": "^1.56.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -18,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
@@ -30,5 +33,8 @@
     "typescript-eslint": "^8.69.0",
     "vite": "^8.3.0",
     "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.6"
   }
 }

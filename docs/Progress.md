@@ -4,7 +4,7 @@
 - Project status: sample and own-business workspaces, shared planner, Gemini document reading / column matching / Ask AI, and approvals that record the plan are implemented
 - Theme direction: Retail & Commerce
 - Demo hero: Distributor
-- Architecture: React + Vite on Firebase Hosting, Node API on Cloud Run (project rehearsal-ai-builder-cup-2026), Gemini via AI Studio key; Firestore not used
+- Architecture: React + Vite on Firebase Hosting, Node API on Cloud Run (project rehearsal-ai-builder-cup-2026), Gemini via AI Studio key; own business saved per Google account in Firestore
 - Deployed: yes, but the work after 2026-10-14 (costs, worth-it, book-by, supplier asks) is not redeployed yet
 - Submission date: 2026-10-18
 
@@ -70,9 +70,11 @@
 ## Pending
 - mark an approved delivery as received (see `TODO.md`)
 - redeploy backend and frontend with the 2026-10-15 work
-- decide on the Firestore open risk (`TODO.md`)
+- turn on Google sign-in in the Firebase console (Authentication → Sign-in method → Google); until then sign-in shows "Google sign-in is not switched on"
+- deploy the frontend with sign-in and Firestore
+- Mark received + History, then messages after approval, then pick a goal (`05-scope-and-decisions.md`)
 - review provisional distributor sample quantities, dates, and estimated costs together
 - deck, demo video, demo script, and submission assets
 
 ## Current working assumption
-Demo remains the sample distributor workflow. Real mode is a separate browser-local workspace; users explicitly submit questions/documents to Gemini, check its proposed values, review the calculated effect, then save. Approving a plan changes the workspace only; no external action is sent.
+Demo remains the sample distributor workflow, no sign-up, kept in the browser. Real mode needs Google sign-in and is saved to the user's account in Firestore; users explicitly submit questions/documents to Gemini, check its proposed values, review the calculated effect, then save. Approving a plan changes the workspace only; no external action is sent.

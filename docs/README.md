@@ -16,7 +16,7 @@ real constraints, and carries the approved response into action.
 |---|---|
 | Idea | Agreed |
 | Product behaviour | Agreed in discussion, written in docs |
-| Tech stack | React + Vite on Firebase Hosting, Node API on Cloud Run, Gemini via AI Studio key; Firestore not used |
+| Tech stack | React + Vite on Firebase Hosting, Node API on Cloud Run, Gemini via AI Studio key, Firestore + Google sign-in for own business |
 | Hackathon theme (one only) | **OPEN** (working direction: Retail & Commerce) |
 | Code | Sample and own-business workspaces, shared planner, import, Gemini reading and Ask AI, approvals that record the plan |
 | Deployment | Live at rehearsal-ai-builder-cup-2026.web.app; 2026-10-15 work not redeployed. Deploy by running the two workflows in GitHub Actions |
@@ -59,7 +59,7 @@ AIBuilder2026/
 - Gemini proposes; code checks. Numbers (quantities, dates, money) are never trusted from
   the model without being recomputed by code.
 - Nothing changes business data without the user confirming it.
-- Demo and Real are separate workspaces. Real records stay in this browser in V1; no sign-in or cross-device sync until V2.
+- Demo and Real are separate workspaces. The sample needs no sign-up and stays in the browser; your own business needs Google sign-in and is saved to your account in Firestore (decision 2026-10-15).
 - Receipt extraction and applying its calculated effect are separate confirmations.
 - Do not claim the idea is novel; prior-art check has not been done.
 - Use no employer-owned code, data, or internal tools.

@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Download, EllipsisVertical, RotateCcw, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Download, EllipsisVertical, LogOut, RotateCcw, Sparkles, Trash2, Upload } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 
 type TopbarProps = {
+  accountEmail: string | null
   businessName: string
   mode: 'demo' | 'real'
   saveStatus: string | null
   onAsk: () => void
   onReset: () => void
+  onSignOut: () => void
   onSwitch: () => void
   onExport: () => void
   onRestore: (file: File) => void
   onDelete: () => void
 }
 
-export function Topbar({ businessName, mode, saveStatus, onAsk, onReset, onSwitch, onExport, onRestore, onDelete }: TopbarProps) {
+export function Topbar({ accountEmail, businessName, mode, saveStatus, onAsk, onReset, onSignOut, onSwitch, onExport, onRestore, onDelete }: TopbarProps) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -56,6 +58,7 @@ export function Topbar({ businessName, mode, saveStatus, onAsk, onReset, onSwitc
               <button onClick={() => { setOpen(false); fileRef.current?.click() }} role="menuitem" type="button"><Upload size={14} /> Restore from backup</button>
               <button className="is-danger" onClick={choose(onDelete)} role="menuitem" type="button"><Trash2 size={14} /> Delete this workspace</button>
             </>}
+            {accountEmail && <button onClick={choose(onSignOut)} role="menuitem" title={accountEmail} type="button"><LogOut size={14} /> Sign out</button>}
             {mode === 'demo' && <button onClick={() => { setOpen(false); fileRef.current?.click() }} role="menuitem" type="button"><Upload size={14} /> Restore my business from backup</button>}
           </div>}
           <input accept="application/json,.json" className="visually-hidden" onChange={picked} ref={fileRef} tabIndex={-1} type="file" />

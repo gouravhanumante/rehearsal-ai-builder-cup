@@ -68,7 +68,7 @@ flowchart LR
 Open the link, click **Try the sample**. Click around: **Overview**, **Orders**, **Inventory**, **Between locations**, **Suppliers**, **Rehearsals** (the options). Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. Approve the transfer and watch South Hub's stock go down and the transfer appear under incoming deliveries. **Reset** puts the sample back.
 
 ### Option 2: your own business, from a blank page
-Click **Set up my business**, give it a name and a country (this sets currency, number format and timezone). Then the **Setup** tab walks you through it, in any order:
+Click **Sign in with Google**, then **Set up my business**, give it a name and a country (this sets currency, number format and timezone). It is saved to your account, so it opens on any device. Then the **Setup** tab walks you through it, in any order:
 
 1. **Locations**: warehouses, stores, distribution centres.
 2. **Products**: what you sell.
@@ -97,7 +97,7 @@ Don't want to invent a business? Four independent scenarios are in the [`test-da
 
 ## Worked example: Priya's drinks business (scenario 1)
 
-1. **Set up.** Priya clicks *Set up my business*, types "Priya Beverages", picks India (₹, day/month dates).
+1. **Set up.** Priya signs in with Google, clicks *Set up my business*, types "Priya Beverages", picks India (₹, day/month dates).
 2. **Import.** She imports `1-stock.xlsx`, `2-orders.xlsx` and `3-shipments.xlsx`. Five locations, four products, 16 stock counts, six orders and four shipments appear. Every imported value is labelled **Imported from file**.
 3. **Nothing is wrong yet.** The Overview says **"No disruption right now"** and "You're watching 6 open orders".
 4. **The WhatsApp message arrives.** She clicks **Report a delay**, picks shipment SH-7001 (Mango Juice 1L, 120 cases) and uploads the screenshot `delay-message-alphonso-agro.png`. Gemini reads **22 Oct 2026, 5:00 pm** and shows the quote it found. She confirms.
@@ -128,10 +128,10 @@ Rules worth knowing:
 
 ## Where your data lives
 
-- **Your own workspace** is saved **in your browser on this device** (IndexedDB). It survives a refresh. It does **not** sync between devices and there is **no sign-in** in this version.
-- Use the **⋮ menu**: **Download backup**, **Restore from backup**, **Delete this workspace**. The backup is a single file you can move to another device. Browsers can clear storage, so a backup is your safety net.
-- The **sample** is a separate demo and is saved separately. **Reset** only touches the sample.
-- Rehearsal's server stores nothing. When you use Ask AI, read a document or use **Ask Gemini** for columns, only what you submit is sent to Gemini to be processed.
+- **Your own business** needs **Google sign-in** and is saved to **your account in Firestore**, so it opens on any device. Only you can read or change it (enforced by `firestore.rules`). If an older version saved a business in this browser, after signing in you can **Move it to your account** in one click.
+- Use the **⋮ menu**: **Download backup**, **Restore from backup**, **Delete this workspace**, **Sign out**.
+- The **sample** needs no sign-up and is saved only in this browser. **Reset** only touches the sample.
+- Rehearsal's API stores nothing. When you use Ask AI, read a document or use **Ask Gemini** for columns, only what you submit is sent to Gemini to be processed.
 - The free Gemini tier lets Google use submitted content. **Use test data only** until a paid tier or Vertex AI is configured.
 
 ---
@@ -152,8 +152,7 @@ Rules worth knowing:
 
 **Not built yet (known gaps)**
 - **Marking a delivery received.** When an approved transfer or purchase arrives, you must recount the stock and remove the delivery by hand, or it counts twice. There is no way to remove a delivery on screen yet.
-- **Sign-in and cloud save.** Data is per device. Groundwork is parked on the `cloud-save-wip` branch.
-- **Firestore is not used yet.** Firebase is used for Hosting only.
+- No history of decisions yet; no ready-to-send messages after approval; no choice of goal (options are always ranked to protect deliveries first).
 - Voice input. Undo. Several products on one order when typing it by hand (import supports it). Deleting shipments, orders, locations or products. Search and paging outside Inventory.
 
 The full list is in [`docs/TODO.md`](docs/TODO.md).
@@ -167,6 +166,8 @@ The full list is in [`docs/TODO.md`](docs/TODO.md).
 | **Gemini** (`gemini-3.5-flash-lite`) | Reads receipts and messages (photos and PDFs), suggests spreadsheet column matches, answers Ask AI questions. Never decides whether an option is possible. Supplier messages are written by code, not Gemini. |
 | **Cloud Run** | Runs the API. Holds the Gemini key (as a secret), re-checks a plan on the server before an approval is recorded, and rate-limits requests (`backend/src/app.ts`). |
 | **Firebase Hosting** | Serves the web app and forwards `/api` calls to Cloud Run. |
+| **Firebase Authentication** | Google sign-in for your own business. |
+| **Firestore** | Saves each signed-in user's business; security rules let only the owner read or change it. |
 
 ---
 
@@ -208,7 +209,8 @@ frontend/           React + Vite web app.
   src/components/     Screens: start, setup, operations, planning, editing, import, assistant.
   src/presentation/   Wording and formatting: option labels, supplier messages, Setup steps.
   src/import/         Reads csv/xlsx, matches columns, builds the import preview.
-  src/data/           Browser storage (sample in localStorage, own workspace in IndexedDB), backup and restore.
+  src/cloud/          Google sign-in and saving your own business to Firestore.
+  src/data/           Sample in localStorage, backup and restore, moving an old browser save to your account.
 backend/            Node + Express API: Ask AI, document reading, column matching, plan re-check.
 test-data/          Four ready-made scenarios with spreadsheets and receipts.
 docs/               Product, behaviour rules, architecture, decisions, bug map, backlog.

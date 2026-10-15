@@ -108,19 +108,25 @@ All `[test]` boxes here are in `shared/planner/plan.test.ts`, except `worth` (`f
 ## 5. Saving and Reset
 ```mermaid
 flowchart LR
-  s["Confirm and save"] --> ls[("Browser storage")]
-  ls --> bad["Unreadable data: sample loaded and user told [proven]"]
-  ls --> ok["Good saved data restored [test]"]
-  v1["First-version saves moved to new format [test]"]
-  tabs["Other open tabs pick up the change [manual]"]
+  s["Confirm and save (own business)"] --> sp["Split into documents under 1 MiB, rejoined exactly, order kept [test]"]
+  sp --> dmg["Damaged or tampered pieces refused, not loaded [test]"]
+  sp --> only["Only changed pieces written; removed ones deleted so they don't come back [test]"]
+  sp --> fs[("Firestore, per account")]
+  fs --> own["Another signed-in person can't read or change it [proven]"]
+  fs --> anon["Signed-out visitor, stray documents, extra fields, oversized bodies refused [test]"]
+  fs --> two["Saved first on another device: newer version shown, not overwritten [manual]"]
+  mv["Move browser save to account [manual]"]
+  d["Sample: browser storage"] --> bad["Unreadable data: sample loaded and user told [proven]"]
+  d --> v1["First-version saves moved to new format [test]"]
   rs["Reset"] --> seed["Sample data back [manual]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
   classDef manual fill:#FFECBD,stroke:#E8A302
-  class bad proven
-  class ok,v1 test
-  class tabs,seed manual
+  class own,bad proven
+  class sp,dmg,only,anon,v1 test
+  class two,mv,seed manual
 ```
+Splitting is `frontend/src/cloud/chunks.test.ts`. The rules boxes are `frontend/rules-tests/firestore.rules.test.ts` (`npm run test:rules`, needs Java 21+). `own` was seen failing on 2026-10-15 when the read rule was loosened to "any signed-in person". `two` and `mv` are **not checked yet**: they can only be tried once Google sign-in is turned on in the Firebase console.
 
 ## 6. Ask AI
 ```mermaid

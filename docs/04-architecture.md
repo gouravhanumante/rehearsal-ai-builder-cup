@@ -1,6 +1,6 @@
 # 04 — Architecture (V1 direction confirmed 2026-10-14; checked against code 2026-10-15)
 
-Built today: Firebase Hosting serving the frontend and rewriting `/api` to Cloud Run (`firebase.json`); the API image built by `cloudbuild.yaml`; Real workspaces stored in the browser (`frontend/src/data/realStore.ts`). Not built: Firestore (no dependency or call anywhere), Firebase Authentication, voice input, Gemini function calling, an audit log or undo.
+Built today: Firebase Hosting serving the frontend and rewriting `/api` to Cloud Run (`firebase.json`); the API image built by `cloudbuild.yaml`; Firebase Authentication (Google) and Firestore holding each user's own workspace (`frontend/src/cloud/`). Not built: voice input, Gemini function calling, an audit log or undo.
 
 ## Guiding principle
 **Gemini proposes; code checks.** The model interprets messy input and explains results.
@@ -37,8 +37,8 @@ The document endpoint `POST /api/documents/extract` (`backend/src/documents.ts`)
 |---|---|
 | **Gemini** | Reading documents, column matching, Ask AI answers |
 | **Cloud Run** | API; holds the Gemini key server-side; re-checks a plan before approval |
-| **Firestore** | Not used yet (open risk in `TODO.md`) |
-| **Firebase** | Hosting (frontend, `/api` rewrite to Cloud Run); Authentication and synced workspaces deferred to V2 |
+| **Firestore** | Each signed-in user's own workspace (`users/{uid}/workspace/...`) |
+| **Firebase** | Hosting (frontend, `/api` rewrite to Cloud Run); Authentication with Google sign-in |
 
 ## V1 stack
 - **Frontend:** React web app, mobile-friendly, on Firebase Hosting. Browser camera and
@@ -48,7 +48,7 @@ The document endpoint `POST /api/documents/extract` (`backend/src/documents.ts`)
 - **Gemini provider:** Google AI Studio API key, held only by the backend as `GEMINI_API_KEY`; never exposed in browser code.
 - **Ask AI model:** Gemini 3.5 Flash-Lite with low thinking, a bounded output size, and a 15-second request timeout for interactive latency. Model selection stays configurable through `GEMINI_MODEL`.
 - **Demo data:** the sample workspace (`shared/planner/sample.ts`) is kept in the browser's localStorage under `rehearsal.demo.v2` (`frontend/src/data/demoStore.ts`); **Reset** restores it.
-- **Real data:** today a Real workspace is stored in the browser (IndexedDB, `frontend/src/data/realStore.ts`) with a downloadable backup (`data/backup.ts`); Gemini receives only the explicitly submitted question/context or scan for processing. Rehearsal's backend stores nothing. Cloud save and sign-in are deliberately out of V1 (data is per device; use Download backup to move it), see `TODO.md`. Firestore is not used yet; see the open risk in `TODO.md`.
+- **Real data:** saved per Google account in Firestore (database `(default)`, `asia-south1`), directly from the browser with the Firebase web SDK (`frontend/src/cloud/cloudStore.ts`); the API is not involved. The workspace JSON is split into a `core` document plus pieces of each long list (`products-0`, `orders-1`, ...) under Firestore's 1 MiB document limit (`frontend/src/cloud/chunks.ts`); only changed pieces are rewritten. A `revision` number in `core`, checked in a transaction, stops one device from overwriting a newer save from another. `firestore.rules` lets a signed-in user read and write only `users/{their uid}/workspace/{core or list-N}`, with exact fields and size limits; everything else is denied. The browser loads the Firebase code only for a signed-in workspace (separate `cloudStore` bundle), so the sample does not. A business saved in IndexedDB by the earlier version is read once to offer **Move to my account**, then cleared (`frontend/src/data/realStore.ts`). Gemini receives only what the user explicitly submits; the API stores nothing.
 - **Column matching:** `POST /api/imports/map` (`backend/src/importMapping.ts`) sends Gemini column names (and optionally a few sample rows) and returns only fields of the chosen import kind and column numbers that exist, each used once. The file itself is parsed in the browser and never uploaded.
 - **Plan re-check at scale:** `POST /api/plans/check` receives only the slice of the workspace one plan reads (`shared/planner/slice.ts`), so a large business sends a small request; a test proves the slice gives the same answer as the whole workspace.
 - **Development proxy:** Vite forwards `/api` to the local Node API on port 8080. In production Firebase Hosting rewrites `/api/**` to the Cloud Run service (`firebase.json`).
@@ -70,7 +70,7 @@ sent / confirmed) · Audit log (for undo and history).
 
 ## Security and cost (public demo link)
 - Gemini API credentials only on the backend, never in the browser.
-- V1 Real workspace facts and uploaded evidence remain browser-local; Rehearsal does not persist them on the backend.
+- Real workspace facts are stored only under the owner's account in Firestore and protected by `firestore.rules` (tested against the emulator: `npm run test:rules` in `frontend/`); the API persists nothing. Uploaded documents are not stored anywhere.
 - Demo uses synthetic data only and can be reset. Nothing is stored in Firestore today.
 - Firebase Authentication and Firestore rules for private synced workspaces are required before Real data is ever persisted to Firestore; this is V2, not a V1 shortcut.
 - Rate limits and a spending cap so a public link cannot burn the Gemini budget.

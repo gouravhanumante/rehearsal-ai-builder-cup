@@ -11,3 +11,5 @@ dist/
 *.pem
 *.key
 *service-account*.json
+firestore-debug.log
+ui-debug.log

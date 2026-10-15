@@ -33,11 +33,11 @@ Out (later):
 | First version prepares external actions, does not send them | 2026-10-13 |
 | No AI training/fine-tuning; prompting + structured output + function calling | 2026-10-13 |
 | TypeScript/Node backend; AI Studio API key held server-side | 2026-10-14 |
-| Demo and Real are separate workspaces; Real is browser-local in V1, sign-in/sync in V2 | 2026-10-14 |
+| Demo and Real are separate workspaces; Real is browser-local in V1, sign-in/sync in V2 (superseded 2026-10-15) | 2026-10-14 |
 | Real-mode stock counts require attached evidence; extraction and applying changes are separately confirmed | 2026-10-14 |
 | Real-mode questions/selected evidence may be sent to Gemini for processing; Rehearsal does not persist those requests/files | 2026-10-14 |
 | Docs first, then code. Folder: /Users/gourav.hanumante/AIBuilder2026 | 2026-10-13 |
-| Cloud save and search/paging skipped for V1; data stays per device with backup/restore (`TODO.md`) | 2026-10-14 |
+| Cloud save and search/paging skipped for V1; data stays per device with backup/restore (cloud save superseded 2026-10-15) | 2026-10-14 |
 | Priority-vs-due-date conflict: the order due first gets the stock until the user switches it | 2026-10-14 |
 | Every open order is checked against stock and deliveries, delay or not; shortages are rehearsed too | 2026-10-14 |
 | Transfers move only what is short, from what the source can spare; storage limit per product per warehouse | 2026-10-14 |
@@ -50,6 +50,8 @@ Out (later):
 | Orders can be marked delivered, cancelled or reopened | 2026-10-15 |
 | Approving a plan changes the records (transfer, purchase, ship-from) | 2026-10-15 |
 | Every code change updates the docs it affects in the same commit (`.github/copilot-instructions.md`) | 2026-10-15 |
+| Own business saved to Firestore per Google account; Google sign-in only; the sample stays no-signup in the browser; a business saved in the browser can be moved to the account in one click | 2026-10-15 |
+| Next, in order: Mark received (partial asks "are the rest still coming?") + read-only History; ready-to-send messages after approval (supplier order, transfer booking, late customer); pick a goal (default Protect deliveries) | 2026-10-15 |
 
 Details and the code behind each 2026-10-14/15 row are in `03-behaviour.md` (search "user decision").
 

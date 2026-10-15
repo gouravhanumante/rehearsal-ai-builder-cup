@@ -272,17 +272,22 @@ Two separate choices:
   approve, or execute.
 
 ## 9a. Demo and Real workspaces (V1 decision; blank start implemented 2026-10-14)
-- The first screen offers **Set up my business** or **Try the sample**; a returning visitor also gets **Continue**
-  (`frontend/src/App.tsx`, `StartScreen.tsx`).
+- The first screen offers **Sign in with Google** (needed for your own business) and **Try the sample** (no sign-up).
+  After sign-in: **Continue** opens the business saved to the account; **Move {name} to my account** moves a business
+  saved in this browser by an earlier version, then clears the browser copy (warns first if it would replace one
+  already in the account); **Set up my business** starts a new one (`frontend/src/App.tsx`, `StartScreen.tsx`;
+  user decision 2026-10-15).
 - **Demo** is a resettable, no-signup sample workspace for judges (`mode: 'demo'`, saved in localStorage).
 - **Real** (`mode: 'real'`) starts completely empty (`shared/planner/blank.ts`): name and country (which set
   currency, number format and timezone). The user adds locations, products, stock, orders and shipments in any
   order; the **Setup** tab lists what is added and what is next (`presentation/setup.ts`). Nothing blocks
   anything: missing facts stay unknown, and a plan that needs one says so.
-- A Real workspace is saved in this browser (IndexedDB, `data/realStore.ts`) and kept in step across tabs. The menu
-  has **Download backup**, **Restore from backup** (checked like any saved data; always restored as the user's
-  own workspace, never the sample) and **Delete this workspace** (asks first). Browser storage can be cleared by the
-  user or the browser, so a backup is the safety net; the app asks the browser to keep the data (best effort).
+- A Real workspace is saved to the signed-in Google account in Firestore (`frontend/src/cloud/cloudStore.ts`), so it
+  opens on any device. Saves run one at a time; if another device or tab saved first, this one shows the newer
+  version and asks the user to make their last change again, instead of overwriting it. Only the account's owner
+  can read or write it (`firestore.rules`). The menu has **Download backup**, **Restore from backup** (checked like
+  any saved data; always restored as the user's own workspace, never the sample), **Delete this workspace** (asks
+  first) and **Sign out**.
 - With no disruption reported, the Overview says "No disruption right now" and what is being watched, instead of
   showing a recommendation. Orders, Inventory, Suppliers and Rehearsals each have an empty state with the next action.
 - Reset exists only for the sample; it never touches a Real workspace.
@@ -313,8 +318,7 @@ Two separate choices:
   - Dates follow the country's order (day first for India, month first for the US, changeable); a date with no time
     means the end of that day. A new arrival date for a known shipment keeps the original promise and is not
     treated as a delay until the user reports one.
-- Not built yet: several products on one order when typing it in, importing routes and suppliers, and cloud
-  save/sign-in (skipped for V1: data is per device; see `TODO.md`).
+- Not built yet: several products on one order when typing it in, importing routes and suppliers.
 
 ## 10. Objectives
 - User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or
