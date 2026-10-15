@@ -17,7 +17,7 @@ export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: In
   const shortages = impact.groups.filter((group) => group.kind === 'shortage')
 
   if (workspace.disruptions.length === 0 && shortages.length === 0) {
-    const watched = workspace.orders.length
+    const watched = workspace.orders.filter((order) => (order.status ?? 'open') === 'open').length
     return (
       <section className="incident-section" aria-label="Disruptions">
         <div className="calm-card">

@@ -19,7 +19,7 @@ describe('messages ready to send after approving', () => {
   it('a transfer asks South Hub to send exactly the approved 8 cases, arriving when the plan says', () => {
     const [transfer] = messagesFor(sampleWorkspace, 'transfer:south-to-north:harbor-blend')
     expect(transfer.to).toBe('South Hub team')
-    expect(transfer.body).toContain('Please send 8 cases of Harbor Blend Coffee to North Hub, to arrive by Thu, 15 Oct, 12:00 pm.')
+    expect(transfer.body).toContain('Please send 8 cases of Harbor Blend Coffee to North Hub. If it leaves now it arrives Thu, 15 Oct, 12:00 pm; it must leave by Thu, 15 Oct, 11:00 am at the latest to arrive in time.')
   })
 
   it('after moving 8, Harbor Market (4 of 12 on time) and Daily Goods (none) get a note; Common Ground, now covered, does not', () => {

@@ -36,12 +36,14 @@ export function approvalMessages(plan: Plan, before: Workspace, after: Workspace
 
   if (plan.kind === 'transfer' && plan.quantity && plan.arrivalAt) {
     const source = words.locationName(plan.sourceLocationId ?? '')
-    const leaveBy = plan.bookBy ? ` It needs to leave by ${format.dateTime(plan.bookBy)}.` : ''
+    const when = plan.bookBy
+      ? ` If it leaves now it arrives ${format.dateTime(plan.arrivalAt)}; it must leave by ${format.dateTime(plan.bookBy)} at the latest to arrive in time.`
+      : ` If it leaves now it arrives ${format.dateTime(plan.arrivalAt)}.`
     messages.push({
       to: `${source} team`,
       email: null,
       subject: `Transfer: ${amount(plan.quantity)} to ${destination}`,
-      body: [`Hello ${source} team,`, '', `Please send ${amount(plan.quantity)} to ${destination}, to arrive by ${format.dateTime(plan.arrivalAt)}.${leaveBy}`, sign].join('\n'),
+      body: [`Hello ${source} team,`, '', `Please send ${amount(plan.quantity)} to ${destination}.${when}`, sign].join('\n'),
     })
   }
 
