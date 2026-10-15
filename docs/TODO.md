@@ -20,7 +20,7 @@ Updated after the movement ledger and transfer lifecycle implementation. Diagram
 - [ ] **Needs ruling (I01):** importing a stock count equal to current stock is skipped as "already the same", but the editor's **Record this count again** saves it on purpose so later send corrections are not added twice (`import/build.ts` vs `DetailsEditor`).
 - [ ] **Needs ruling (O11):** a past-due order with stock is shown as Watch under "No order short"; nothing says its promised date has passed.
 - [x] **Bug (B01):** restore accepted a backup with an impossible history (a 500-case send on a 12-case order). Fixed 2026-10-15: `parseBackup` refuses sends above the order or for a missing order (`impossibleSend`); two `backup.test.ts` cases observed red first. Browser storage loads (`parseWorkspace`) do not run this check.
-- [ ] **Bug (U01):** dialogs (Send, Receive, Edit count, Ask AI) do not move focus inside, do not keep Tab inside, and do not return focus on close.
+- [x] **Bug (U01):** dialogs did not move focus inside, keep Tab inside, or return focus on close. Fixed 2026-10-15 with `useDialogFocus` on all dialogs; browser keyboard check passes.
 - [ ] **Gap (T08b):** a booking larger than the source's current count after a recount shows "0 free" with no warning; departure is refused only on submit.
 - [ ] **Gap (T11):** two separate problems can each show a ready transfer from the same source that together need more than it has, with no "these compete" note.
 - [ ] Small: booked remainder keeps its original, now-past ETA after a partial departure; "Are the other 1 case…"; "from Transfer from South Hub"; a two-product order repeats Send/Edit/Cancel on each product row.

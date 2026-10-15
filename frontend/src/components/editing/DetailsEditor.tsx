@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, RefreshCw, Shi
 import { Button } from '../../design-system/Button'
 import type { Workspace } from '../../../../shared/planner/model'
 import { orderCoverage, rehearse, spareStock } from '../../../../shared/planner/plan'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { createWording } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
@@ -49,6 +50,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const [showErrors, setShowErrors] = useState(false)
   const [recordedAt, setRecordedAt] = useState(() => new Date().toISOString())
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
 
   const parsed = useMemo(() => Object.fromEntries(config.fields.map((field) => [field.key, parseField(field, values[field.key] ?? '', format)])), [config.fields, values, format])
   const fieldErrors = Object.values(parsed).some((result) => 'error' in result)
@@ -196,7 +198,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   return (
     <div className="assistant-overlay">
       <button aria-label="Close editor" className="assistant-scrim" onClick={onClose} type="button" />
-      <aside aria-labelledby="editor-title" aria-modal="true" className="assistant-panel editor-panel" role="dialog">
+      <aside aria-labelledby="editor-title" aria-modal="true" className="assistant-panel editor-panel" ref={dialogRef} role="dialog">
         <header className="assistant-header">
           <span className="assistant-icon">{step === 'review' ? <ShieldCheck size={19} /> : <PencilLine size={19} />}</span>
           <div><h2 id="editor-title">{config.title}</h2><p>{step === 'review' ? 'Step 2 of 2 · Check the effect before saving' : `Step 1 of 2 · ${config.subtitle}`}</p></div>

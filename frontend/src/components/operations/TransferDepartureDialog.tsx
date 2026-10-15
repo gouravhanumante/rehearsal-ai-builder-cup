@@ -3,6 +3,7 @@ import { PackageCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { InboundShipment, OrderLine } from '../../../../shared/planner/model'
 import { newId, transferDepartedLines, transferRemainingLines } from '../../../../shared/planner/ledger'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -17,6 +18,7 @@ const readCount = (text: string) => (/^\d{1,7}$/.test(text.trim()) ? Number(text
 export function TransferDepartureDialog({ shipment, onDepart, onClose }: Props) {
   const { workspace, words } = useWorkspaceView()
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   const [actionId] = useState(() => newId('DEP'))
   const remaining = transferRemainingLines(workspace, shipment.id)
   const departed = transferDepartedLines(workspace, shipment.id)
@@ -30,7 +32,7 @@ export function TransferDepartureDialog({ shipment, onDepart, onClose }: Props) 
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel" className="assistant-scrim" onClick={onClose} type="button" />
-      <section aria-labelledby="departure-title" aria-modal="true" className="approval-dialog receive-dialog" role="dialog">
+      <section aria-labelledby="departure-title" aria-modal="true" className="approval-dialog receive-dialog" ref={dialogRef} role="dialog">
         <header>
           <div><h2 id="departure-title">Record transfer departure</h2><p>{shipment.id} · {words.locationName(shipment.fromLocationId ?? '')} to {words.locationName(shipment.locationId)}</p></div>
           <Button aria-label="Close" className="assistant-close" icon={<X size={18} />} onClick={onClose} variant="quiet" />

@@ -3,6 +3,7 @@ import { Bot, CheckCircle2, CircleAlert, LoaderCircle, RotateCcw, Send, Sparkles
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import { buildAssistantContext } from '../../domain/assistantContext'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -38,6 +39,7 @@ export function AskAiPanel({ turns, onTurnsChange, onClose, onViewOptions }: Ask
     priorityOrder ? `How can I protect ${priorityOrder.customer}’s order?` : 'Which orders are at risk?',
   ]
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   const [prompt, setPrompt] = useState('')
   const [serviceState, setServiceState] = useState<ServiceState>('checking')
   const [sending, setSending] = useState(false)
@@ -112,7 +114,7 @@ export function AskAiPanel({ turns, onTurnsChange, onClose, onViewOptions }: Ask
   return (
     <div className="assistant-overlay">
       <button aria-label="Dismiss assistant panel" className="assistant-scrim" onClick={onClose} type="button" />
-      <aside aria-labelledby="assistant-title" aria-modal="true" className="assistant-panel" role="dialog">
+      <aside aria-labelledby="assistant-title" aria-modal="true" className="assistant-panel" ref={dialogRef} role="dialog">
         <header className="assistant-header">
           <span className="assistant-icon"><Bot size={19} /></span>
           <div><h2 id="assistant-title">Ask AI</h2><p>Questions and recovery ideas</p></div>

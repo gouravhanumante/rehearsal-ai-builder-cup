@@ -48,4 +48,5 @@ To deploy, run the **Deploy frontend (Firebase Hosting)** workflow from GitHub A
 - `src/data/` — sample in localStorage (`demoStore.ts`), the guest business in IndexedDB (`realStore.ts`), saving a guest business to the account without losing it (`moveGuest.ts`), backup/restore, server plan check
 - `src/domain/` — facts sent to Ask AI (`assistantContext.ts`)
 - `src/design-system/` — shared tokens and UI primitives
+- `src/lib/` — small shared hooks: Escape to close (`useEscapeKey.ts`), keyboard focus in dialogs (`useDialogFocus.ts`)
 - The planner itself is in `../shared/planner/`, shared with the backend.

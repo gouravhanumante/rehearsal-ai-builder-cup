@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { PackageCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { InboundShipment } from '../../../../shared/planner/model'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -14,6 +15,7 @@ type Props = {
 export function ResolveTransferDialog({ shipment, onResolve, onClose }: Props) {
   const { words } = useWorkspaceView()
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   const [fates, setFates] = useState<Record<string, 'returned' | 'lost' | undefined>>({})
   const [error, setError] = useState<string | null>(null)
   const ready = shipment.lines.every((line) => fates[line.productId] !== undefined)
@@ -27,7 +29,7 @@ export function ResolveTransferDialog({ shipment, onResolve, onClose }: Props) {
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel" className="assistant-scrim" onClick={onClose} type="button" />
-      <section aria-labelledby="transfer-fate-title" aria-modal="true" className="approval-dialog receive-dialog" role="dialog">
+      <section aria-labelledby="transfer-fate-title" aria-modal="true" className="approval-dialog receive-dialog" ref={dialogRef} role="dialog">
         <header>
           <div><h2 id="transfer-fate-title">Resolve missing transfer goods</h2><p>{shipment.id} · {words.locationName(shipment.fromLocationId ?? '')} to {words.locationName(shipment.locationId)}</p></div>
           <Button aria-label="Close" className="assistant-close" icon={<X size={18} />} onClick={onClose} variant="quiet" />

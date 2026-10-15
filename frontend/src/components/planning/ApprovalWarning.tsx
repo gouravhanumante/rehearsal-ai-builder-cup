@@ -1,6 +1,7 @@
 import { FileUp, PencilLine, Scale, TriangleAlert, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { Plan } from '../../../../shared/planner/plan'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
@@ -15,6 +16,7 @@ type ApprovalWarningProps = {
 
 export function ApprovalWarning({ plan, onApproveAnyway, onVerify, onAnswerConflicts, onClose }: ApprovalWarningProps) {
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   const { rehearsal, words } = useWorkspaceView()
   const facts = plan.unverified.map(words.unverifiedText)
   const openConflicts = rehearsal.conflicts.filter((conflict) => !conflict.decided)
@@ -22,7 +24,7 @@ export function ApprovalWarning({ plan, onApproveAnyway, onVerify, onAnswerConfl
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel approval" className="assistant-scrim" onClick={onClose} type="button" />
-      <section aria-labelledby="approval-warning-title" aria-modal="true" className="approval-dialog" role="dialog">
+      <section aria-labelledby="approval-warning-title" aria-modal="true" className="approval-dialog" ref={dialogRef} role="dialog">
         <header>
           <span className="approval-dialog-icon"><TriangleAlert size={19} /></span>
           <div><h2 id="approval-warning-title">Check before approving</h2><p>{words.planText(plan).title}</p></div>

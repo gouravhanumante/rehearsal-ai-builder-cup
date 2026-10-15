@@ -5,6 +5,7 @@ import type { InboundShipment, OrderLine } from '../../../../shared/planner/mode
 import { newId } from '../../../../shared/planner/ledger'
 import { overExpected } from '../../../../shared/planner/apply'
 import { localToIso } from '../../../../shared/planner/time'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -21,6 +22,7 @@ const readCount = (text: string) => (/^\d{1,7}$/.test(text.trim()) ? Number(text
 export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: ReceiveDialogProps) {
   const { workspace, format, words } = useWorkspaceView()
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   const [actionId] = useState(() => newId('RCV'))
   const [counts, setCounts] = useState<Record<string, string>>(() => Object.fromEntries(shipment.lines.map((line) => [line.productId, String(line.quantity)])))
   const [restComing, setRestComing] = useState<'yes' | 'no' | null>(null)
@@ -47,7 +49,7 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel" className="assistant-scrim" onClick={onClose} type="button" />
-      <section aria-labelledby="receive-title" aria-modal="true" className="approval-dialog receive-dialog" role="dialog">
+      <section aria-labelledby="receive-title" aria-modal="true" className="approval-dialog receive-dialog" ref={dialogRef} role="dialog">
         <header>
           <div><h2 id="receive-title">Mark {shipment.id} received</h2><p>{shipment.supplierName} · to {words.locationName(shipment.locationId)} · expected {format.dateTime(shipment.confirmedArrivalAt)}</p></div>
           <Button aria-label="Cancel" className="assistant-close" icon={<X size={18} />} onClick={onClose} variant="quiet" />

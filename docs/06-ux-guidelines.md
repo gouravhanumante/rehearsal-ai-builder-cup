@@ -43,4 +43,5 @@ These are product-specific rules informed by established UX, accessibility, cont
 - Meet WCAG contrast requirements: 4.5:1 for normal text and 3:1 for large text.
 - Check that status is understandable in grayscale and with assistive technology.
 - Test desktop and narrow mobile widths for clipped labels, overlapping content, and horizontal scrolling.
+- Every modal dialog uses `useDialogFocus` (`frontend/src/lib/useDialogFocus.ts`): focus moves in when it opens, Tab and Shift+Tab stay inside, Escape closes it (`useEscapeKey`), and focus returns to the button that opened it.
 - Ask a non-technical user to explain what happened, which orders are affected, why each option has its status, and what happens when they approve it.

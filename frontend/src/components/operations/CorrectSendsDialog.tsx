@@ -3,6 +3,7 @@ import { Save, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { Order } from '../../../../shared/planner/model'
 import { effectiveMovements } from '../../../../shared/planner/ledger'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -19,6 +20,7 @@ const readCount = (text: string) => (/^\d{1,7}$/.test(text.trim()) ? Number(text
 export function CorrectSendsDialog({ order, onSave, onClose }: CorrectSendsDialogProps) {
   const { workspace, format, words } = useWorkspaceView()
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   const sends = effectiveMovements(workspace.movements).filter((movement) => movement.kind === 'dispatch' && movement.orderId === order.id)
   const [counts, setCounts] = useState<Record<string, string>>(() => Object.fromEntries(sends.map((send) => [send.id, String(send.quantity)])))
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +34,7 @@ export function CorrectSendsDialog({ order, onSave, onClose }: CorrectSendsDialo
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel" className="assistant-scrim" onClick={onClose} type="button" />
-      <section aria-labelledby="correct-title" aria-modal="true" className="approval-dialog receive-dialog" role="dialog">
+      <section aria-labelledby="correct-title" aria-modal="true" className="approval-dialog receive-dialog" ref={dialogRef} role="dialog">
         <header>
           <div><h2 id="correct-title">Correct what was sent</h2><p>{order.customer} · {order.id}</p></div>
           <Button aria-label="Cancel" className="assistant-close" icon={<X size={18} />} onClick={onClose} variant="quiet" />

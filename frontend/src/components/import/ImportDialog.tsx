@@ -7,6 +7,7 @@ import { buildImport, type DateOrder } from '../../import/build'
 import { autoMatch, missingRequired, type Mapping } from '../../import/match'
 import { SEND_SAMPLE_ROWS, suggestMapping } from '../../import/suggest'
 import { readTable, type Table } from '../../import/table'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -30,6 +31,7 @@ export function ImportDialog({ kind, onApply, onClose }: ImportDialogProps) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<'reading' | 'asking' | null>(null)
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
 
   const result = useMemo(() => (step === 'review' && table ? buildImport(workspace, kind, table, mapping, { dateOrder }) : null), [step, table, workspace, kind, mapping, dateOrder])
   const missing = table ? missingRequired(kind, mapping) : []
@@ -77,7 +79,7 @@ export function ImportDialog({ kind, onApply, onClose }: ImportDialogProps) {
   return (
     <div className="assistant-overlay">
       <button aria-label="Close import" className="assistant-scrim" onClick={onClose} type="button" />
-      <aside aria-labelledby="import-title" aria-modal="true" className="assistant-panel editor-panel" role="dialog">
+      <aside aria-labelledby="import-title" aria-modal="true" className="assistant-panel editor-panel" ref={dialogRef} role="dialog">
         <header className="assistant-header">
           <span className="assistant-icon"><FileUp size={19} /></span>
           <div><h2 id="import-title">Import {definition.label.toLowerCase()}</h2><p>{step === 'file' ? 'Step 1 of 3 · Choose a file' : step === 'columns' ? 'Step 2 of 3 · Match the columns' : 'Step 3 of 3 · Check before saving'}</p></div>

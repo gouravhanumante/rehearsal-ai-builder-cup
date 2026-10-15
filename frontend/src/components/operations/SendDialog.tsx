@@ -3,6 +3,7 @@ import { PackageCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { Order, OrderLine } from '../../../../shared/planner/model'
 import { newId, remainingLines, sentLines } from '../../../../shared/planner/ledger'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
@@ -19,6 +20,7 @@ const readCount = (text: string) => (/^\d{1,7}$/.test(text.trim()) ? Number(text
 export function SendDialog({ order, onSend, onClose }: SendDialogProps) {
   const { workspace, words } = useWorkspaceView()
   useEscapeKey(onClose)
+  const dialogRef = useDialogFocus<HTMLElement>()
   // One id per opened dialog, so a double click or retry records the send once.
   const [actionId] = useState(() => newId('DSP'))
   const remaining = remainingLines(workspace, order)
@@ -44,7 +46,7 @@ export function SendDialog({ order, onSend, onClose }: SendDialogProps) {
   return (
     <div className="dialog-overlay">
       <button aria-label="Cancel" className="assistant-scrim" onClick={onClose} type="button" />
-      <section aria-labelledby="send-title" aria-modal="true" className="approval-dialog receive-dialog" role="dialog">
+      <section aria-labelledby="send-title" aria-modal="true" className="approval-dialog receive-dialog" ref={dialogRef} role="dialog">
         <header>
           <div><h2 id="send-title">Send {order.customer}'s order</h2><p>{order.id} · from {words.locationName(order.locationId)}{sent.length > 0 ? ` · already sent ${sent.map((line) => words.quantity(line.quantity, line.productId)).join(', ')}` : ''}</p></div>
           <Button aria-label="Cancel" className="assistant-close" icon={<X size={18} />} onClick={onClose} variant="quiet" />

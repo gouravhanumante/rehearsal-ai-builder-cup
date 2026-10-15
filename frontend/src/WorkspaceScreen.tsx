@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useDialogFocus } from './lib/useDialogFocus'
 import { Boxes, ClipboardPlus, FileUp, Info, MapPinPlus, PackagePlus, Route, TriangleAlert, Truck, X } from 'lucide-react'
 import { Topbar } from './components/layout/Topbar'
 import { Button } from './design-system/Button'
@@ -73,6 +74,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
   const [orderAction, setOrderAction] = useState<{ orderId: string; action: OrderAction } | null>(null)
   const [receivingId, setReceivingId] = useState<string | null>(null)
   const [readyMessages, setReadyMessages] = useState<{ title: string; messages: HistoryMessage[] } | null>(null)
+  const readyDialogRef = useDialogFocus<HTMLElement>()
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
   const editorConfig = editor ? editorFor(editor.target, workspace, format) : null
 
@@ -363,7 +365,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
         />}
         {readyMessages && <div className="dialog-overlay">
           <button aria-label="Close" className="assistant-scrim" onClick={() => setReadyMessages(null)} type="button" />
-          <section aria-labelledby="ready-title" aria-modal="true" className="approval-dialog ready-dialog" role="dialog">
+          <section aria-labelledby="ready-title" aria-modal="true" className="approval-dialog ready-dialog" ref={readyDialogRef} role="dialog">
             <header><div><h2 id="ready-title">Messages to send</h2><p>{readyMessages.title}</p></div><Button aria-label="Close" className="assistant-close" icon={<X size={18} />} onClick={() => setReadyMessages(null)} variant="quiet" /></header>
             <p className="approval-dialog-intro">Rehearsal wrote these from the approved plan. Check them, then copy or email. Nothing is sent automatically, and a copy stays in History.</p>
             <ReadyMessages messages={readyMessages.messages} />
