@@ -1,8 +1,11 @@
 import { initializeApp } from 'firebase/app'
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { collection, doc, getDoc, getDocs, getFirestore, onSnapshot, runTransaction, writeBatch, type CollectionReference, type DocumentReference } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, getFirestore, onSnapshot, writeBatch, type CollectionReference, type DocumentReference } from 'firebase/firestore'
 import type { Workspace } from '../../../shared/planner/model'
 import { contentAddressChunks, diffChunks, joinWorkspace, splitWorkspace, verifyContentAddressedChunks, type Chunk, type SyncedState } from './chunks'
+import { ConflictError, publishCore } from './publish'
+
+export { ConflictError }
 
 // Public web-app identifiers, not secrets: access is decided by firestore.rules.
 const app = initializeApp({
@@ -17,9 +20,6 @@ const db = getFirestore(app)
 export type Account = { uid: string; email: string | null }
 export type CloudLoad = { workspace: Workspace } | { error: string } | null
 export type BusinessSummary = { id: string; name: string; country: string; updatedAt: number }
-
-/** Another device saved first; this one must reload instead of overwriting. */
-export class ConflictError extends Error {}
 
 // users/{uid}/businesses/{id} lists the business; its data is in users/{uid}/businesses/{id}/parts.
 const businesses = (uid: string) => collection(db, 'users', uid, 'businesses')
@@ -118,16 +118,7 @@ async function write(uid: string, id: string, workspace: Workspace) {
     await batch.commit()
   }
 
-  const published = await runTransaction(db, async (transaction) => {
-    const current = await transaction.get(coreRef(uid, id))
-    const oldChunkIds = current.exists() ? ((current.data() as { chunkIds: string[] }).chunkIds ?? []) : []
-    const stored = current.exists() ? (current.data() as { revision: number }).revision : 0
-    if (stored !== synced.revision) throw new ConflictError('Changed on another device.')
-    const updatedAt = Date.now()
-    transaction.set(coreRef(uid, id), { json: coreJson, chunkIds: chunks.map((chunk) => chunk.id), revision: stored + 1, updatedAt })
-    transaction.set(summaryRef(uid, id), { name: workspace.businessName, country: workspace.settings.country, updatedAt })
-    return { revision: stored + 1, oldChunkIds }
-  })
+  const published = await publishCore(db, uid, id, synced.revision, { json: coreJson, chunkIds: chunks.map((chunk) => chunk.id) }, { name: workspace.businessName, country: workspace.settings.country })
   synced = { key, revision: published.revision, hashes }
 
   const currentIds = new Set(chunks.map((chunk) => chunk.id))

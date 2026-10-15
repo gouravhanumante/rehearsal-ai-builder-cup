@@ -44,7 +44,7 @@ To deploy, run the **Deploy frontend (Firebase Hosting)** workflow from GitHub A
 - `src/components/` — start screen, Setup, navigation, data views, recovery options, editors, import dialog, Ask AI panel
 - `src/presentation/` — wording and formatting (option labels, supplier messages, Setup steps, paging)
 - `src/import/` — reads csv/xlsx in the browser, matches columns, builds the import preview
-- `src/cloud/` — Google sign-in and saving the own workspace to Firestore (`cloudStore.ts`), splitting it into documents under 1 MiB (`chunks.ts`)
+- `src/cloud/` — Google sign-in and saving the own workspace to Firestore (`cloudStore.ts`), splitting it into documents under 1 MiB (`chunks.ts`), publishing a version only if nobody saved since (`publish.ts`)
 - `src/data/` — sample in localStorage (`demoStore.ts`), the guest business in IndexedDB (`realStore.ts`), saving a guest business to the account without losing it (`moveGuest.ts`), backup/restore, server plan check
 - `src/domain/` — facts sent to Ask AI (`assistantContext.ts`)
 - `src/design-system/` — shared tokens and UI primitives

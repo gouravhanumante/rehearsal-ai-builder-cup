@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { collection, doc, getDoc, getDocs, setDoc, deleteDoc } from 'firebase/firestore'
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { ConflictError, publishCore } from '../src/cloud/publish'
 
 let env: RulesTestEnvironment
 const summary = { name: 'Priya Traders', country: 'IN', updatedAt: 1 }
@@ -99,5 +100,38 @@ describe('who can see and change a saved business', () => {
     await assertFails(setDoc(doc(alice, 'users/alice/workspace/core'), core))
     await assertFails(getDoc(doc(env.authenticatedContext('bob').firestore(), 'users/alice/workspace/core')))
     await assertSucceeds(deleteDoc(doc(alice, 'users/alice/workspace/core')))
+  })
+})
+
+describe('two devices booking the same stock at once', () => {
+  // Both phones loaded revision 1, when South Hub still had 6 free cases. Each books those 6 for a different warehouse.
+  const booking = (to: string) => ({ json: JSON.stringify({ bookedFromSouth: 6, to }), chunkIds: [] })
+  const name = { name: 'Priya Traders', country: 'IN' }
+
+  it('exactly one save wins; the other is refused as changed on another device, and nothing is overwritten', async () => {
+    await seedAlice()
+    const phoneA = env.authenticatedContext('alice').firestore()
+    const phoneB = env.authenticatedContext('alice').firestore()
+    const results = await Promise.allSettled([
+      publishCore(phoneA, 'alice', 'traders', 1, booking('north'), name),
+      publishCore(phoneB, 'alice', 'traders', 1, booking('east'), name),
+    ])
+    const won = results.filter((result) => result.status === 'fulfilled')
+    const refused = results.filter((result) => result.status === 'rejected')
+    expect(won).toHaveLength(1)
+    expect(refused).toHaveLength(1)
+    expect((refused[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError)
+    const saved = (await getDoc(doc(phoneA, `${first}/parts/core`))).data() as { json: string; revision: number }
+    expect(saved.revision).toBe(2)
+    expect([booking('north').json, booking('east').json]).toContain(saved.json)
+  })
+
+  it('a phone that saves after the other already did is refused, even with no race', async () => {
+    await seedAlice()
+    const phoneA = env.authenticatedContext('alice').firestore()
+    const phoneB = env.authenticatedContext('alice').firestore()
+    await publishCore(phoneA, 'alice', 'traders', 1, booking('north'), name)
+    await expect(publishCore(phoneB, 'alice', 'traders', 1, booking('east'), name)).rejects.toBeInstanceOf(ConflictError)
+    expect(((await getDoc(doc(phoneA, `${first}/parts/core`))).data() as { json: string }).json).toBe(booking('north').json)
   })
 })

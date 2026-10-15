@@ -14,7 +14,7 @@ When a box changes colour, update this file in the same commit.
 
 ## Dispatch Review: Small Flows And Connected Map
 
-Requested 2026-10-15 before partial-dispatch implementation. **Current status:** stock ledger, transfer booking/departure, transfer-fate resolution, explicit zero-arrival cancellation, and the order CSV below-sent guard are implemented; C is historical, D-F are current. Remaining gaps include generic customer physical returns, actual customer dispatch/delivery confirmation, repeat shipment occurrence identity, atomic large saves and two-device reservation conflicts. Browser cases/statuses are maintained in `browser-test-matrix.md`.
+Requested 2026-10-15 before partial-dispatch implementation. **Current status:** stock ledger, transfer booking/departure, transfer-fate resolution, explicit zero-arrival cancellation, and the order CSV below-sent guard are implemented; C is historical, D-F are current. Remaining gaps include generic customer physical returns and actual customer dispatch/delivery confirmation; repeat-delivery occurrence identity and two-device save conflicts are covered (`occurrenceAt`, `publishCore`). Browser cases/statuses are maintained in `browser-test-matrix.md`.
 
 ### A. Planning And Recovery Approval (Current)
 
@@ -167,13 +167,13 @@ The connected map uses current D-F. C above remains the historical behavior that
 | B: late repeating receipt | Receipt timestamp can be after several scheduled dates, but next occurrence advances from old confirmed/original date | `receiveDelivery`; duplicate occurrence/old-date risk needs a worked policy and regression |
 | D: insufficient count / repeated product lines | Send checks each product's selected quantity against unreserved counted stock; incoming stock is not dispatchable | `sendOrder`, browser O06 (full quantity refused on count 14) |
 | E: correct after recount | Later count already includes actual movement; historical correction changes demand, not current count | `correctMovement`, same-number stocktake control, browser O08 and red/green week simulation |
-| D: partial and multi-product | Planner uses remaining quantities per product; fully sent coffee is not demanded again while tea remains | `outstandingOrders`, `plan.ts`, `ledger.test.ts`; browser O05 pending |
-| D: overdue remainder | Past due does not mean fulfilled; outstanding stays demand | `remainingLines`; browser late-recovery case pending |
+| D: partial and multi-product | Planner uses remaining quantities per product; fully sent coffee is not demanded again while tea remains | `outstandingOrders`, `plan.ts`, `ledger.test.ts`; browser O05 |
+| D: overdue remainder | Past due does not mean fulfilled; outstanding stays demand | `remainingLines`; browser O11 (works; overdue labelling needs a ruling) |
 | E: isolated correction | Start stock 12; send 6 -> 6; correct sent to 4 -> 8; send final 6 -> 2. Totals sent 10; remaining 0 | Independent arithmetic example, not a passing-test claim |
 | F: cancel after 6 sent | Stock stays at 6; sent remains 6; cancel only 4; no goods return | `cancelRemaining`, `reopenOrder`; browser O09 |
-| Save: ordinary account write | Core revision check and changed chunks share one transaction within request-size limit | `cloudStore.write`; local save is not confirmed account sync |
-| Save: very large account write | Changed chunks are written before revision transaction; a conflict can be detected after those writes | `cloudStore.write`, `bytes > MAX_REQUEST_BYTES`; consistency risk not browser-reproduced |
-| Save: repeat / two devices | Stable dispatch/occurrence identity and conflict-safe persistence needed; repeating receipts reuse shipment ID | Proposed requirement, no new test coverage claimed |
+| Save: account write | Changed pieces are written under new content-based ids first; the core manifest is published in one revision-checked transaction. Old pieces are deleted only after publication | `cloudStore.write`, `publishCore`; `chunks.test.ts` |
+| Save: two devices at once | Both loaded revision 1; exactly one save wins, the other gets ConflictError and nothing is overwritten | `publishCore`; two emulator tests, observed red with the revision check removed |
+| Save: repeat deliveries | Each receipt records its scheduled occurrence | `Movement.occurrenceAt`; `apply.test.ts`, browser R05 |
 
 ## 1. Approving a plan
 ```mermaid
