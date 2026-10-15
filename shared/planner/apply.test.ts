@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Workspace } from './model.js'
-import { addHistory, applyPlan, overdueSince, receiveDelivery } from './apply.js'
+import { addHistory, applyPlan, overdueSince, overExpected, receiveDelivery } from './apply.js'
 import { cancelRemaining, cancelTransferBooking, departTransfer, freeStock, reservedStock, resolveTransferFate, sendOrder, stockFrom, transferRemainingLines } from './ledger.js'
 import { orderCoverage, rehearse } from './plan.js'
 import { SAMPLE_NOW, sampleEvidence, sampleWorkspace } from './sample.js'
@@ -260,6 +260,21 @@ describe('marking a delivery received', () => {
     const got = receiveDelivery(data, 'SH-204', [{ productId: 'harbor-blend', quantity: 5 }, { productId: 'oat-milk', quantity: 7 }], null, SAMPLE_NOW)
     expect(northStock(got)).toBe(19)
     expect(got.stock.find((record) => record.locationId === 'north' && record.productId === 'oat-milk')?.available.value).toBe(7)
+  })
+})
+
+describe('more arrived than expected', () => {
+  const sh = sampleWorkspace.shipments[0] // 24 cases expected
+  it('30 arrived when 24 were expected is 6 over, per product', () => {
+    expect(overExpected(sh, [{ productId: 'harbor-blend', quantity: 30 }])).toEqual([{ productId: 'harbor-blend', quantity: 6 }])
+  })
+  it('exactly what was expected, or less, is not over', () => {
+    expect(overExpected(sh, [{ productId: 'harbor-blend', quantity: 24 }])).toEqual([])
+    expect(overExpected(sh, [{ productId: 'harbor-blend', quantity: 20 }])).toEqual([])
+  })
+  it('the full 30 is still recorded as stock: what is on the shelf is the truth', () => {
+    const got = receiveDelivery({ ...sampleWorkspace, disruptions: [] }, 'SH-204', [{ productId: 'harbor-blend', quantity: 30 }], null, SAMPLE_NOW)
+    expect(got.stock.find((record) => record.locationId === 'north')?.available.value).toBe(44)
   })
 })
 

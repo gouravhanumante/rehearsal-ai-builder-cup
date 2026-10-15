@@ -107,6 +107,14 @@ export function receiveDelivery(workspace: Workspace, shipmentId: string, receiv
   return { ...recorded.workspace, shipments, disruptions: workspace.disruptions.filter((item) => item.shipmentId !== shipment.id) }
 }
 
+/** Per product, how much more arrived than the delivery said. */
+export function overExpected(shipment: InboundShipment, received: OrderLine[]): OrderLine[] {
+  const total = (lines: OrderLine[], productId: string) => lines.filter((line) => line.productId === productId).reduce((sum, line) => sum + line.quantity, 0)
+  return [...new Set(received.map((line) => line.productId))]
+    .map((productId) => ({ productId, quantity: total(received, productId) - total(shipment.lines, productId) }))
+    .filter((line) => line.quantity > 0)
+}
+
 export function overdueSince(shipment: InboundShipment, now: string): string | null {
   return shipment.repeatEveryDays && Date.parse(shipment.confirmedArrivalAt) < Date.parse(now) ? shipment.confirmedArrivalAt : null
 }

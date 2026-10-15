@@ -258,7 +258,10 @@ Agreed with the user: both paths exist, and the difference is always visible.
   counted twice; a delay reported on it is cleared. If part is missing (6 of 8) Rehearsal asks "Are
   the other 2 still coming?": **Yes** needs a date, and the 2 stay incoming as `{id}-REST` for that
   date; **No** closes it. **Add to stock** stays disabled until that is answered, so no date is
-  guessed. A regular delivery moves to its next date on the original schedule. If no supplier
+  guessed. If more arrived than expected (30 of 24), the dialog asks "That is 6 cases more Harbor
+  Blend Coffee than expected. Is that right?" and saves only after **Yes, that is what arrived**; the
+  full 30 is added to stock, and the notice and History say "(+6 over)" (`overExpected`, user
+  decision 2026-10-15). A regular delivery moves to its next date on the original schedule. If no supplier
   goods arrived, **Report it late** remains available; the separate **Nothing arrived and nothing
   else will arrive** confirmation closes the expected delivery without changing stock. For a
   departed transfer where no more is expected, the missing quantity stays **Unresolved in

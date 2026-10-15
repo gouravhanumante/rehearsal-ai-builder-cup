@@ -3,6 +3,7 @@ import { PackageCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { InboundShipment, OrderLine } from '../../../../shared/planner/model'
 import { newId } from '../../../../shared/planner/ledger'
+import { overExpected } from '../../../../shared/planner/apply'
 import { localToIso } from '../../../../shared/planner/time'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
@@ -25,6 +26,7 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
   const [restComing, setRestComing] = useState<'yes' | 'no' | null>(null)
   const [restAt, setRestAt] = useState('')
   const [nothingComing, setNothingComing] = useState(false)
+  const [overConfirmed, setOverConfirmed] = useState(false)
 
   const arrived = shipment.lines.map((line) => ({ line, got: readCount(counts[line.productId] ?? '') }))
   const unreadable = arrived.some((item) => item.got === null)
@@ -32,8 +34,10 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
   const missingText = missing.map((item) => `${words.quantity(item.line.quantity - (item.got ?? 0), item.line.productId)} of ${words.productName(item.line.productId)}`).join(' and ')
   const total = arrived.reduce((sum, item) => sum + (item.got ?? 0), 0)
   const restIso = restAt ? localToIso(restAt, workspace.settings.timeZone) : null
+  const over = unreadable ? [] : overExpected(shipment, arrived.map((item) => ({ productId: item.line.productId, quantity: item.got ?? 0 })))
+  const overText = over.map((line) => `${words.quantity(line.quantity, line.productId)} more ${words.productName(line.productId)}`).join(' and ')
   const needsAnswer = missing.length > 0 && !nothingComing && (restComing === null || (restComing === 'yes' && !restIso))
-  const canSave = !unreadable && !needsAnswer && (total > 0 || (nothingComing && !shipment.fromLocationId))
+  const canSave = !unreadable && !needsAnswer && (over.length === 0 || overConfirmed) && (total > 0 || (nothingComing && !shipment.fromLocationId))
 
   const save = () => {
     if (!canSave) return
@@ -68,6 +72,10 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
           <label><input checked={restComing === 'yes'} name="rest" onChange={() => setRestComing('yes')} type="radio" /> Yes, they are still coming</label>
           {restComing === 'yes' && <label className="receive-rest-when">When? ({workspace.settings.timeZone})<input onChange={(event) => setRestAt(event.target.value)} type="datetime-local" value={restAt} /></label>}
           <label><input checked={restComing === 'no'} name="rest" onChange={() => setRestComing('no')} type="radio" /> No, that is all that will come</label>
+        </fieldset>}
+        {over.length > 0 && <fieldset className="receive-rest">
+          <legend>That is {overText} than expected. Is that right?</legend>
+          <label><input checked={overConfirmed} onChange={(event) => setOverConfirmed(event.target.checked)} type="checkbox" /> Yes, that is what arrived</label>
         </fieldset>}
         {shipment.repeatEveryDays && <p className="receive-note">This is a regular delivery. This receipt is for the one due {format.dateTime(shipment.confirmedArrivalAt)}; the next one stays expected on its usual schedule.</p>}
         <footer>
