@@ -36,7 +36,10 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
   const closedOrders = workspace.orders.filter((order) => !isOpen(order))
   const sentNote = (order: Order) => {
     const sent = sentLines(workspace, order.id)
-    return sent.length ? `Sent so far: ${sent.map((line) => words.quantity(line.quantity, line.productId)).join(', ')} of ${order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')}` : undefined
+    if (!sent.length) return undefined
+    const productIds = [...new Set(order.lines.map((line) => line.productId))]
+    const total = (lines: { productId: string; quantity: number }[], productId: string) => lines.filter((line) => line.productId === productId).reduce((sum, line) => sum + line.quantity, 0)
+    return `Sent so far: ${productIds.map((productId) => `${total(sent, productId)} of ${words.quantity(total(order.lines, productId), productId)}${manyProducts ? ` ${words.productName(productId)}` : ''}`).join(', ')}`
   }
   const manyProducts = workspace.products.length > 1
   const affectedRows = impact.groups.flatMap((group) => group.allocations

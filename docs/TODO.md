@@ -12,8 +12,18 @@ Updated after the movement ledger and transfer lifecycle implementation. Diagram
 - [x] Transfers identified by `InboundShipment.fromLocationId`, not the editable supplier name; ids used by past movements are never reused (`applyPlan`).
 - [x] A delivery listing one product twice: the missing quantity is worked out from that product's total (`receiveDelivery`).
 - [x] Check the Send / Correct / Cancel dialogs in the browser for partial send, split permission, selected correction, recount, cancel remainder and reopen (`browser-test-matrix.md`, O02/O03/O06-O09).
-- [x] Re-importing an orders file cannot set an order's quantity below what was already sent (`import/build.ts`); browser case O10 remains pending.
+- [x] Re-importing an orders file cannot set an order's quantity below what was already sent (`import/build.ts`); browser case I02 confirmed.
 - [ ] Agree delivery-confirmation naming, allocation warnings versus reservation locks, recording an already-happened split without permission, and order edits/corrections after cancellation (proposed D-F diagrams).
+
+## Found by seeded browser scenarios (2026-10-15, `browser-test-matrix.md`)
+- [ ] **Needs ruling (P05):** after approving a transfer, the plan says "Priority orders covered" but the customer messages still say those cases are short, because a booking counts only once it departs (`approvalMessages`).
+- [ ] **Needs ruling (I01):** importing a stock count equal to current stock is skipped as "already the same", but the editor's **Record this count again** saves it on purpose so later send corrections are not added twice (`import/build.ts` vs `DetailsEditor`).
+- [ ] **Needs ruling (O11):** a past-due order with stock is shown as Watch under "No order short"; nothing says its promised date has passed.
+- [ ] **Bug (B01):** restore accepts a backup with an impossible history (a 500-case send on a 12-case order); `parseWorkspace` checks shape, not sends against orders or stock.
+- [ ] **Bug (U01):** dialogs (Send, Receive, Edit count, Ask AI) do not move focus inside, do not keep Tab inside, and do not return focus on close.
+- [ ] **Gap (T08b):** a booking larger than the source's current count after a recount shows "0 free" with no warning; departure is refused only on submit.
+- [ ] **Gap (T11):** two separate problems can each show a ready transfer from the same source that together need more than it has, with no "these compete" note.
+- [ ] Small: booked remainder keeps its original, now-past ETA after a partial departure; "Are the other 1 case…"; "from Transfer from South Hub"; a two-product order repeats Send/Edit/Cancel on each product row.
 
 ## Open gaps found while testing (2026-10-15)
 - [x] **Mark a delivery received** (2026-10-15): stock goes up, the delivery stops counting as incoming; part arrived asks whether the rest is still coming and when. Plus a read-only **History**.

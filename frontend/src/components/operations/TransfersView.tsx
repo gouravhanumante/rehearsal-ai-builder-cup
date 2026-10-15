@@ -36,7 +36,7 @@ export function TransfersView({ onEdit, onRemoveRoute, onAskAgain, onAnswerDeliv
   const nameOf = (from: string, to: string) => `${words.locationName(from)} ${words.locationName(to)}`
   const routes = searchPage(workspace.routes, (route) => nameOf(route.fromLocationId, route.toLocationId), query, page)
   const blocked = workspace.noTransfers ?? []
-  const transferBookings = workspace.shipments.filter((shipment) => shipment.fromLocationId && shipment.transferStatus !== 'in-transit' && shipment.transferStatus !== 'cancelled' && shipment.lines.length > 0)
+  const transferBookings = workspace.shipments.filter((shipment) => shipment.fromLocationId && shipment.transferStatus === 'booked' && shipment.lines.length > 0)
   const departureShipment = transferBookings.find((shipment) => shipment.id === departureId)
   const cancelShipment = transferBookings.find((shipment) => shipment.id === cancelId)
   const twoLocations = workspace.locations.length >= 2
