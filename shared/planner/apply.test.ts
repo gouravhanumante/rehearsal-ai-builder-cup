@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Workspace } from './model.js'
-import { addHistory, applyPlan, receiveDelivery } from './apply.js'
+import { addHistory, applyPlan, overdueSince, receiveDelivery } from './apply.js'
 import { cancelRemaining, cancelTransferBooking, departTransfer, freeStock, reservedStock, resolveTransferFate, sendOrder, stockFrom, transferRemainingLines } from './ledger.js'
 import { orderCoverage, rehearse } from './plan.js'
 import { SAMPLE_NOW, sampleEvidence, sampleWorkspace } from './sample.js'
@@ -239,12 +239,41 @@ describe('marking a delivery received', () => {
     expect(northStock(retry)).toBe(24)
   })
 
+  it('two overdue weekly deliveries received on the same day are recorded as two different weeks', () => {
+    // Due every Thursday from 8 Oct; nothing was marked until 15 Oct, when both 8 Oct's and 15 Oct's arrive.
+    const thursday = '2026-10-08T09:00:00+05:30'
+    const weekly: Workspace = { ...sampleWorkspace, disruptions: [], shipments: [{ ...sampleWorkspace.shipments[0], id: 'WEEKLY', originalArrivalAt: thursday, confirmedArrivalAt: thursday, repeatEveryDays: 7, lines: [{ productId: 'harbor-blend', quantity: 10 }] }] }
+    const first = receiveDelivery(weekly, 'WEEKLY', [{ productId: 'harbor-blend', quantity: 10 }], null, SAMPLE_NOW, 'RCV-A')
+    const second = receiveDelivery(first, 'WEEKLY', [{ productId: 'harbor-blend', quantity: 10 }], null, SAMPLE_NOW, 'RCV-B')
+    const weeks = second.movements.filter((movement) => movement.kind === 'receipt').map((movement) => movement.occurrenceAt && Date.parse(movement.occurrenceAt))
+    expect(weeks).toEqual([Date.parse(thursday), Date.parse('2026-10-15T09:00:00+05:30')])
+  })
+
+  it('a one-off delivery records no week', () => {
+    const got = receiveDelivery({ ...sampleWorkspace, disruptions: [] }, 'SH-204', [{ productId: 'harbor-blend', quantity: 24 }], null, SAMPLE_NOW)
+    expect(got.movements.find((movement) => movement.kind === 'receipt')?.occurrenceAt).toBeUndefined()
+  })
+
   it('a delivery with two products adds each to its own count, and starts a count where there was none', () => {
     const data: Workspace = { ...sampleWorkspace, products: [...sampleWorkspace.products, { id: 'oat-milk', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }], disruptions: [],
       shipments: [{ ...sampleWorkspace.shipments[0], lines: [{ productId: 'harbor-blend', quantity: 5 }, { productId: 'oat-milk', quantity: 7 }] }] }
     const got = receiveDelivery(data, 'SH-204', [{ productId: 'harbor-blend', quantity: 5 }, { productId: 'oat-milk', quantity: 7 }], null, SAMPLE_NOW)
     expect(northStock(got)).toBe(19)
     expect(got.stock.find((record) => record.locationId === 'north' && record.productId === 'oat-milk')?.available.value).toBe(7)
+  })
+})
+
+describe('a regular delivery that has not come', () => {
+  const thursday = '2026-10-08T09:00:00+05:30'
+  const weekly = { ...sampleWorkspace.shipments[0], id: 'WEEKLY', originalArrivalAt: thursday, confirmedArrivalAt: thursday, repeatEveryDays: 7 }
+
+  it('is overdue since its scheduled date once that date has passed without a receipt', () => {
+    expect(overdueSince(weekly, '2026-10-15T09:00:00+05:30')).toBe(thursday)
+  })
+
+  it('is not overdue before its date, and a one-off delivery is handled by Report late instead', () => {
+    expect(overdueSince(weekly, '2026-10-08T08:00:00+05:30')).toBeNull()
+    expect(overdueSince({ ...weekly, repeatEveryDays: undefined }, '2026-10-15T09:00:00+05:30')).toBeNull()
   })
 })
 

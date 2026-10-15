@@ -202,7 +202,8 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
     const got = received.filter((line) => line.quantity > 0).map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')
     const short = receivingShipment.lines.some((line) => (received.find((item) => item.productId === line.productId)?.quantity ?? 0) < line.quantity)
     const restText = short ? (rest ? ` The rest is still coming, expected ${format.dateTime(rest.arrivalAt)}.` : ' The rest is not coming.') : ''
-    const text = `Received ${got} from ${receivingShipment.supplierName} at ${words.locationName(receivingShipment.locationId)} (${receivingShipment.id}).${restText}`
+    const week = receivingShipment.repeatEveryDays ? `, delivery due ${format.dateTime(receivingShipment.confirmedArrivalAt)}` : ''
+    const text = `Received ${got} from ${receivingShipment.supplierName} at ${words.locationName(receivingShipment.locationId)} (${receivingShipment.id}${week}).${restText}`
     saveChange(receiveDelivery(workspace, receivingShipment.id, received, rest, new Date().toISOString(), actionId), { kind: 'received', text })
     onNotice(`${text} It is added to stock. ${rest && short ? 'The rest stays listed as incoming.' : receivingShipment.repeatEveryDays ? 'The next regular delivery stays on its schedule.' : 'This delivery no longer counts as incoming.'}`)
     setReceivingId(null)

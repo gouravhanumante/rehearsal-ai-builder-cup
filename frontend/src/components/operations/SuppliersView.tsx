@@ -3,6 +3,8 @@ import { FileUp, LifeBuoy, PackageCheck, PencilLine, Plus, Repeat, Settings2, Tr
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Fact } from '../../../../shared/planner/model'
+import { overdueSince } from '../../../../shared/planner/apply'
+import { planningNow } from '../../../../shared/planner/plan'
 import { LIMITS } from '../../../../shared/planner/validate'
 import type { EditTarget } from '../../presentation/planText'
 import { useWorkspaceView } from '../../presentation/workspaceView'
@@ -54,6 +56,7 @@ export function SuppliersView({ onEdit, onReceive, onRemoveSupplier, onResolveTr
           : <div className="supplier-list">
             {workspace.shipments.filter((shipment) => shipment.lines.length > 0).map((shipment) => {
               const late = delayed.has(shipment.id)
+              const overdue = overdueSince(shipment, planningNow(workspace))
               const awaitingDeparture = shipment.fromLocationId && shipment.transferStatus === 'booked'
               const unresolved = shipment.transferStatus === 'unresolved'
               return (
@@ -63,14 +66,14 @@ export function SuppliersView({ onEdit, onReceive, onRemoveSupplier, onResolveTr
                     <div className="supplier-title"><h3>{shipment.supplierName}</h3>
                       {unresolved ? <StatusBadge tone="warning" dot>Unresolved in transit</StatusBadge> : shipment.transferStatus === 'cancelled'
                         ? <StatusBadge tone="warning" dot>Booked remainder cancelled</StatusBadge>
-                        : awaitingDeparture ? <StatusBadge tone="warning" dot>Booked · not departed</StatusBadge> : late ? <StatusBadge tone="danger" dot>Late</StatusBadge> : shipment.repeatEveryDays ? <StatusBadge tone="success" dot>Regular delivery</StatusBadge> : <StatusBadge tone="neutral" dot>Expected</StatusBadge>}
+                        : awaitingDeparture ? <StatusBadge tone="warning" dot>Booked · not departed</StatusBadge> : late ? <StatusBadge tone="danger" dot>Late</StatusBadge> : overdue ? <StatusBadge tone="danger" dot>Overdue</StatusBadge> : shipment.repeatEveryDays ? <StatusBadge tone="success" dot>Regular delivery</StatusBadge> : <StatusBadge tone="neutral" dot>Expected</StatusBadge>}
                     </div>
                     <p>{shipment.lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')} · to {words.locationName(shipment.locationId)} · {shipment.id}</p>
                     <EvidenceMark evidence={shipment.evidence} />
                   </div>
                   <div className="delivery-when">
                     {shipment.repeatEveryDays && <span>{repeatLabel(shipment.repeatEveryDays)}</span>}
-                    <strong className={late ? 'supplier-late-date' : ''}>{unresolved ? 'Expected date no longer used' : `${shipment.repeatEveryDays ? 'Next ' : 'Arrives '}${format.dateTime(shipment.confirmedArrivalAt)}`}</strong>
+                    <strong className={late || overdue ? 'supplier-late-date' : ''}>{unresolved ? 'Expected date no longer used' : overdue ? `Overdue since ${format.dateTime(overdue)}` : `${shipment.repeatEveryDays ? 'Next ' : 'Arrives '}${format.dateTime(shipment.confirmedArrivalAt)}`}</strong>
                     {late && <small>Was {format.dateTime(shipment.originalArrivalAt)} · {shipment.updateSource}</small>}
                   </div>
                   <div className="supplier-actions">

@@ -72,6 +72,7 @@ export function receiveDelivery(workspace: Workspace, shipmentId: string, receiv
   const receipts: Movement[] = products(received).filter((productId) => total(received, productId) > 0).map((productId) => ({
     id: `${id}:${productId}`, kind: 'receipt', locationId: shipment.locationId, productId, quantity: total(received, productId), at: now, evidence,
     shipmentId: shipment.id, ...(shipment.fromLocationId ? { fromLocationId: shipment.fromLocationId } : {}),
+    ...(shipment.repeatEveryDays ? { occurrenceAt: shipment.confirmedArrivalAt } : {}),
   }))
   const recorded = record(workspace, receipts)
   if ('error' in recorded) return workspace
@@ -104,6 +105,10 @@ export function receiveDelivery(workspace: Workspace, shipmentId: string, receiv
     shipments = [...others, { ...shipment, lines: missing, transferStatus: 'unresolved', updateSource: `Unresolved after receipt ${shipment.id}`, evidence }]
   }
   return { ...recorded.workspace, shipments, disruptions: workspace.disruptions.filter((item) => item.shipmentId !== shipment.id) }
+}
+
+export function overdueSince(shipment: InboundShipment, now: string): string | null {
+  return shipment.repeatEveryDays && Date.parse(shipment.confirmedArrivalAt) < Date.parse(now) ? shipment.confirmedArrivalAt : null
 }
 
 /** Adds one line to History, keeping only the newest entries so a long-lived business stays small. */

@@ -69,7 +69,7 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
           {restComing === 'yes' && <label className="receive-rest-when">When? ({workspace.settings.timeZone})<input onChange={(event) => setRestAt(event.target.value)} type="datetime-local" value={restAt} /></label>}
           <label><input checked={restComing === 'no'} name="rest" onChange={() => setRestComing('no')} type="radio" /> No, that is all that will come</label>
         </fieldset>}
-        {shipment.repeatEveryDays && <p className="receive-note">This is a regular delivery: the next one stays expected on its usual schedule.</p>}
+        {shipment.repeatEveryDays && <p className="receive-note">This is a regular delivery. This receipt is for the one due {format.dateTime(shipment.confirmedArrivalAt)}; the next one stays expected on its usual schedule.</p>}
         <footer>
           <Button onClick={onClose} variant="quiet">Cancel</Button>
           <Button disabled={!canSave} icon={<PackageCheck size={15} />} onClick={save} variant="primary">{nothingComing ? 'Close cancelled delivery' : 'Add to stock'}</Button>

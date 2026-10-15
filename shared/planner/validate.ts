@@ -37,7 +37,7 @@ const isWorkspaceShape = shape({
   movements: listOf(shape({
     id: isText(120), kind: oneOf('count', 'receipt', 'dispatch', 'transfer-out', 'transfer-return', 'transfer-loss'), locationId: isText(64), productId: isText(64),
     quantity: isCount, at: isTime, evidence: isEvidence, orderId: optional(isText(64)), shipmentId: optional(isText(64)),
-    fromLocationId: optional(isText(64)), bookingId: optional(isText(64)), corrects: optional(isText(120)),
+    fromLocationId: optional(isText(64)), bookingId: optional(isText(64)), corrects: optional(isText(120)), occurrenceAt: optional(isTime),
   }), LIMITS.movements),
   storageLimits: optional(listOf(shape({ locationId: isText(64), productId: isText(64), limit: isCount }), LIMITS.stock)),
   orders: listOf(shape({

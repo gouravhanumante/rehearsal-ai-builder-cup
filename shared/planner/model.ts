@@ -116,6 +116,8 @@ export type Movement = {
   fromLocationId?: string
   /** A correction: the id of the movement whose quantity this replaces. */
   corrects?: string
+  /** Receipts of a regular delivery: the scheduled date this receipt was for. */
+  occurrenceAt?: string
 }
 
 export type Workspace = {

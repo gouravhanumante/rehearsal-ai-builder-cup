@@ -286,6 +286,10 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - **Repeating deliveries** (`repeatEveryDays`: 7, 14 or 28): the next delivery is
   `confirmedArrivalAt`, later ones follow the original schedule (`arrivalsOf`). Reporting one late
   moves only that delivery; later ones still count for the delay plan.
+  Once its date passes with no receipt, Suppliers shows it as **Overdue since** that date
+  (`overdueSince`, user decision 2026-10-15). Each receipt records which scheduled delivery it was
+  for (`Movement.occurrenceAt`), and the dialog and notice name it ("delivery due Thu, 8 Oct"), so two
+  late weeks received on the same day are recorded as two different weeks.
 - The Overview shows one ready plan per problem, the best for the business's goal (`recommendPlan`,
   see section 10). If none is ready it says so instead of recommending something.
 - Money and times follow the workspace country (sample: India → ₹ and India time). A time typed
