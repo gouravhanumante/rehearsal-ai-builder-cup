@@ -32,10 +32,13 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
   const openOrders = workspace.orders.filter(isOpen)
   const closedOrders = workspace.orders.filter((order) => !isOpen(order))
   const manyProducts = workspace.products.length > 1
-  const affectedRows = impact.groups.flatMap((group) => group.allocations.map((allocation) => ({ group, allocation })))
+  const affectedRows = impact.groups.flatMap((group) => group.allocations
+    .filter((allocation) => group.affectedOrderIds.includes(allocation.orderId) || group.watchOrderIds.includes(allocation.orderId))
+    .map((allocation) => ({ group, allocation })))
   const visibleRows = showAll ? affectedRows : affectedRows.slice(0, 2)
   const unaffected = showAll || noDisruption ? workspace.orders.filter((order) => impact.unaffectedOrderIds.includes(order.id)) : []
   const affectedCount = impact.affectedOrderIds.length
+  const watchCount = impact.watchOrderIds.length
   const coverage = useMemo(() => orderCoverage(workspace), [workspace])
 
   const row = (key: string, order: Order, cells: { quantity: string; covered: string; badge: ReactNode; note?: string; uncounted?: { locationId: string; productId: string }[] }) => (
@@ -86,7 +89,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
   return (
     <section className="orders-section" aria-labelledby="orders-title">
       <div className="section-heading">
-        <div><p className="section-kicker">{showAll || noDisruption ? 'CUSTOMER ORDERS' : 'IMPACTED CUSTOMER ORDERS'}</p><h2 id="orders-title">{noDisruption ? `${format.number(openOrders.length)} open order${openOrders.length === 1 ? '' : 's'}` : `${affectedCount} ${affectedCount === 1 ? 'delivery needs' : 'deliveries need'} attention`}</h2></div>
+        <div><p className="section-kicker">{showAll || noDisruption ? 'CUSTOMER ORDERS' : 'IMPACTED CUSTOMER ORDERS'}</p><h2 id="orders-title">{noDisruption ? `${format.number(openOrders.length)} open order${openOrders.length === 1 ? '' : 's'}` : affectedCount > 0 ? `${affectedCount} ${affectedCount === 1 ? 'delivery needs' : 'deliveries need'} attention` : watchCount > 0 ? `No order short · ${watchCount} to watch` : 'No order short'}</h2></div>
         {onImportOrders && <Button icon={<FileUp size={14} />} onClick={onImportOrders} variant="secondary">Import orders</Button>}
         {onAddOrder && <Button icon={<ClipboardPlus size={14} />} onClick={onAddOrder} variant="secondary">Add order</Button>}
         {onToggleAll && <Button className="expand-orders" icon={showAll ? <ChevronUp size={15} /> : <ChevronDown size={15} />} onClick={onToggleAll} variant="quiet">
@@ -103,7 +106,10 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
           return row(`${group.disruptionId}-${group.productId}-${order.id}`, order, {
             quantity,
             covered: words.quantity(allocation.covered, group.productId),
-            badge: <StatusBadge tone={atRisk ? 'danger' : 'success'} dot>{atRisk ? 'At risk' : 'Covered'}</StatusBadge>,
+            badge: atRisk
+              ? <StatusBadge tone="danger" dot>At risk</StatusBadge>
+              : <StatusBadge tone="warning" dot>Watch</StatusBadge>,
+            note: atRisk ? undefined : 'Covered only by stock still on its way. If that delivery slips, this order is short.',
             uncounted: group.counted ? [] : [{ locationId: group.locationId, productId: group.productId }],
           })
         })}

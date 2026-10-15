@@ -23,4 +23,4 @@ What the import should report (rows left out, nothing guessed):
 
 Delay to try: D-501 (Jasmine Rice 5kg) to 21/10/2026 15:00.
 Expected: Lion City DC has 420 bags, and 550 are due before the new date (Hawker Centre Co-op 300 priority, Sunrise Catering 250),
-so about 130 are exposed and two orders are at risk.
+so about 130 are exposed. Hawker's 300 come out of the 420 on hand, so only Sunrise Catering (120 of 250) is at risk.

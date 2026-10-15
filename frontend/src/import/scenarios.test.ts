@@ -173,11 +173,12 @@ describe('04 Lion City Foods (Singapore, messy semicolon CSV): D-501 rice moves 
     expect(lionCity().workspace.orders.map((order) => order.id)).toEqual(['T-9001', 'T-9002', 'T-9003', 'T-9004', 'T-9008'])
   })
 
-  it('Lion City DC has 420, Hawker Centre Co-op (300, rush) and Sunrise Catering (250) are due first: 130 exposed', () => {
+  it('Lion City DC has 420, Hawker Centre Co-op (300, rush) and Sunrise Catering (250) are due first: 130 exposed, only Sunrise short', () => {
     const workspace = enter(lionCity().workspace, { type: 'report-delay', shipmentId: 'D-501' }, { arrivalAt: '2026-10-21T15:00' })
     const [delay] = delayOf(workspace, now)
     expect(delay.exposedQuantity).toBe(130)
-    expect(customersOf(workspace, delay.affectedOrderIds)).toEqual(['Hawker Centre Co-op', 'Sunrise Catering'])
+    // Hawker's 300 come out of the 420 on hand, so only Sunrise (120 of 250) is at risk.
+    expect(customersOf(workspace, delay.affectedOrderIds)).toEqual(['Sunrise Catering'])
   })
 
   it('cancelling Hawker Centre (rice and oil) frees its rice: Sunrise is covered and nothing is exposed', () => {

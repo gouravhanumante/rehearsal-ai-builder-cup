@@ -91,7 +91,7 @@ Don't want to invent a business? Four independent scenarios are in the [`test-da
 | `01-priya-beverages-india` | India | Excel files | SH-7001 to 22/10/2026 17:00 | 60 cases exposed, Spice Route Cafe and Metro Mart at risk |
 | `02-brightside-pharmacy-uk` | UK | Unusual column names, dates as text | SH-3301 to 22/10/2026 14:00 | 70 boxes exposed, St Mary's Hospital Pharmacy and HealthFirst Chemists at risk |
 | `03-summit-electronics-us` | US | CSV with month/day dates | ASN-4410 to 10/23/2026 13:00 | 75 units exposed, TechNest Austin and Lone Star Office Supply at risk |
-| `04-lion-city-foods-singapore-messy` | Singapore | Messy semicolon CSVs and deliberately bad rows | D-501 to 21/10/2026 15:00 | 130 bags exposed, Hawker Centre Co-op and Sunrise Catering at risk |
+| `04-lion-city-foods-singapore-messy` | Singapore | Messy semicolon CSVs and deliberately bad rows | D-501 to 21/10/2026 15:00 | 130 bags exposed, Sunrise Catering at risk (Hawker Centre is covered from stock on hand) |
 
 ---
 

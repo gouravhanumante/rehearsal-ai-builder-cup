@@ -10,8 +10,8 @@
 - [x] Excel times read to the nearest minute: 10:00 had been imported as 09:59, which at midnight would have moved a date to the day before (`cellText`, 2026-10-15).
 
 ## Found in the browser run as a new distributor (2026-10-15, Kaveri Distributors)
-- [ ] **"Orders at risk" counts covered orders (needs a ruling).** Every order due before the late delivery is counted, even when stock covers it. Kaveri: Bengaluru has 40 bags; Hotel Annapoorna (30) and Green Leaf (25) are due before the late rice. After approving the Mysuru transfer both show **Covered** and 0 are exposed, yet the Overview says "2 orders at risk" and "2 deliveries need attention". Same with Restored Co: 0 exposed, 2 "at risk", both Covered. Proposal: count only orders that are actually short.
-- [ ] **Ask AI repeats that wrong count.** Asked "which order should I worry about most?", it named Hotel Annapoorna and said Bengaluru "only has 40", ignoring the approved 15-bag transfer arriving today. Likely fixed by the item above, since it reads the same facts.
+- [x] **"Orders at risk" counted covered orders** (fixed 2026-10-15): at risk now means short; covered only by stock on its way is Watch; covered from stock on hand is fine. Kaveri now reads "No order short · 1 to watch".
+- [x] **Ask AI repeated that wrong count**: it now gets short and watch orders labelled as such.
 - [ ] **Book-by uses the priority order even when it is already covered.** Kaveri: Hotel Annapoorna (priority, due Sat 10 am) is covered from stock; the shortage is Green Leaf's (due Sun noon). The transfer said "Book by Sat 5 am", a day earlier than needed.
 - [ ] Small: the route review shows "How long it takes 5" with no unit (hours). Ask AI does not send on Enter, only with the Send button.
 - [x] Inventory row for a missing count now says "Not counted · counts as 0", matching the planner (`InventoryView.tsx`, 2026-10-15).

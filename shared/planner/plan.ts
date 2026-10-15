@@ -81,7 +81,10 @@ export type ImpactGroup = {
   exposedQuantity: number
   /** False when this location never had a count for the product; it is treated as 0. */
   counted: boolean
+  /** Orders this problem leaves short. Orders covered by stock already on hand are not at risk. */
   affectedOrderIds: string[]
+  /** Covered, but only by stock still on its way: they become short if that delivery slips. */
+  watchOrderIds: string[]
   allocations: Allocation[]
 }
 
@@ -252,6 +255,7 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
   const conflicts: Conflict[] = []
   const plans: Plan[] = []
   const affected = new Set<string>()
+  const watched = new Set<string>()
   const problems: { kind: ImpactGroup['kind']; disruptionId: string; shipmentId: string | null; locationId: string; productId: string; delayedUntil: string | null; demands: Demand[]; inbound: Batch[] }[] = []
 
   for (const disruption of workspace.disruptions) {
@@ -298,7 +302,6 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
     {
       const { locationId, productId, demands, delayedUntil } = problem
       const stock = stockByKey.get(stockKey(locationId, productId))
-      demands.forEach((demand) => affected.add(demand.order.id))
       const onHand: Batch[] = [{ at: null, quantity: stock?.available.value ?? 0 }, ...problem.inbound]
 
       // Conflicts: a priority order left short while earlier standard orders were served.
@@ -327,9 +330,17 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
         }
       }
       const baseline = outcome([])
+      const shortIds = baseline.allocations.filter((item) => item.covered < item.ordered).map((item) => item.orderId)
+      const fromStockOnly = allocate(demands, onHand.slice(0, 1), prioritiesFirst)
+      const watchIds = baseline.allocations
+        .filter((item) => item.covered >= item.ordered && (fromStockOnly.find((own) => own.orderId === item.orderId)?.covered ?? 0) < item.ordered)
+        .map((item) => item.orderId)
+      shortIds.forEach((id) => affected.add(id))
+      watchIds.forEach((id) => watched.add(id))
       groups.push({
         kind: problem.kind, disruptionId: problem.disruptionId, shipmentId: problem.shipmentId, locationId, productId, delayedUntil,
-        affectedOrderIds: demands.map((item) => item.order.id),
+        affectedOrderIds: shortIds,
+        watchOrderIds: watchIds,
         exposedQuantity: baseline.exposedQuantity,
         allocations: baseline.allocations,
         counted: Boolean(stock),
@@ -490,7 +501,8 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
     impact: {
       groups,
       affectedOrderIds: [...affected],
-      unaffectedOrderIds: workspace.orders.filter((order) => !affected.has(order.id)).map((order) => order.id),
+      watchOrderIds: [...watched].filter((id) => !affected.has(id)),
+      unaffectedOrderIds: workspace.orders.filter((order) => !affected.has(order.id) && !watched.has(order.id)).map((order) => order.id),
       exposedQuantity: groups.reduce((total, group) => total + group.exposedQuantity, 0),
       uncountedGroups: groups.filter((group) => !group.counted).length,
     },

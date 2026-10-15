@@ -87,6 +87,7 @@ flowchart LR
   loc -->|"Yes"| due{"Due before the delayed stock arrives? [test]"}
   due -->|"No"| na
   due -->|"Yes"| st{"Stock counted? [test]"}
+  risk["At risk only if left short; covered from stock on hand is fine; covered only by stock on its way is Watch [proven]"]
   st -->|"No"| unk["Counts as 0, labelled no stock count, Add count link [test]"]
   st -->|"Yes"| al["Stock counts only once arrived; repeating deliveries keep counting [test]"]
   all["Every open order checked against its warehouse's stock and deliveries, not only delayed ones [test]"]
@@ -100,7 +101,7 @@ flowchart LR
   worth["Costs more than the stock saved is worth: warning only [test]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
-  class loc,na,cf proven
+  class loc,na,cf,risk proven
   class due,st,unk,al,all,tr,sf,sup,buy,grp,rec,worth test
 ```
 All `[test]` boxes here are in `shared/planner/plan.test.ts`, except `worth` (`frontend/src/presentation/planText.test.ts`). The counts-as-0 rule replaced "unknown, not zero" on 2026-10-15 (`docs/03-behaviour.md`); its new test has not been seen failing yet, so it dropped from `[proven]` to `[test]`.

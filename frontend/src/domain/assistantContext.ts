@@ -23,7 +23,8 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
   const fact = (id: string, label: string, value: string | null, evidence: Evidence | null): AssistantFact =>
     ({ id: id.slice(0, 64), label: label.slice(0, 100), value: value?.slice(0, 500) ?? null, evidenceStatus: evidenceStatus(evidence), source: sourceOf(evidence) })
   const affectedIds = new Set(rehearsal.impact.affectedOrderIds)
-  const unaffected = workspace.orders.filter((order) => !affectedIds.has(order.id))
+  const watchIds = new Set(rehearsal.impact.watchOrderIds)
+  const unaffected = workspace.orders.filter((order) => !affectedIds.has(order.id) && !watchIds.has(order.id))
   const seen = new Set<string>()
   const once = (item: AssistantFact) => (seen.has(item.id) ? [] : (seen.add(item.id), [item]))
 
@@ -65,13 +66,15 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
       source: 'Planner',
     }
   })
-  const affectedOrders = workspace.orders
-    .filter((order) => affectedIds.has(order.id))
-    .map((order) => fact(order.id, `${order.customer} order (affected)`, `${order.lines.map((line) => `${words.quantity(line.quantity, line.productId)} ${words.productName(line.productId)}`).join(', ')} due ${format.dateTime(order.dueAt)} from ${words.locationName(order.locationId)}; ${order.priority} priority`, order.evidence))
+  const describeOrder = (order: Workspace['orders'][number]) => `${order.lines.map((line) => `${words.quantity(line.quantity, line.productId)} ${words.productName(line.productId)}`).join(', ')} due ${format.dateTime(order.dueAt)} from ${words.locationName(order.locationId)}; ${order.priority} priority`
+  const affectedOrders = [
+    ...workspace.orders.filter((order) => affectedIds.has(order.id)).map((order) => fact(order.id, `${order.customer} order (short)`, describeOrder(order), order.evidence)),
+    ...workspace.orders.filter((order) => watchIds.has(order.id)).map((order) => fact(order.id, `${order.customer} order (covered only by a delivery still on its way)`, describeOrder(order), order.evidence)),
+  ]
   const laterOrders: AssistantFact[] = unaffected.length === 0 ? [] : [{
     id: 'orders-not-affected',
-    label: 'Orders not part of this shortage',
-    value: `${unaffected.length} orders; due after the delayed stock arrives, or for other products or locations`,
+    label: 'Orders not at risk',
+    value: `${unaffected.length} orders; covered by stock on hand, due after the delayed stock arrives, or for other products or locations`,
     evidenceStatus: 'confirmed',
     source: 'Counted by the planner',
   }]

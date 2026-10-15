@@ -37,6 +37,23 @@ describe('which orders the delay affects', () => {
     expect(rehearse(sampleWorkspace).impact.unaffectedOrderIds).toEqual(['ORD-1104'])
   })
 
+  it('an order the stock on hand fully covers is not at risk, even when it is due before the late delivery', () => {
+    // 30 on hand: Common Ground (18) and Harbor Market (12) are covered; only Daily Goods (8) is short.
+    const { impact } = rehearse(withStock(sampleWorkspace, 'north', 30))
+    expect(impact.affectedOrderIds).toEqual(['ORD-1091'])
+    expect(impact.unaffectedOrderIds).toEqual(expect.arrayContaining(['ORD-1082', 'ORD-1086']))
+  })
+
+  it('an order covered only by stock still on its way is "watch", not at risk and not fine', () => {
+    // 18 on hand covers Common Ground; Harbor Market and Daily Goods (20) rely on a transfer of 20 arriving Thursday 11 am.
+    const transfer = { ...sampleWorkspace.shipments[0], id: 'TR-1', supplierName: 'Transfer from South Hub', lines: [{ productId: 'harbor-blend', quantity: 20 }], originalArrivalAt: '2026-10-15T11:00:00+05:30', confirmedArrivalAt: '2026-10-15T11:00:00+05:30' }
+    const { impact } = rehearse({ ...withStock(sampleWorkspace, 'north', 18), shipments: [...sampleWorkspace.shipments, transfer] })
+    expect(impact.exposedQuantity).toBe(0)
+    expect(impact.affectedOrderIds).toEqual([])
+    expect(impact.watchOrderIds).toEqual(['ORD-1086', 'ORD-1091'])
+    expect(impact.unaffectedOrderIds).toContain('ORD-1082')
+  })
+
   it('a location with no stock count counts as 0 (and says so), so recovery options still appear', () => {
     const data = { ...sampleWorkspace, stock: sampleWorkspace.stock.filter((record) => record.locationId !== 'north') }
     const { impact, plans } = rehearse(data)

@@ -121,6 +121,15 @@ Agreed with the user: both paths exist, and the difference is always visible.
   hand at its warehouse plus deliveries arriving by its due time, shared with orders due first.
   Covered / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows
   deliveries the user entered); a warehouse never counted counts as 0 and is labelled so.
+- **What "at risk" means** (user decision 2026-10-15, `affectedOrderIds` / `watchOrderIds` in
+  `rehearse`): an order is **at risk** only when the problem leaves it short. An order due before
+  the late delivery but fully covered by stock already on hand is **not at risk** and is listed
+  with the fine orders. An order covered only by stock still on its way (an approved transfer, an
+  expected delivery) is **Watch**: listed under the problem with an amber tag, not counted, because
+  it becomes short if that delivery slips. The Orders badge, the Overview count, the heading and
+  Ask AI all use this; exposed quantities are unchanged. Example: Kaveri has 40 bags on hand and a
+  15-bag transfer arriving; Hotel Annapoorna (30) is covered from stock (not at risk), Green Leaf
+  (25) relies on the transfer (Watch), and the Orders heading reads "No order short · 1 to watch".
 - **Shortages are rehearsed too** (user decision 2026-10-14): a warehouse+product with a Short
   order and no reported delay becomes its own problem (`ImpactGroup.kind: 'shortage'`), shown on
   the Overview as "Not enough stock", with the same options (transfers in, backup suppliers) and
