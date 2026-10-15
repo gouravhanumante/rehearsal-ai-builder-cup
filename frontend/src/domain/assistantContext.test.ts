@@ -36,10 +36,13 @@ describe('what Ask AI is allowed to see', () => {
   })
 
   it('sums up orders that the delay does not touch instead of listing each one', () => {
-    const later = Array.from({ length: 50 }, (_, index) => order(index, '2026-10-20T10:00:00+05:30'))
-    const { facts, omittedFacts } = contextFor([...sampleWorkspace.orders, ...later])
+    // 50 orders at South Hub, which has stock for all of them.
+    const later = Array.from({ length: 50 }, (_, index) => ({ ...order(index, '2026-10-20T10:00:00+05:30'), locationId: 'south' }))
+    const workspace: Workspace = { ...sampleWorkspace, orders: [...sampleWorkspace.orders, ...later], stock: sampleWorkspace.stock.map((record) => record.locationId === 'south' ? { ...record, available: { ...record.available, value: 100 } } : record) }
+    const format = createFormat(settingsForCountry('IN'))
+    const { facts, omittedFacts } = buildAssistantContext(workspace, rehearse(workspace), format, createWording(workspace, format))
     expect(omittedFacts).toBe(0)
-    expect(facts.find((fact) => fact.id === 'orders-not-affected')?.value).toContain('51 orders')
+    expect(facts.find((fact) => fact.id === 'orders-not-affected')?.value).toContain('50 orders')
   })
 
   it('shows prices in the workspace currency', () => {

@@ -26,15 +26,27 @@ const supplierPlan = 'supplier:supplier-b:harbor-blend:north'
 const transferPlan = 'transfer:south-to-north:harbor-blend'
 
 describe('which orders the delay affects', () => {
-  it('counts only orders due before the delayed shipment arrives', () => {
+  it('orders due before the late delivery are at risk; an order due after it is covered by it', () => {
     const { impact } = rehearse(sampleWorkspace)
     expect(impact.affectedOrderIds).toEqual(['ORD-1082', 'ORD-1086', 'ORD-1091'])
     expect(impact.exposedQuantity).toBe(24)
-    expect(impact.groups[0].allocations.map((item) => item.covered)).toEqual([14, 0, 0])
+    expect(impact.groups[0].allocations.map((item) => item.covered)).toEqual([14, 0, 0, 10])
   })
 
-  it('lists an order due after the shipment arrives as unaffected, not at risk', () => {
-    expect(rehearse(sampleWorkspace).impact.unaffectedOrderIds).toEqual(['ORD-1104'])
+  it('an order due after the late delivery that relies on it is "watch": if it slips again, that order is next', () => {
+    // Lakeview Grocers (10, Mon) is covered only by the 24 cases arriving late on Fri.
+    const { impact } = rehearse(sampleWorkspace)
+    expect(impact.watchOrderIds).toEqual(['ORD-1104'])
+    expect(impact.unaffectedOrderIds).toEqual([])
+  })
+
+  it('an order due after the late delivery that is still short gets recovery options (user decision 2026-10-16)', () => {
+    const bigger = { ...sampleWorkspace, stock: sampleWorkspace.stock.map((record) => record.locationId === 'north' ? { ...record, available: { ...record.available, value: 38 } } : record), orders: sampleWorkspace.orders.map((order) => order.id === 'ORD-1104' ? { ...order, lines: [{ productId: 'harbor-blend', quantity: 30 }] } : order) }
+    // 38 on hand cover the three earlier orders (18+12+8); the late 24 arrive Fri and leave Lakeview (30, Mon) 6 short.
+    const { impact, plans } = rehearse(bigger)
+    expect(impact.affectedOrderIds).toEqual(['ORD-1104'])
+    expect(impact.exposedQuantity).toBe(6)
+    expect(plans.find((plan) => plan.id === transferPlan)).toMatchObject({ status: 'ready', quantity: 6 })
   })
 
   it('an order the stock on hand fully covers is not at risk, even when it is due before the late delivery', () => {
@@ -50,7 +62,7 @@ describe('which orders the delay affects', () => {
     const { impact } = rehearse({ ...withStock(sampleWorkspace, 'north', 18), shipments: [...sampleWorkspace.shipments, transfer] })
     expect(impact.exposedQuantity).toBe(0)
     expect(impact.affectedOrderIds).toEqual([])
-    expect(impact.watchOrderIds).toEqual(['ORD-1086', 'ORD-1091'])
+    expect(impact.watchOrderIds).toEqual(['ORD-1086', 'ORD-1091', 'ORD-1104'])
     expect(impact.unaffectedOrderIds).toContain('ORD-1082')
   })
 

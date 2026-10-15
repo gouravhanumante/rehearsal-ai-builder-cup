@@ -121,7 +121,6 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
     const tally = (key: string, by = 1) => { count[key] = (count[key] ?? 0) + by }
     const broken: string[] = []
     const openRulings: string[] = []
-    const openFindings = { shortAfterDelayGetsNoOptions: [] as string[] }
     const slowest = { ms: 0, when: '' }
     let orderNo = 2000
     const record = (now: string, kind: Parameters<typeof addHistory>[1]['kind'], text: string) => { workspace = addHistory(workspace, { at: now, kind, text }) }
@@ -153,11 +152,7 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
       const shortLines = orderCoverage(workspace).filter((line) => line.status === 'short')
       for (const line of shortLines.filter((item) => !atRisk.has(item.orderId))) {
         const order = workspace.orders.find((item) => item.id === line.orderId)
-        const sameSpot = result.impact.groups.find((group) => group.locationId === line.locationId && group.productId === line.productId)
-        const text = `${line.orderId} at ${line.locationId} due ${order?.dueAt}: Orders page ${line.covered} of ${line.ordered}`
-        // Known, awaiting a ruling (docs/TODO.md): an order due after a delayed delivery that is still short gets no problem.
-        if (sameSpot?.kind === 'delay' && !sameSpot.allocations.some((item) => item.orderId === line.orderId)) openFindings.shortAfterDelayGetsNoOptions.push(text)
-        else broken.push(`${where}: ${text} shown Short in Orders but not at risk`)
+        broken.push(`${where}: ${line.orderId} at ${line.locationId} due ${order?.dueAt}: Orders page ${line.covered} of ${line.ordered}, shown Short in Orders but not at risk`)
       }
       const exposure = result.impact.groups.reduce((total, group) => total + group.allocations.reduce((sum, item) => sum + item.ordered - item.covered, 0), 0)
       if (exposure !== result.impact.exposedQuantity) broken.push(`${where}: exposed ${result.impact.exposedQuantity} but shortfalls add to ${exposure}`)
@@ -327,7 +322,6 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
       slowestPlannerRunMs: Math.round(slowest.ms), slowestAt: slowest.when,
       savedSizeKb: Math.round(JSON.stringify(workspace).length / 1024),
       openRulingReceivingLimit: { violations: openRulings.length, example: openRulings[0] ?? null },
-      openFindings: Object.fromEntries(Object.entries(openFindings).map(([key, list]) => [key, { distinctOrders: new Set(list.map((item) => item.split(' ')[0])).size, example: list[0] ?? null }])),
       broken,
     }
     console.log(JSON.stringify(summary, null, 2))

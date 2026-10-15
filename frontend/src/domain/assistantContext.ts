@@ -74,7 +74,7 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
   const laterOrders: AssistantFact[] = unaffected.length === 0 ? [] : [{
     id: 'orders-not-affected',
     label: 'Orders not at risk',
-    value: `${unaffected.length} orders; covered by stock on hand, due after the delayed stock arrives, or for other products or locations`,
+    value: `${unaffected.length} orders; covered by stock on hand, or for products and locations with no problem`,
     evidenceStatus: 'confirmed',
     source: 'Counted by the planner',
   }]

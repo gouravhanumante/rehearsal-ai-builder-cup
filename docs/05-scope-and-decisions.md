@@ -57,6 +57,7 @@ Out (later):
 | After approving: ready-to-send messages (supplier order, transfer request to the sending location, note to a customer still short) shown right away and kept in History | 2026-10-15 |
 | Goal per business: Protect deliveries (default), Lowest cost, Balanced = priority orders first, then cheapest per package saved | 2026-10-15 |
 | Next, in order: Mark received (partial asks "are the rest still coming?") + read-only History; ready-to-send messages after approval (supplier order, transfer booking, late customer); pick a goal (default Protect deliveries) | 2026-10-15 |
+| A delay checks every order at that place for that product, the late delivery at its new date: an order due after it that is still short gets options; one that relies on it is Watch | 2026-10-16 |
 
 Details and the code behind each 2026-10-14/15 row are in `03-behaviour.md` (search "user decision").
 

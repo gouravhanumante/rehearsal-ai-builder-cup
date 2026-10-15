@@ -287,18 +287,16 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
     for (const productId of new Set(shipment.lines.map((line) => line.productId))) {
       const locationId = shipment.locationId
       const delayedUntil = shipment.confirmedArrivalAt
+      // Every order at this place, and every delivery, the late one at its new date (user decision
+      // 2026-10-16): an order due after the late delivery that is still short gets options too.
       const demands: Demand[] = workspace.orders
-        .filter((order) => order.locationId === locationId && time(order.dueAt) < time(delayedUntil))
+        .filter((order) => order.locationId === locationId)
         .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
         .filter((demand) => demand.quantity > 0)
-      // The delayed delivery itself is excluded; later deliveries of a repeating schedule still count.
+      const horizon = Math.max(time(delayedUntil), ...demands.map((demand) => time(demand.order.dueAt)))
       const inbound: Batch[] = workspace.shipments
         .filter((other) => other.locationId === locationId && lineQuantity(other, productId) > 0)
-        .flatMap((other) => {
-          const dates = arrivalsOf(other, time(delayedUntil))
-          return (other.id === shipment.id ? dates.slice(1) : dates).map((at) => ({ at, quantity: lineQuantity(other, productId) }))
-        })
-        .filter((batch) => time(batch.at) < time(delayedUntil))
+        .flatMap((other) => arrivalsOf(other, horizon).map((at) => ({ at, quantity: lineQuantity(other, productId) })))
       problems.push({ kind: 'delay', disruptionId: disruption.id, shipmentId: shipment.id, locationId, productId, delayedUntil, demands, inbound })
     }
   }

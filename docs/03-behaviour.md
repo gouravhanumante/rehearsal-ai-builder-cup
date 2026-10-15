@@ -56,9 +56,12 @@ Agreed with the user: both paths exist, and the difference is always visible.
 ### 1b. Orders, locations and suppliers (implemented 2026-10-14)
 - A workspace can hold any number of products, locations (warehouse, store, distribution
   centre), shipments, transfer routes and supplier offers (`shared/planner/model.ts`).
-- A delayed shipment affects only orders **at the same location, for the same product**, due
-  **before** the delayed stock arrives. An order with several products counts only the delayed
-  product. Everything else is listed as **Not affected**. (`rehearse` in `shared/planner/plan.ts`)
+- A delayed shipment affects only orders **at the same location, for the same product**. All of
+  them are checked, with the late delivery counted at its new date (user decision 2026-10-16): an
+  order due before it may be short (**at risk**), an order due after it that relies on it is
+  **Watch**, and an order due after it that is still short gets recovery options like any other
+  shortage. An order with several products counts only the delayed product. Everything else is
+  listed as **Not affected**. (`rehearse` in `shared/planner/plan.ts`)
 - A location with no stock count for the product **counts as 0** (user decision 2026-10-15; it
   replaces the earlier "unknown, never zero" rule because most missing counts really are none, and
   unknown blocked every fix). It is never silent: the order says "No stock count for Broom at
