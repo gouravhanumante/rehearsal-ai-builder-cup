@@ -1,8 +1,12 @@
 import { useState } from 'react'
-import { ArrowRight, Ban, PencilLine, Plus, RotateCcw, Route, Trash2 } from 'lucide-react'
+import { ArrowRight, Ban, PackageCheck, PencilLine, Plus, RotateCcw, Route, Trash2, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
+import { ConfirmDialog } from '../layout/ConfirmDialog'
+import { TransferDepartureDialog } from './TransferDepartureDialog'
 import type { EditTarget } from '../../presentation/planText'
+import type { OrderLine } from '../../../../shared/planner/model'
+import { transferDepartedLines, transferRemainingLines } from '../../../../shared/planner/ledger'
 import { searchPage } from '../../presentation/listPage'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
@@ -15,23 +19,50 @@ type TransfersViewProps = {
   onAskAgain: (fromLocationId: string, toLocationId: string) => void
   onAnswerDelivery: (fromLocationId: string, forLocationId: string, canDeliver: boolean) => void
   onForgetDelivery: (fromLocationId: string, forLocationId: string) => void
+  onDepart: (shipmentId: string, lines: OrderLine[], actionId: string) => string | null
+  onCancelBooking: (shipmentId: string) => string | null
 }
 
 /** Which locations can move stock to which, who can deliver to whose customers, and pairs the user said can't. */
-export function TransfersView({ onEdit, onRemoveRoute, onAskAgain, onAnswerDelivery, onForgetDelivery }: TransfersViewProps) {
+export function TransfersView({ onEdit, onRemoveRoute, onAskAgain, onAnswerDelivery, onForgetDelivery, onDepart, onCancelBooking }: TransfersViewProps) {
   const { workspace, format, words } = useWorkspaceView()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const [askFrom, setAskFrom] = useState(workspace.locations[1]?.id ?? '')
   const [askFor, setAskFor] = useState(workspace.locations[0]?.id ?? '')
+  const [departureId, setDepartureId] = useState<string | null>(null)
+  const [cancelId, setCancelId] = useState<string | null>(null)
   const answers = workspace.deliveryAnswers ?? []
   const nameOf = (from: string, to: string) => `${words.locationName(from)} ${words.locationName(to)}`
   const routes = searchPage(workspace.routes, (route) => nameOf(route.fromLocationId, route.toLocationId), query, page)
   const blocked = workspace.noTransfers ?? []
+  const transferBookings = workspace.shipments.filter((shipment) => shipment.fromLocationId && shipment.transferStatus !== 'in-transit' && shipment.transferStatus !== 'cancelled' && shipment.lines.length > 0)
+  const departureShipment = transferBookings.find((shipment) => shipment.id === departureId)
+  const cancelShipment = transferBookings.find((shipment) => shipment.id === cancelId)
   const twoLocations = workspace.locations.length >= 2
 
   return (
     <div className="suppliers-page">
+      {transferBookings.length > 0 && <section className="data-view" aria-labelledby="bookings-title">
+        <div className="section-heading data-view-heading">
+          <div><p className="section-kicker">STOCK HELD AT SOURCE</p><h2 id="bookings-title">Transfer bookings</h2><p className="data-view-description">Booked quantities stay on hand but are held from other commitments until they leave.</p></div>
+        </div>
+        <ul className="route-list">
+          {transferBookings.map((shipment) => {
+            const departed = transferDepartedLines(workspace, shipment.id)
+            const remaining = transferRemainingLines(workspace, shipment.id)
+            const bookedText = shipment.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')
+            return <li className="route-row" key={shipment.id}>
+              <div className="route-pair"><Truck aria-hidden="true" size={15} /><strong>{words.locationName(shipment.fromLocationId ?? '')}</strong><ArrowRight aria-hidden="true" size={16} /><strong>{words.locationName(shipment.locationId)}</strong><StatusBadge dot tone={departed.length ? 'warning' : 'neutral'}>{departed.length ? 'Partly departed' : 'Booked'}</StatusBadge></div>
+              <div><strong>{bookedText}</strong><small>{shipment.id} · arrives {format.dateTime(shipment.confirmedArrivalAt)} · departed {departed.length ? departed.map((line) => words.quantity(line.quantity, line.productId)).join(', ') : 'nothing'}</small></div>
+              <div className="route-actions">
+                {remaining.length > 0 && <Button icon={<PackageCheck size={14} />} onClick={() => setDepartureId(shipment.id)} variant="primary">Record departure</Button>}
+                {remaining.length > 0 && <Button icon={<Ban size={14} />} onClick={() => setCancelId(shipment.id)} variant="quiet">Cancel remainder</Button>}
+              </div>
+            </li>
+          })}
+        </ul>
+      </section>}
       <section className="data-view" aria-labelledby="routes-title">
         <div className="section-heading data-view-heading">
           <div>
@@ -130,6 +161,24 @@ export function TransfersView({ onEdit, onRemoveRoute, onAskAgain, onAnswerDeliv
           })}
         </ul>
       </section>}
+      {departureShipment && <TransferDepartureDialog
+        onClose={() => setDepartureId(null)}
+        onDepart={(lines, actionId) => {
+          const error = onDepart(departureShipment.id, lines, actionId)
+          if (!error) setDepartureId(null)
+          return error
+        }}
+        shipment={departureShipment}
+      />}
+      {cancelShipment && <ConfirmDialog
+        body={transferDepartedLines(workspace, cancelShipment.id).length
+          ? `Only the unshipped remainder is cancelled. ${transferDepartedLines(workspace, cancelShipment.id).map((line) => words.quantity(line.quantity, line.productId)).join(', ')} already left and stays expected at ${words.locationName(cancelShipment.locationId)}.`
+          : 'No goods have left. The booking is released; physical stock at the source stays unchanged.'}
+        confirmLabel="Cancel remainder"
+        onClose={() => setCancelId(null)}
+        onConfirm={() => { const error = onCancelBooking(cancelShipment.id); if (error) return; setCancelId(null) }}
+        title="Cancel this transfer booking?"
+      />}
     </div>
   )
 }

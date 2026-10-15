@@ -13,6 +13,9 @@ import { SuppliersView } from './components/operations/SuppliersView'
 import { TransfersView } from './components/operations/TransfersView'
 import { HistoryView } from './components/operations/HistoryView'
 import { ReceiveDialog } from './components/operations/ReceiveDialog'
+import { SendDialog } from './components/operations/SendDialog'
+import { CorrectSendsDialog } from './components/operations/CorrectSendsDialog'
+import type { OrderAction } from './components/operations/CommitmentsPanel'
 import { ReadyMessages } from './components/planning/ReadyMessages'
 import { GoalPicker } from './components/planning/GoalPicker'
 import { goalLabel } from './presentation/goals'
@@ -26,7 +29,8 @@ import { SetupView, type SetupAction } from './components/setup/SetupView'
 import type { ImportKind } from '../../shared/import/fields'
 import type { HistoryKind, HistoryMessage, OrderLine, Workspace } from '../../shared/planner/model'
 import { planningNow, rehearse, type Plan } from '../../shared/planner/plan'
-import { addHistory, applyPlan, receiveDelivery, setOrderStatus } from '../../shared/planner/apply'
+import { addHistory, applyPlan, receiveDelivery } from '../../shared/planner/apply'
+import { cancelRemaining, cancelTransferBooking, correctMovement, departTransfer, remainingLines, reopenOrder, resolveTransferFate, sendOrder, sentLines, setSplitAllowed } from '../../shared/planner/ledger'
 import { checkPlanOnServer } from './data/planCheck'
 import { createFormat } from './presentation/format'
 import { createWording, type EditTarget } from './presentation/planText'
@@ -66,7 +70,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
   const [importKind, setImportKind] = useState<ImportKind | null>(null)
   const [removingRouteId, setRemovingRouteId] = useState<string | null>(null)
   const [removingSupplierId, setRemovingSupplierId] = useState<string | null>(null)
-  const [closing, setClosing] = useState<{ orderId: string; status: 'delivered' | 'cancelled' } | null>(null)
+  const [orderAction, setOrderAction] = useState<{ orderId: string; action: OrderAction } | null>(null)
   const [receivingId, setReceivingId] = useState<string | null>(null)
   const [readyMessages, setReadyMessages] = useState<{ title: string; messages: HistoryMessage[] } | null>(null)
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
@@ -103,7 +107,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
       const order = workspace.orders.find((item) => item.id === plan.orderId)
       return `${order?.customer ?? plan.orderId}'s order ${plan.orderId} now ships from ${words.locationName(plan.sourceLocationId ?? '')}.`
     }
-    if (plan.kind === 'transfer') return `Recorded: ${what} leave ${words.locationName(plan.sourceLocationId ?? '')} now and arrive at ${to} ${when}. It is listed under Suppliers → Incoming deliveries.`
+    if (plan.kind === 'transfer') return `Booked: ${what} are held at ${words.locationName(plan.sourceLocationId ?? '')} for transfer to ${to}, expected ${when}. Record their departure in Between locations when they leave.`
     return `Recorded: buying ${what} from ${words.supplierName(plan.supplierId)}, arriving at ${to} ${when}. It is listed under Suppliers → Incoming deliveries.`
   }
 
@@ -147,16 +151,41 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
   const forgetDelivery = (fromLocationId: string, forLocationId: string) =>
     saveChange({ ...workspace, deliveryAnswers: otherAnswers(fromLocationId, forLocationId) }, { kind: 'edit', text: `Ask again whether ${words.locationName(fromLocationId)} can deliver to ${words.locationName(forLocationId)}'s customers.` })
   const removingSupplier = workspace.suppliers.find((supplier) => supplier.id === removingSupplierId)
-  const closingOrder = workspace.orders.find((order) => order.id === closing?.orderId)
-  const setStatus = (orderId: string, status: 'open' | 'delivered' | 'cancelled') => {
-    if (status !== 'open') { setClosing({ orderId, status }); return }
+  const actingOrder = workspace.orders.find((order) => order.id === orderAction?.orderId)
+  const goods = (lines: OrderLine[]) => lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')
+  const onOrderAction = (orderId: string, action: OrderAction) => {
+    if (action !== 'reopen') { setOrderAction({ orderId, action }); return }
     const order = workspace.orders.find((item) => item.id === orderId)
-    saveChange(setOrderStatus(workspace, orderId, 'open', planningNow(workspace)), { kind: 'order', text: `${order?.customer ?? 'Customer'}'s order ${orderId} reopened.` })
-    onNotice(`${orderId} is open again and counts toward stock.`)
+    const result = reopenOrder(workspace, orderId)
+    if ('error' in result) { onNotice(result.error); return }
+    saveChange(result.workspace, { kind: 'order', text: `${order?.customer ?? 'Customer'}'s order ${orderId} reopened.` })
+    onNotice(`${orderId} is open again: what was not sent counts toward stock again.`)
   }
-  const orderGoods = (orderId: string) => {
-    const order = workspace.orders.find((item) => item.id === orderId)
-    return order ? `${order.lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')} from ${words.locationName(order.locationId)}` : ''
+  const send = (lines: OrderLine[], actionId: string, splitAllowed: boolean | undefined) => {
+    if (!actingOrder) return
+    const answered = splitAllowed === undefined || splitAllowed === actingOrder.splitAllowed ? workspace : setSplitAllowed(workspace, actingOrder.id, splitAllowed)
+    const result = sendOrder(answered, actingOrder.id, lines, new Date().toISOString(), actionId)
+    if ('error' in result) { onNotice(result.error); return }
+    const sent = lines.filter((line) => line.quantity > 0)
+    const left = remainingLines(result.workspace, actingOrder)
+    const text = `${goods(sent)} sent to ${actingOrder.customer} from ${words.locationName(actingOrder.locationId)} (${actingOrder.id}).${left.length ? ` Still to send: ${goods(left)}.` : ''}`
+    saveChange(result.workspace, { kind: 'order', text })
+    onNotice(`${text} ${left.length ? 'The rest stays on the order.' : 'It is listed under Orders → Sent and cancelled.'}`)
+    setOrderAction(null)
+  }
+  const correctSends = (changes: { movementId: string; quantity: number }[]): string | null => {
+    if (!actingOrder) return null
+    const now = new Date().toISOString()
+    let next = workspace
+    for (const change of changes) {
+      const result = correctMovement(next, change.movementId, change.quantity, now)
+      if ('error' in result) return result.error
+      next = result.workspace
+    }
+    saveChange(next, { kind: 'order', text: `Corrected what was sent for ${actingOrder.customer}'s order ${actingOrder.id}: now ${goods(sentLines(next, actingOrder.id)) || 'nothing'}.` })
+    onNotice(`Corrected. ${actingOrder.id} now shows ${goods(sentLines(next, actingOrder.id)) || 'nothing'} sent.`)
+    setOrderAction(null)
+    return null
   }
   // A removed route is remembered as "can't move this way" so Rehearsal doesn't ask straight back.
   const removeRoute = () => {
@@ -168,15 +197,43 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
   }
 
   const receivingShipment = workspace.shipments.find((shipment) => shipment.id === receivingId)
-  const receive = (received: OrderLine[], rest: { arrivalAt: string } | null) => {
+  const receive = (received: OrderLine[], rest: { arrivalAt: string } | null, actionId: string) => {
     if (!receivingShipment) return
     const got = received.filter((line) => line.quantity > 0).map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')
     const short = receivingShipment.lines.some((line) => (received.find((item) => item.productId === line.productId)?.quantity ?? 0) < line.quantity)
     const restText = short ? (rest ? ` The rest is still coming, expected ${format.dateTime(rest.arrivalAt)}.` : ' The rest is not coming.') : ''
     const text = `Received ${got} from ${receivingShipment.supplierName} at ${words.locationName(receivingShipment.locationId)} (${receivingShipment.id}).${restText}`
-    saveChange(receiveDelivery(workspace, receivingShipment.id, received, rest, new Date().toISOString()), { kind: 'received', text })
+    saveChange(receiveDelivery(workspace, receivingShipment.id, received, rest, new Date().toISOString(), actionId), { kind: 'received', text })
     onNotice(`${text} It is added to stock. ${rest && short ? 'The rest stays listed as incoming.' : receivingShipment.repeatEveryDays ? 'The next regular delivery stays on its schedule.' : 'This delivery no longer counts as incoming.'}`)
     setReceivingId(null)
+  }
+
+  const depart = (shipmentId: string, lines: OrderLine[], actionId: string): string | null => {
+    const shipment = workspace.shipments.find((item) => item.id === shipmentId)
+    const result = departTransfer(workspace, shipmentId, lines, new Date().toISOString(), actionId)
+    if ('error' in result) return result.error
+    saveChange(result.workspace, { kind: 'approval', text: `${goods(lines)} departed ${words.locationName(shipment?.fromLocationId ?? '')} for ${words.locationName(shipment?.locationId ?? '')} (${shipmentId}).` })
+    onNotice(`${goods(lines)} left the source warehouse. They are no longer on hand there and remain expected at the destination.`)
+    return null
+  }
+
+  const cancelBooking = (shipmentId: string): string | null => {
+    const shipment = workspace.shipments.find((item) => item.id === shipmentId)
+    const result = cancelTransferBooking(workspace, shipmentId)
+    if ('error' in result) return result.error
+    saveChange(result.workspace, { kind: 'edit', text: `Cancelled the unshipped remainder of transfer ${shipmentId}.` })
+    onNotice(`Cancelled the unshipped remainder of ${shipment?.id ?? shipmentId}. Any goods already departed remain expected at the destination.`)
+    return null
+  }
+
+  const resolveTransfer = (shipmentId: string, outcomes: { productId: string; fate: 'returned' | 'lost' }[]): string | null => {
+    const shipment = workspace.shipments.find((item) => item.id === shipmentId)
+    const result = resolveTransferFate(workspace, shipmentId, outcomes, new Date().toISOString())
+    if ('error' in result) return result.error
+    const details = outcomes.map((item) => `${words.quantity(shipment?.lines.find((line) => line.productId === item.productId)?.quantity ?? 0, item.productId)} of ${words.productName(item.productId)} ${item.fate}`).join(', ')
+    saveChange(result.workspace, { kind: 'edit', text: `Resolved transfer ${shipmentId}: ${details}.` })
+    onNotice(`Resolved ${shipmentId}: ${details}.`)
+    return null
   }
 
   /** "SH-2210 from Punjab Grains Co now arrives Wed 21 Oct, 5 pm (was Fri 16 Oct, 9 am)." */
@@ -248,10 +305,10 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
                 <CommitmentsPanel onAddCount={(locationId, productId) => openEditor({ type: 'stock', locationId, productId })} onToggleAll={() => setActiveSection('Orders')} showAll={false} />
                 <OverviewRecommendation onApprove={requestApproval} onViewOptions={() => setActiveSection('Rehearsals')} />
               </>)}
-            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} onAddCount={(locationId, productId) => openEditor({ type: 'stock', locationId, productId })} onSetStatus={setStatus} showAll />}
+            {activeSection === 'Orders' && <CommitmentsPanel onImportOrders={isReal ? () => setImportKind('orders') : undefined} onAddOrder={isReal && !needsBoth ? () => openEditor({ type: 'new-order' }) : undefined} onEditOrder={(orderId) => openEditor({ type: 'order', orderId })} onAddCount={(locationId, productId) => openEditor({ type: 'stock', locationId, productId })} onOrderAction={onOrderAction} showAll />}
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
-            {activeSection === 'Between locations' && <TransfersView onAnswerDelivery={answerDelivery} onAskAgain={askAgain} onEdit={openEditor} onForgetDelivery={forgetDelivery} onRemoveRoute={setRemovingRouteId} />}
-            {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} onReceive={setReceivingId} onRemoveSupplier={setRemovingSupplierId} />}
+            {activeSection === 'Between locations' && <TransfersView onAnswerDelivery={answerDelivery} onAskAgain={askAgain} onCancelBooking={cancelBooking} onDepart={depart} onEdit={openEditor} onForgetDelivery={forgetDelivery} onRemoveRoute={setRemovingRouteId} />}
+            {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} onReceive={setReceivingId} onRemoveSupplier={setRemovingSupplierId} onResolveTransfer={resolveTransfer} />}
             {activeSection === 'Rehearsals' && <>
               {rehearsal.plans.some((plan) => plan.status === 'ready') && <GoalPicker goal={workspace.goal} onChange={(goal) => saveChange({ ...workspace, goal }, { kind: 'edit', text: `Goal set to ${goalLabel(goal)}.` })} />}
               <RecoveryPlans onAddDetails={openEditor} onAnswerDelivery={answerDelivery} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />
@@ -259,7 +316,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
             {activeSection === 'History' && <HistoryView />}
             <footer className="page-footer">
               <span>{isReal ? (saveStatus ?? 'Your business') + '. Download a backup any time from the menu.' : 'Illustrative distributor data · edits stay in this browser until Reset'}</span>
-              <span>Approving records the change: stock moves, and transfers and purchases become incoming deliveries</span>
+              <span>Bookings hold stock; a recorded departure moves it. Purchases and actual receipts update stock separately.</span>
             </footer>
           </main>
         </div>
@@ -285,18 +342,22 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
           onConfirm={() => { saveChange({ ...workspace, suppliers: workspace.suppliers.filter((item) => item.id !== removingSupplier.id) }, { kind: 'edit', text: `Removed backup supplier ${removingSupplier.name}.` }); setRemovingSupplierId(null) }}
           title={`Remove ${removingSupplier.name}?`}
         />}
-        {closing && closingOrder && <ConfirmDialog
-          body={closing.status === 'delivered'
-            ? `${orderGoods(closingOrder.id)} left with this order, so it comes off that warehouse's stock. The order stops counting toward shortages. You can reopen it if this was a mistake.`
-            : `The order stops counting toward shortages, and its stock is free for other orders. You can reopen it later.`}
-          confirmLabel={closing.status === 'delivered' ? 'Mark delivered' : 'Cancel order'}
-          onClose={() => setClosing(null)}
+        {orderAction?.action === 'send' && actingOrder && <SendDialog onClose={() => setOrderAction(null)} onSend={send} order={actingOrder} />}
+        {orderAction?.action === 'correct' && actingOrder && <CorrectSendsDialog onClose={() => setOrderAction(null)} onSave={correctSends} order={actingOrder} />}
+        {orderAction?.action === 'cancel' && actingOrder && <ConfirmDialog
+          body={sentLines(workspace, actingOrder.id).length
+            ? `${goods(remainingLines(workspace, actingOrder))} will not be sent. What already left (${goods(sentLines(workspace, actingOrder.id))}) stays recorded, and stock does not change.`
+            : 'The order stops counting toward shortages, and stock does not change. You can reopen it later.'}
+          confirmLabel="Cancel the rest"
+          onClose={() => setOrderAction(null)}
           onConfirm={() => {
-            saveChange(setOrderStatus(workspace, closingOrder.id, closing.status, planningNow(workspace)), { kind: 'order', text: `${closingOrder.customer}'s order ${closingOrder.id} marked ${closing.status}${closing.status === 'delivered' ? `: ${orderGoods(closingOrder.id)} left the warehouse` : ''}.` })
-            onNotice(`${closingOrder.customer}'s order ${closingOrder.id} is ${closing.status}. It is listed under Orders → Delivered and cancelled.`)
-            setClosing(null)
+            const result = cancelRemaining(workspace, actingOrder.id, new Date().toISOString())
+            if ('error' in result) { onNotice(result.error); setOrderAction(null); return }
+            saveChange(result.workspace, { kind: 'order', text: `${actingOrder.customer}'s order ${actingOrder.id}: the rest is cancelled (${goods(remainingLines(workspace, actingOrder))}).` })
+            onNotice(`${actingOrder.customer}'s order ${actingOrder.id} is cancelled. It is listed under Orders → Sent and cancelled.`)
+            setOrderAction(null)
           }}
-          title={closing.status === 'delivered' ? `Mark ${closingOrder.customer}'s order delivered?` : `Cancel ${closingOrder.customer}'s order?`}
+          title={`Cancel what is left of ${actingOrder.customer}'s order?`}
         />}
         {readyMessages && <div className="dialog-overlay">
           <button aria-label="Close" className="assistant-scrim" onClick={() => setReadyMessages(null)} type="button" />

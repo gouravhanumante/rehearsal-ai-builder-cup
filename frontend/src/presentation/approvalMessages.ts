@@ -1,5 +1,5 @@
 import type { Workspace } from '../../../shared/planner/model'
-import { rehearse, type Plan } from '../../../shared/planner/plan'
+import { mustLeaveBy, rehearse, type Plan } from '../../../shared/planner/plan'
 import type { Format } from './format'
 import type { Wording } from './planText'
 import { emailOf } from './supplierAsk'
@@ -65,12 +65,23 @@ export function approvalMessages(plan: Plan, before: Workspace, after: Workspace
   for (const line of stillShort) {
     const order = after.orders.find((item) => item.id === line.orderId)
     if (!order) continue
+    const customerCutoff = mustLeaveBy(after, order)
+    const lastMileHours = after.locations.find((location) => location.id === order.locationId)?.customerTravelHours?.value ?? null
+    const warehouseCutoff = customerCutoff ?? order.dueAt
     const nextArrival = after.shipments
-      .filter((shipment) => shipment.locationId === order.locationId && shipment.lines.some((item) => item.productId === plan.productId) && Date.parse(shipment.confirmedArrivalAt) > Date.parse(order.dueAt))
-      .map((shipment) => shipment.confirmedArrivalAt)
+      .filter((shipment) => shipment.locationId === order.locationId && shipment.lines.some((item) => item.productId === plan.productId) && Date.parse(shipment.confirmedArrivalAt) > Date.parse(warehouseCutoff))
+      .map((shipment) => lastMileHours === null ? shipment.confirmedArrivalAt : new Date(Date.parse(shipment.confirmedArrivalAt) + lastMileHours * 3_600_000).toISOString())
       .sort((first, second) => Date.parse(first) - Date.parse(second))[0]
     const missing = line.ordered - line.covered
-    const onTime = line.covered > 0 ? `We can deliver ${amount(line.covered)} on time. ` : `We can't deliver it on time. `
+    const delayedSupplier = before.shipments.some((shipment) => shipment.locationId === order.locationId
+      && !shipment.fromLocationId
+      && shipment.lines.some((item) => item.productId === plan.productId)
+      && before.disruptions.some((disruption) => disruption.shipmentId === shipment.id)
+      && Date.parse(shipment.originalArrivalAt) <= Date.parse(warehouseCutoff)
+      && Date.parse(shipment.confirmedArrivalAt) > Date.parse(warehouseCutoff))
+    const onTime = customerCutoff === null
+      ? `Customer arrival time is not confirmed because delivery travel time from ${words.locationName(order.locationId)} is not recorded. `
+      : line.covered > 0 ? `We can deliver ${amount(line.covered)} on time. ` : `We can't deliver it on time. `
     const rest = nextArrival
       ? `The ${line.covered > 0 ? 'remaining ' : ''}${amount(missing)} should follow after our next delivery arrives on ${format.dateTime(nextArrival)}.`
       : `We will confirm when the ${line.covered > 0 ? 'remaining ' : ''}${amount(missing)} can follow.`
@@ -78,7 +89,7 @@ export function approvalMessages(plan: Plan, before: Workspace, after: Workspace
       to: order.customer,
       email: null,
       subject: `Your order ${order.id}: part will be late`,
-      body: [`Hello ${order.customer},`, '', `About your order ${order.id} for ${amount(line.ordered)}, due ${format.dateTime(order.dueAt)}: a supplier delivery to us is late. ${onTime}${rest}`, 'Sorry for the trouble.', sign].join('\n'),
+      body: [`Hello ${order.customer},`, '', `About your order ${order.id} for ${amount(line.ordered)}, due ${format.dateTime(order.dueAt)}:${delayedSupplier ? ' a supplier delivery to us is late.' : ''} ${onTime}${rest}`, 'Sorry for the trouble.', sign].join('\n'),
     })
   }
   return messages

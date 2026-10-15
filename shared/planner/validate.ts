@@ -1,9 +1,10 @@
 import type { Workspace } from './model.js'
+import { stockFrom } from './ledger.js'
 
 /** Hard caps so a request or saved file cannot make the planner do unbounded work. */
 export const LIMITS = {
   products: 20_000, locations: 10_000, stock: 300_000, orders: 100_000, lines: 100,
-  shipments: 20_000, routes: 20_000, suppliers: 2_000, offers: 20_000, history: 500,
+  shipments: 20_000, routes: 20_000, suppliers: 2_000, offers: 20_000, history: 500, movements: 500_000,
 }
 
 type Check = (value: unknown) => boolean
@@ -17,6 +18,7 @@ const oneOf = (...options: string[]): Check => (value) => options.includes(value
 const shape = (fields: Record<string, Check>): Check => (value) => isObject(value) && Object.entries(fields).every(([key, check]) => check(value[key]))
 const nullable = (check: Check): Check => (value) => value === null || check(value)
 const optional = (check: Check): Check => (value) => value === undefined || check(value)
+const isBoolean: Check = (value) => typeof value === 'boolean'
 
 const isEvidence: Check = shape({ kind: oneOf('sample', 'manual', 'document', 'import'), source: isText(160), recordedAt: isTime })
 const recorded = (check: Check): Check => (value) => isObject(value) && check(value.value) && isEvidence(value.evidence)
@@ -25,23 +27,30 @@ const fact = (check: Check): Check => (value) => isObject(value)
 const isLine = shape({ productId: isText(64), quantity: isCount })
 
 const isWorkspaceShape = shape({
-  version: (value) => value === 2,
+  version: (value) => value === 3,
   mode: oneOf('demo', 'real'),
   businessName: isText(80),
   settings: shape({ country: isText(2), currency: isText(3), timeZone: isText(64), locale: isText(16) }),
   products: listOf(shape({ id: isText(64), name: isText(80), unit: isText(24), pack: isText(80), perPackage: optional((value) => isCount(value) && (value as number) >= 1), pricePerUnit: optional(nullable(isAmount)) }), LIMITS.products),
-  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount), deliveryCostPerOrder: optional(nullable(isAmount)), area: optional(nullable(isText(80))) }), LIMITS.locations),
+  locations: listOf(shape({ id: isText(64), name: isText(80), kind: oneOf('warehouse', 'store', 'distribution-centre'), receivingLimitPerDay: nullable(isCount), deliveryCostPerOrder: optional(nullable(isAmount)), area: optional(nullable(isText(80))), customerTravelHours: optional(fact((value) => isCount(value) && (value as number) <= 24 * 90)) }), LIMITS.locations),
   stock: listOf(shape({ locationId: isText(64), productId: isText(64), available: recorded(isCount) }), LIMITS.stock),
+  movements: listOf(shape({
+    id: isText(120), kind: oneOf('count', 'receipt', 'dispatch', 'transfer-out', 'transfer-return', 'transfer-loss'), locationId: isText(64), productId: isText(64),
+    quantity: isCount, at: isTime, evidence: isEvidence, orderId: optional(isText(64)), shipmentId: optional(isText(64)),
+    fromLocationId: optional(isText(64)), bookingId: optional(isText(64)), corrects: optional(isText(120)),
+  }), LIMITS.movements),
   storageLimits: optional(listOf(shape({ locationId: isText(64), productId: isText(64), limit: isCount }), LIMITS.stock)),
   orders: listOf(shape({
     id: isText(64), customer: isText(80), locationId: isText(64), dueAt: isTime,
     priority: oneOf('protected', 'standard'), lines: listOf(isLine, LIMITS.lines), evidence: isEvidence,
-    status: optional(oneOf('open', 'delivered', 'cancelled')), closedAt: optional(isTime),
+    status: optional(oneOf('open', 'cancelled')), closedAt: optional(isTime), splitAllowed: optional(isBoolean),
   }), LIMITS.orders),
   shipments: listOf(shape({
     id: isText(64), supplierName: isText(80), locationId: isText(64), lines: listOf(isLine, LIMITS.lines),
     originalArrivalAt: isTime, confirmedArrivalAt: isTime, updateSource: isText(80), evidence: isEvidence,
     repeatEveryDays: optional((value) => value === 7 || value === 14 || value === 28),
+    fromLocationId: optional(isText(64)), transferBookingId: optional(isText(64)),
+    transferStatus: optional(oneOf('booked', 'in-transit', 'unresolved', 'cancelled')),
   }), LIMITS.shipments),
   disruptions: listOf(shape({ id: isText(64), kind: oneOf('shipment-delay'), shipmentId: isText(64) }), LIMITS.shipments),
   routes: listOf(shape({
@@ -65,9 +74,14 @@ const isWorkspaceShape = shape({
   }), LIMITS.history)),
 })
 
-/** Checks untrusted data (browser storage, API requests) before the planner sees it. */
+/** Checks untrusted data (browser storage, API requests) before the planner sees it. Stock is always worked out again from movements. */
 export function parseWorkspace(value: unknown): Workspace | null {
-  // Saves made before workspaces had a mode were all the sample.
-  const candidate = isObject(value) && value.mode === undefined ? { ...value, mode: 'demo' } : value
-  return isWorkspaceShape(candidate) ? candidate as Workspace : null
+  if (!isWorkspaceShape(value)) return null
+  const workspace = value as Workspace
+  const ids = new Set(workspace.movements.map((movement) => movement.id))
+  if (ids.size !== workspace.movements.length) return null
+  if (workspace.movements.some((movement) => movement.corrects && !ids.has(movement.corrects))) return null
+  const stock = stockFrom(workspace.movements)
+  if (stock.some((record) => record.available.value < 0)) return null
+  return { ...workspace, stock }
 }

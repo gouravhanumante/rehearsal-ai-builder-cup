@@ -1,5 +1,15 @@
 # 05 — Scope, Decisions, Open Questions, Risks
 
+## Feedback Decisions Approved 2026-10-15
+- Customer messages state the known shortage without inventing its cause; a relevant reported supplier delay may be mentioned (`approvalMessages`).
+- Gemini column matching receives headers only, not spreadsheet row contents (`suggestMapping`, implementation tracked in `Progress.md`).
+- Offer late-but-useful transfers with a warning naming customers still short, rather than ruling them out solely for missing a short priority order (`rehearse`, implementation pending).
+- Incoming stock stays separate from on-hand, with dated storage projections that move when arrival dates change. Warn on existing overflow and block rescues that worsen it; do not assume unshipped orders have already left (`rehearse`, `InventoryView`, implementation pending).
+- Supplier replies need reconfirmation when demand/delays change or arrival passes; a purchase for unchanged demand does not invalidate the remaining reply (`SupplierOffer`, implementation pending).
+- Partial dispatch is approved: deduct 6 sent and keep 4 outstanding from an order of 10 under the original due date unless edited. Ask once per order whether the customer accepts splits. Correct only a selected dispatch by editing quantities and applying its stock difference, not a global undo (`Order`, implementation pending).
+- User requested small in-chat diagrams, a connected overview and restriction/calculation review before implementation. `07-bug-map.md` distinguishes current and proposed paths. Allocation warnings, booking versus departure, historical-fact exceptions and dispatched-versus-delivered naming remain open decisions.
+- **Stock ledger, fresh start** (user decision 2026-10-15): stock is derived from recorded movements instead of edited directly; old saved data need not load (no live users). Bookings lock stock (show on-hand, booked and free); a later physical count is respected when correcting a send; missing transfer goods stay unresolved until their fate is recorded; an order's due time means arrival at the customer. Slices 1-3 built (`Progress.md`); bookings, returns, transit fate and arrival timing are next.
+
 ## MVP scope for the 18 October submission (PROPOSED)
 In:
 - Three business templates (Seller, Distributor, Manufacturer) with sample businesses.
@@ -58,6 +68,10 @@ Out (later):
 | Goal per business: Protect deliveries (default), Lowest cost, Balanced = priority orders first, then cheapest per package saved | 2026-10-15 |
 | Next, in order: Mark received (partial asks "are the rest still coming?") + read-only History; ready-to-send messages after approval (supplier order, transfer booking, late customer); pick a goal (default Protect deliveries) | 2026-10-15 |
 | A delay checks every order at that place for that product, the late delivery at its new date: an order due after it that is still short gets options; one that relies on it is Watch | 2026-10-16 |
+| Approved transfers consume their arrival day's receiving limit; new options use only the remainder (`rehearse`, `localDay`). Received quantities are now retained by the automatic arrival records below. | 2026-10-16 |
+| Mark received automatically records actual goods arrivals, without a receipt upload. Received transfers retain their local-day capacity; a partial receipt counts today and its remainder reserves its expected day. Inventory count corrections do not imply arrivals (`GoodsReceipt`, `receiveDelivery`, `rehearse`). | 2026-10-15 |
+| Fully covered orders relying on incoming goods are Watch even with no delay; a shortage on another product keeps the order at risk. Book by follows the earliest short order the transfer actually helps, not an already-covered priority order. The still-short priority timing rule is unchanged (`orderCoverage`, `rehearse`). | 2026-10-15 |
+| Block Mark delivered when counted on-hand stock cannot cover every order line. Correct the count first; do not clamp stock to zero then add the whole order back on reopening (`setOrderStatus`, `WorkspaceScreen`). | 2026-10-15 |
 
 Details and the code behind each 2026-10-14/15 row are in `03-behaviour.md` (search "user decision").
 

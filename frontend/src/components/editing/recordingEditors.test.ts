@@ -67,6 +67,23 @@ describe('a distributor builds a business by hand, then a shipment is late', () 
     expect(stock.storageLimits).toEqual([{ locationId: location.id, productId: item.id, limit: 20 }])
   })
 
+  it('recording the same physical count still creates a new stocktake event', () => {
+    const workspace = smallBusiness()
+    const location = workspace.locations[0]
+    const product = workspace.products[0]
+    const config = editorFor({ type: 'stock', locationId: location.id, productId: product.id }, workspace, createFormat(workspace.settings))!
+    const values = Object.fromEntries(config.fields.map((field) => {
+      const result = parseField(field, config.initial[field.key] ?? '', createFormat(workspace.settings))
+      if ('error' in result) throw new Error(result.error)
+      return [field.key, result.value]
+    }))
+    const proof = { kind: 'manual' as const, source: 'Physical recount', recordedAt: '2026-10-15T10:00:00+05:30' }
+    const next = config.apply(values, { available: proof, storageLimit: null })
+    expect(next.stock[0].available.value).toBe(workspace.stock[0].available.value)
+    expect(next.movements).toHaveLength(workspace.movements.length + 1)
+    expect(next.movements.at(-1)).toMatchObject({ kind: 'count', quantity: workspace.stock[0].available.value, at: proof.recordedAt })
+  })
+
   it('a backup supplier who sells brooms and pens is one supplier with both products, each waiting for their reply', () => {
     let workspace = smallBusiness()
     workspace = enter(workspace, { type: 'new-product' }, { name: 'Pens', perPackage: '10' }).workspace

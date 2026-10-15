@@ -1,25 +1,28 @@
 import { settingsForCountry } from './countries.js'
-import type { Evidence, Workspace } from './model.js'
+import { stockFrom } from './ledger.js'
+import type { Evidence, Movement, Workspace } from './model.js'
 
 export const sampleEvidence: Evidence = { kind: 'sample', source: 'Sample data', recordedAt: '2026-10-15T08:42:00+05:30' }
 /** The sample's story happens on this morning, whatever today's real date is. */
 export const SAMPLE_NOW = '2026-10-15T09:00:00+05:30'
 const unknown = { value: null, evidence: null }
+const opening: Movement[] = [
+  { id: 'CNT-north-harbor-blend', kind: 'count', locationId: 'north', productId: 'harbor-blend', quantity: 14, at: sampleEvidence.recordedAt, evidence: sampleEvidence },
+  { id: 'CNT-south-harbor-blend', kind: 'count', locationId: 'south', productId: 'harbor-blend', quantity: 14, at: sampleEvidence.recordedAt, evidence: sampleEvidence },
+]
 
 export const sampleWorkspace: Workspace = {
-  version: 2,
+  version: 3,
   mode: 'demo',
   businessName: 'Northstar Supply',
   settings: settingsForCountry('IN'),
   products: [{ id: 'harbor-blend', name: 'Harbor Blend Coffee', unit: 'case', pack: '1 kg case' }],
   locations: [
-    { id: 'north', name: 'North Hub', kind: 'warehouse', receivingLimitPerDay: 8 },
-    { id: 'south', name: 'South Hub', kind: 'warehouse', receivingLimitPerDay: null },
+      { id: 'north', name: 'North Hub', kind: 'warehouse', receivingLimitPerDay: 8, customerTravelHours: unknown },
+      { id: 'south', name: 'South Hub', kind: 'warehouse', receivingLimitPerDay: null, customerTravelHours: unknown },
   ],
-  stock: [
-    { locationId: 'north', productId: 'harbor-blend', available: { value: 14, evidence: sampleEvidence } },
-    { locationId: 'south', productId: 'harbor-blend', available: { value: 14, evidence: sampleEvidence } },
-  ],
+  movements: opening,
+  stock: stockFrom(opening),
   orders: [
     { id: 'ORD-1082', customer: 'Common Ground Cafe', locationId: 'north', dueAt: '2026-10-15T14:00:00+05:30', priority: 'protected', lines: [{ productId: 'harbor-blend', quantity: 18 }], evidence: sampleEvidence },
     { id: 'ORD-1086', customer: 'Harbor Market', locationId: 'north', dueAt: '2026-10-16T12:00:00+05:30', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity: 12 }], evidence: sampleEvidence },

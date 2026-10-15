@@ -15,21 +15,21 @@ service cloud.firestore {
 
       match /parts/{docId} {
         allow read, delete: if isOwner(uid);
-        allow create, update: if isOwner(uid)
-          && businessId.matches('^[A-Za-z0-9]{1,40}$')
-          && (
-            (docId == 'core'
-              && request.resource.data.keys().hasOnly(['json', 'chunkIds', 'revision', 'updatedAt'])
-              && request.resource.data.json is string && request.resource.data.json.size() < 700000
-              && request.resource.data.chunkIds is list && request.resource.data.chunkIds.size() < 1000
-              && request.resource.data.revision is int)
-            ||
-            (docId.matches('^(products|locations|stock|storageLimits|orders|shipments|routes|suppliers|history)-[0-9]{1,3}$')
-              && request.resource.data.keys().hasOnly(['list', 'index', 'json'])
-              && request.resource.data.json is string && request.resource.data.json.size() < 700000
-              && request.resource.data.index is int
-              && request.resource.data.list is string)
-          );
+        function validCore() {
+          return request.resource.data.keys().hasOnly(['json', 'chunkIds', 'revision', 'updatedAt'])
+            && request.resource.data.json is string && request.resource.data.json.size() < 700000
+            && request.resource.data.chunkIds is list && request.resource.data.chunkIds.size() < 1000
+            && request.resource.data.revision is int;
+        }
+        function validChunk() {
+          return docId.matches('^(products|locations|movements|storageLimits|orders|shipments|routes|suppliers|history)-[0-9]{1,3}-[a-f0-9]{32}$')
+            && request.resource.data.keys().hasOnly(['list', 'index', 'json'])
+            && request.resource.data.json is string && request.resource.data.json.size() < 700000
+            && request.resource.data.index is int
+            && request.resource.data.list is string;
+        }
+        allow create: if isOwner(uid) && businessId.matches('^[A-Za-z0-9]{1,40}$') && (docId == 'core' ? validCore() : validChunk());
+        allow update: if isOwner(uid) && businessId.matches('^[A-Za-z0-9]{1,40}$') && docId == 'core' && validCore();
       }
     }
 

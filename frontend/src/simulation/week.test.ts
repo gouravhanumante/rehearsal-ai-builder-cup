@@ -1,10 +1,11 @@
 /// <reference types="node" />
 import { writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import type { Evidence, Goal, InboundShipment, Order, Supplier, TransferRoute, Workspace } from '../../../shared/planner/model'
+import type { Evidence, Goal, InboundShipment, Order, OrderLine, Supplier, TransferRoute, Workspace } from '../../../shared/planner/model'
 import { createBlankWorkspace } from '../../../shared/planner/blank'
 import { orderCoverage, recommendPlan, rankPlans, rehearse, type Plan } from '../../../shared/planner/plan'
-import { addHistory, applyPlan, receiveDelivery, setOrderStatus } from '../../../shared/planner/apply'
+import { addHistory, applyPlan, receiveDelivery } from '../../../shared/planner/apply'
+import { cancelRemaining, correctMovement, countStock, departTransfer, effectiveMovements, hasOutstanding, remainingLines, reopenOrder, sendOrder, sentLines, setSplitAllowed, stockFrom } from '../../../shared/planner/ledger'
 import { sliceForPlan } from '../../../shared/planner/slice'
 import { parseWorkspace } from '../../../shared/planner/validate'
 import { splitWorkspace, joinWorkspace } from '../cloud/chunks'
@@ -52,9 +53,10 @@ function buildBusiness(): { workspace: Workspace; initialTotal: number } {
   ]
   workspace.products = PRODUCTS.map((name, index) => ({ id: `p${index}`, name, unit: 'bag', pack: '1 per package', perPackage: 1, pricePerUnit: chance(0.8) ? between(300, 4000) : null }))
   const big = new Set(['dc', 'sec', 'vja'])
-  workspace.stock = workspace.locations.flatMap((location) => workspace.products
+  workspace.movements = workspace.locations.flatMap((location) => workspace.products
     .filter(() => chance(0.85))
-    .map((product) => ({ locationId: location.id, productId: product.id, available: { value: big.has(location.id) ? between(20, 300) : between(0, 40), evidence: typed(at(0, 8)) } })))
+    .map((product) => ({ id: `CNT-${location.id}-${product.id}`, kind: 'count' as const, locationId: location.id, productId: product.id, quantity: big.has(location.id) ? between(20, 300) : between(0, 40), at: at(0, 8), evidence: typed(at(0, 8)) })))
+  workspace.stock = stockFrom(workspace.movements)
   workspace.storageLimits = workspace.stock.filter((record) => !big.has(record.locationId) && chance(0.3)).map((record) => ({ locationId: record.locationId, productId: record.productId, limit: 60 }))
   const route = (from: string, to: string, hours: number): TransferRoute => ({ id: `${from}-${to}`, fromLocationId: from, toLocationId: to, arrivalAt: { value: null, evidence: null }, travelHours: { value: hours, evidence: typed(at(0, 8)) }, costPerTrip: between(300, 900), costPerUnit: between(5, 15), quotes: [] })
   workspace.routes = [
@@ -115,15 +117,44 @@ const canonical = (value: unknown): string => JSON.stringify(value, (_key, item)
 describe('one week at Deccan Wholesale, every feature, every rule checked after every step', () => {
   it('runs Mon 19 to Sun 25 Oct with no rule broken', () => {
     let { workspace } = buildBusiness()
-    const { initialTotal } = { initialTotal: workspace.stock.reduce((total, record) => total + record.available.value, 0) }
-    const ledger = { supplied: 0, delivered: 0, lostInTransit: 0 }
     const count: Record<string, number> = {}
     const tally = (key: string, by = 1) => { count[key] = (count[key] ?? 0) + by }
     const broken: string[] = []
-    const openRulings: string[] = []
     const slowest = { ms: 0, when: '' }
     let orderNo = 2000
     const record = (now: string, kind: Parameters<typeof addHistory>[1]['kind'], text: string) => { workspace = addHistory(workspace, { at: now, kind, text }) }
+
+    // The test's own stock book, kept by plain rules and never read back from the app:
+    // a count sets the number; arrivals add; sends and transfers out take away; a correction gives back
+    // the difference unless a count was taken after that send (the count already saw the truth).
+    const pairOf = (locationId: string, productId: string) => `${locationId}|${productId}`
+    const book = new Map(workspace.stock.map((item) => [pairOf(item.locationId, item.productId), item.available.value]))
+    const bookAdd = (locationId: string, productId: string, by: number) => book.set(pairOf(locationId, productId), (book.get(pairOf(locationId, productId)) ?? 0) + by)
+    const sentBook = new Map<string, Map<string, number>>()
+    const sentOf = (orderId: string, productId: string) => sentBook.get(orderId)?.get(productId) ?? 0
+    const addSent = (orderId: string, productId: string, by: number) => sentBook.set(orderId, new Map(sentBook.get(orderId) ?? []).set(productId, sentOf(orderId, productId) + by))
+    let stepNo = 0
+    const countStep = new Map<string, number>()
+    const sends = new Map<string, { orderId: string; locationId: string; productId: string; quantity: number; step: number }>()
+    let sendNo = 0
+    const afterCount: string[] = []
+    const send = (order: Order, lines: OrderLine[], now: string) => {
+      const id = `DSP-sim-${sendNo++}`
+      const result = sendOrder(workspace, order.id, lines, now, id)
+      if ('error' in result) return result
+      workspace = result.workspace
+      stepNo += 1
+      for (const line of lines.filter((item) => item.quantity > 0)) {
+        bookAdd(order.locationId, line.productId, -line.quantity)
+        addSent(order.id, line.productId, line.quantity)
+        sends.set(`${id}:${line.productId}`, { orderId: order.id, locationId: order.locationId, productId: line.productId, quantity: line.quantity, step: stepNo })
+      }
+      // Pressing Send again with the same action id must record nothing more.
+      const again = sendOrder(workspace, order.id, lines, now, id)
+      if ('error' in again || again.workspace !== workspace) broken.push(`${now}: repeating send ${id} changed the records`)
+      return result
+    }
+    const orderedOf = (order: Order, productId: string) => order.lines.filter((line) => line.productId === productId).reduce((total, line) => total + line.quantity, 0)
 
     const check = (now: string, step: string) => {
       const where = `${step} @ ${now}`
@@ -135,11 +166,30 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
       if (!parseWorkspace(JSON.parse(JSON.stringify(workspace)))) broken.push(`${where}: business no longer passes validation`)
       const { coreJson, chunks } = splitWorkspace(workspace)
       if (canonical(joinWorkspace(coreJson, chunks)) !== canonical(workspace)) broken.push(`${where}: Firestore round trip changed the business`)
-      // Nothing appears or vanishes: stock + transfers in transit = start + received from suppliers - delivered - lost in transit.
-      const onHand = workspace.stock.reduce((total, item) => total + item.available.value, 0)
-      const inTransit = workspace.shipments.filter((item) => item.supplierName.startsWith('Transfer from')).flatMap((item) => item.lines).reduce((total, line) => total + line.quantity, 0)
-      const expected = initialTotal + ledger.supplied - ledger.delivered - ledger.lostInTransit
-      if (onHand + inTransit !== expected) broken.push(`${where}: goods don't add up (stock ${onHand} + in transit ${inTransit} = ${onHand + inTransit}, expected ${expected})`)
+      // Every warehouse and product matches the test's own book, and stock is exactly what the movements say.
+      for (const key of new Set([...book.keys(), ...workspace.stock.map((item) => pairOf(item.locationId, item.productId))])) {
+        const [locationId, productId] = key.split('|')
+        const app = workspace.stock.find((item) => item.locationId === locationId && item.productId === productId)?.available.value ?? 0
+        if (app !== (book.get(key) ?? 0)) { broken.push(`${where}: ${key} stock ${app}, book says ${book.get(key) ?? 0}`); break }
+      }
+      if (canonical(stockFrom(workspace.movements)) !== canonical(workspace.stock)) broken.push(`${where}: stock differs from what the movements say`)
+      // Every order: sent matches the book; still to send = ordered - sent, or nothing if cancelled.
+      for (const order of workspace.orders) {
+        for (const productId of new Set(order.lines.map((line) => line.productId))) {
+          const appSent = sentLines(workspace, order.id).find((line) => line.productId === productId)?.quantity ?? 0
+          const appLeft = remainingLines(workspace, order).find((line) => line.productId === productId)?.quantity ?? 0
+          const left = order.status === 'cancelled' ? 0 : Math.max(0, orderedOf(order, productId) - sentOf(order.id, productId))
+          if (appSent !== sentOf(order.id, productId) || appLeft !== left) broken.push(`${where}: ${order.id} ${productId} sent ${appSent}/left ${appLeft}, book says sent ${sentOf(order.id, productId)}/left ${left}`)
+          if (sentOf(order.id, productId) > orderedOf(order, productId)) broken.push(`${where}: ${order.id} sent more ${productId} than ordered`)
+        }
+      }
+      // The planner never plans for more than is still to be sent.
+      for (const line of orderCoverage(workspace)) {
+        const order = workspace.orders.find((item) => item.id === line.orderId)!
+        if (line.ordered !== orderedOf(order, line.productId) - sentOf(order.id, line.productId)) { broken.push(`${where}: planner sees ${line.ordered} owed on ${line.orderId}, book says ${orderedOf(order, line.productId) - sentOf(order.id, line.productId)}`); break }
+      }
+      const inTransit = workspace.shipments.filter((item) => item.fromLocationId && item.transferStatus !== 'booked' && item.lines.length > 0).flatMap((item) => item.lines)
+      if (inTransit.some((line) => line.quantity <= 0)) broken.push(`${where}: a transfer in transit has no goods`)
       if (workspace.stock.some((item) => item.available.value < 0)) broken.push(`${where}: negative stock`)
       if (new Set(workspace.shipments.map((item) => item.id)).size !== workspace.shipments.length) broken.push(`${where}: a delivery is listed twice`)
       if (workspace.disruptions.some((item) => !workspace.shipments.some((shipment) => shipment.id === item.shipmentId))) broken.push(`${where}: a delay points at a delivery that no longer exists`)
@@ -163,14 +213,18 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
         const all = `${text.title} ${text.detail} ${text.impact} ${text.cost} ${text.statusLabel} ${text.worthNote ?? ''}`
         if (/NaN|undefined|Infinity/.test(all)) { broken.push(`${where}: option text "${all.slice(0, 120)}"`); break }
       }
-      // Receiving limit (open ruling): transfers arriving the same day at one place within its daily limit.
+      // Transfers already booked share the destination's daily receiving limit.
       for (const location of workspace.locations.filter((item) => item.receivingLimitPerDay !== null)) {
         const byDay = new Map<string, number>()
-        for (const shipment of workspace.shipments.filter((item) => item.locationId === location.id && item.supplierName.startsWith('Transfer from'))) {
+        for (const shipment of workspace.shipments.filter((item) => item.locationId === location.id && item.fromLocationId)) {
           const day = localDay(shipment.confirmedArrivalAt)
           byDay.set(day, (byDay.get(day) ?? 0) + shipment.lines.reduce((total, line) => total + line.quantity, 0))
         }
-        for (const [day, total] of byDay) if (total > (location.receivingLimitPerDay ?? Infinity)) openRulings.push(`${location.name} ${day}: ${total} arriving by transfer, limit ${location.receivingLimitPerDay}`)
+        for (const receipt of workspace.movements.filter((item) => item.kind === 'receipt' && item.locationId === location.id && item.fromLocationId)) {
+          const day = localDay(receipt.at)
+          byDay.set(day, (byDay.get(day) ?? 0) + receipt.quantity)
+        }
+        for (const [day, total] of byDay) if (total > (location.receivingLimitPerDay ?? Infinity)) broken.push(`${location.name} ${day}: ${total} arriving by transfer, limit ${location.receivingLimitPerDay}`)
       }
       return result
     }
@@ -189,8 +243,8 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
         }
 
         // Deliveries due by now: most arrive in full, some in part, some are late.
-        for (const shipment of workspace.shipments.filter((item) => Date.parse(item.confirmedArrivalAt) <= Date.parse(now))) {
-          const isTransfer = shipment.supplierName.startsWith('Transfer from')
+        for (const shipment of workspace.shipments.filter((item) => item.transferStatus !== 'booked' && Date.parse(item.confirmedArrivalAt) <= Date.parse(now))) {
+          const isTransfer = Boolean(shipment.fromLocationId)
           const roll = rand()
           if (roll < 0.08 && !isTransfer) {
             workspace = enter(workspace, { type: 'report-delay', shipmentId: shipment.id }, { shipmentId: shipment.id, arrivalAt: toLocalInput(workspace, plusHours(now, between(20, 72))), updateSource: 'Supplier call' }, now)
@@ -202,9 +256,9 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
             const missing = shipment.lines.reduce((total, line, index) => total + line.quantity - received[index].quantity, 0)
             const restComing = partial && chance(0.6)
             workspace = receiveDelivery(workspace, shipment.id, received, restComing ? { arrivalAt: plusHours(now, 24) } : null, now)
-            const got = received.reduce((total, line) => total + line.quantity, 0)
-            if (!isTransfer) ledger.supplied += got
-            if (isTransfer && partial && !restComing) ledger.lostInTransit += missing
+            stepNo += 1
+            for (const line of received) bookAdd(shipment.locationId, line.productId, line.quantity)
+            if (missing > 0 && !restComing) tally(isTransfer ? 'transfer goods never arrived (unresolved, not built yet)' : 'supplier goods never arrived')
             record(now, 'received', `Received ${shipment.id}`)
             tally(partial ? (restComing ? 'received in part, rest coming' : 'received in part, rest lost') : 'received in full')
             if (isTransfer) tally('transfers received')
@@ -216,7 +270,7 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
 
         // A supplier calls ahead about a delivery not due yet.
         if (chance(0.35)) {
-          const upcoming = workspace.shipments.filter((item) => Date.parse(item.confirmedArrivalAt) > Date.parse(now) && !item.supplierName.startsWith('Transfer from'))
+          const upcoming = workspace.shipments.filter((item) => Date.parse(item.confirmedArrivalAt) > Date.parse(now) && !item.fromLocationId)
           if (upcoming.length) {
             const shipment = pick(upcoming)
             workspace = enter(workspace, { type: 'report-delay', shipmentId: shipment.id }, { shipmentId: shipment.id, arrivalAt: toLocalInput(workspace, plusHours(shipment.confirmedArrivalAt, between(24, 96))), updateSource: 'Email from supplier' }, now)
@@ -279,35 +333,155 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
           if (best.kind !== 'ship-from' && best.quantity && !messages[0]?.body.includes(words.quantity(best.quantity, best.productId))) broken.push(`${now}: ${best.kind} message does not state the approved ${best.quantity}`)
           const shortAfter = new Set(rehearse(next, now).impact.affectedOrderIds.map((id) => next.orders.find((order) => order.id === id)?.customer))
           if (messages.filter((message) => message.subject.startsWith('Your order')).some((message) => !shortAfter.has(message.to))) broken.push(`${now}: a customer note went to someone not short`)
-          workspace = addHistory(next, { at: now, kind: 'approval', text: `Approved ${best.id}`, messages: messages.slice(0, 20) })
+          let committed = next
+          if (best.kind === 'transfer' && best.sourceLocationId && best.quantity) {
+            const booking = next.shipments.find((item) => item.transferStatus === 'booked' && item.fromLocationId === best.sourceLocationId && item.locationId === best.locationId && item.lines.some((line) => line.productId === best.productId && line.quantity === best.quantity))
+            if (!booking) broken.push(`${now}: approved transfer ${best.id} has no stock booking`)
+            else {
+              const departed = departTransfer(next, booking.id, booking.lines, now, `DEP-week-${stepNo}`)
+              if ('error' in departed) broken.push(`${now}: transfer ${booking.id} could not depart: ${departed.error}`)
+              else {
+                committed = departed.workspace
+                stepNo += 1
+                bookAdd(best.sourceLocationId, best.productId, -best.quantity)
+                tally('transfer bookings')
+                tally('transfer departures')
+              }
+            }
+          }
+          workspace = addHistory(committed, { at: now, kind: 'approval', text: `Approved ${best.id}`, messages: messages.slice(0, 20) })
           tally(`approved: ${best.kind}`)
           tally('messages written', messages.length)
           const exposureAfter = rehearse(workspace, now).impact.exposedQuantity
           if (exposureAfter > exposureBefore) broken.push(`${now}: approving ${best.id} made the shortage worse (${exposureBefore} -> ${exposureAfter})`)
         }
 
-        // Evening: orders due today leave if the stock is there; otherwise some are cancelled, some wait.
+        // Evening: orders due today leave if the stock is there; some go out in part; some are cancelled; some wait.
         if (hour === 17) {
           const endOfDay = at(day, 23, 59)
-          for (const order of workspace.orders.filter((item) => (item.status ?? 'open') === 'open' && Date.parse(item.dueAt) <= Date.parse(endOfDay))) {
-            const enough = order.lines.every((line) => (workspace.stock.find((item) => item.locationId === order.locationId && item.productId === line.productId)?.available.value ?? 0) >= line.quantity)
-            if (enough) {
-              workspace = setOrderStatus(workspace, order.id, 'delivered', now)
-              ledger.delivered += order.lines.reduce((total, line) => total + line.quantity, 0)
-              record(now, 'order', `${order.id} delivered`); tally('orders delivered')
+          const lineTotal = (lines: OrderLine[]) => lines.reduce((total, line) => total + line.quantity, 0)
+          const onHand = (order: Order, productId: string) => workspace.stock.find((item) => item.locationId === order.locationId && item.productId === productId)?.available.value ?? 0
+          for (const order of workspace.orders.filter((item) => hasOutstanding(workspace, item) && Date.parse(item.dueAt) <= Date.parse(endOfDay))) {
+            const left = remainingLines(workspace, order)
+            const enough = left.every((line) => onHand(order, line.productId) >= line.quantity)
+            const possible = left.map((line) => ({ productId: line.productId, quantity: Math.min(line.quantity, onHand(order, line.productId)) }))
+            if (enough || (lineTotal(possible) > 0 && chance(0.4))) {
+              const lines = enough ? left : possible
+              if (!enough) {
+                // Ask the customer first; some say no, and then a part send must be refused.
+                const refuses = chance(0.2)
+                workspace = setSplitAllowed(workspace, order.id, !refuses)
+                if (refuses) {
+                  if (!('error' in sendOrder(workspace, order.id, lines, now))) broken.push(`${now}: part send of ${order.id} allowed although the customer said no`)
+                  tally('part send refused: customer wants one delivery'); continue
+                }
+              }
+              const sent = send(order, lines, now)
+              if ('error' in sent) { broken.push(`${now}: sending ${order.id} refused: ${sent.error}`); continue }
+              record(now, 'order', `${order.id} sent`); tally(enough ? 'orders sent in full' : 'orders sent in part')
             } else if (chance(0.35)) {
-              workspace = setOrderStatus(workspace, order.id, 'cancelled', now)
+              const cancelled = cancelRemaining(workspace, order.id, now)
+              if ('error' in cancelled) { broken.push(`${now}: cancelling ${order.id} refused: ${cancelled.error}`); continue }
+              workspace = cancelled.workspace
               record(now, 'order', `${order.id} cancelled`); tally('orders cancelled')
             } else tally('orders left open past due')
           }
-          // Now and then a delivery is reversed: goods come back.
-          const delivered = workspace.orders.filter((item) => item.status === 'delivered')
-          if (delivered.length && chance(0.3)) {
-            const order = pick(delivered)
-            workspace = setOrderStatus(workspace, order.id, 'open', now)
-            ledger.delivered -= order.lines.reduce((total, line) => total + line.quantity, 0)
-            record(now, 'order', `${order.id} reopened`); tally('orders reopened')
+          // Sends recorded wrong are corrected: down, up, or to zero. Sometimes a shelf count happened in between.
+          for (const [id, original] of [...sends].filter(() => chance(0.04)).slice(0, 4)) {
+            const current = effectiveMovements(workspace.movements).find((item) => item.id === id)
+            if (!current) { broken.push(`${now}: send ${id} disappeared`); continue }
+            const target = pick([0, Math.max(0, current.quantity - 2), current.quantity + 1])
+            if (target === current.quantity) continue
+            const recountedSince = (countStep.get(pairOf(original.locationId, original.productId)) ?? -1) > original.step
+            const order = workspace.orders.find((item) => item.id === original.orderId)!
+            const shelf = book.get(pairOf(original.locationId, original.productId)) ?? 0
+            const tooMuch = sentOf(order.id, original.productId) - current.quantity + target > orderedOf(order, original.productId)
+            const takesBelowZero = !recountedSince && target - current.quantity > shelf
+            const fixed = correctMovement(workspace, id, target, now)
+            if (tooMuch || takesBelowZero) {
+              if (!('error' in fixed)) broken.push(`${now}: correcting ${id} to ${target} allowed although it ${tooMuch ? 'exceeds the order' : 'takes stock below zero'}`)
+              tally('corrections refused'); continue
+            }
+            if ('error' in fixed) { broken.push(`${now}: correcting ${id} to ${target} refused: ${fixed.error}`); continue }
+            const shelfOf = (data: Workspace) => data.stock.find((item) => item.locationId === original.locationId && item.productId === original.productId)?.available.value ?? 0
+            const moved = shelfOf(fixed.workspace) - shelfOf(workspace)
+            const expectedMove = recountedSince ? 0 : current.quantity - target
+            if (moved !== expectedMove) broken.push(`${now}: correcting ${id} ${current.quantity}->${target}${recountedSince ? ' after a later count' : ''} moved stock by ${moved}, expected ${expectedMove}`)
+            if (recountedSince) afterCount.push(`${id} at ${original.locationId}/${original.productId}: ${current.quantity}->${target}, stock moved ${moved}; history ${effectiveMovements(fixed.workspace.movements).filter((item) => item.locationId === original.locationId && item.productId === original.productId).map((item) => `${item.kind} ${item.quantity} @${item.at.slice(5, 16)}`).join(', ')}`)
+            workspace = fixed.workspace
+            addSent(order.id, original.productId, target - current.quantity)
+            if (!recountedSince) bookAdd(original.locationId, original.productId, current.quantity - target)
+            record(now, 'order', `${id} corrected`)
+            tally(recountedSince ? 'sends corrected after a later shelf count' : target === 0 ? 'sends corrected to zero' : target > current.quantity ? 'sends corrected up' : 'sends corrected down')
           }
+          // Every evening, on purpose: a send is followed by a shelf count, then found to be recorded 1 too high.
+          // The count already saw what really left, so the correction must not move stock.
+          const lastSend = [...sends].reverse().find(([id, item]) => item.quantity >= 2 && effectiveMovements(workspace.movements).find((movement) => movement.id === id)?.quantity === item.quantity)
+          if (lastSend) {
+            const [id, original] = lastSend
+            const shelfOf = (data: Workspace) => data.stock.find((item) => item.locationId === original.locationId && item.productId === original.productId)?.available.value ?? 0
+            const counted = countStock(workspace, original.locationId, original.productId, shelfOf(workspace), typed(plusHours(now, 1)), plusHours(now, 1))
+            if ('error' in counted) broken.push(`${now}: count refused: ${counted.error}`)
+            else {
+              workspace = counted.workspace
+              stepNo += 1
+              countStep.set(pairOf(original.locationId, original.productId), stepNo)
+              const before = shelfOf(workspace)
+              const fixed = correctMovement(workspace, id, original.quantity - 1, plusHours(now, 2))
+              if ('error' in fixed) broken.push(`${now}: correcting ${id} after a count refused: ${fixed.error}`)
+              else {
+                if (shelfOf(fixed.workspace) !== before) broken.push(`${now}: correcting ${id} after a shelf count changed stock ${before} -> ${shelfOf(fixed.workspace)}`)
+                workspace = fixed.workspace
+                addSent(original.orderId, original.productId, -1)
+                tally('sends corrected after a later shelf count (on purpose)')
+              }
+            }
+          }
+          // Shelf counts: a few warehouses are counted, and the count is what is there from now on.
+          for (const item of workspace.stock.filter(() => chance(0.03))) {
+            const counted = Math.max(0, item.available.value + between(-3, 3))
+            const result = countStock(workspace, item.locationId, item.productId, counted, typed(now), now)
+            if ('error' in result) { broken.push(`${now}: count refused: ${result.error}`); continue }
+            workspace = result.workspace
+            stepNo += 1
+            book.set(pairOf(item.locationId, item.productId), counted)
+            countStep.set(pairOf(item.locationId, item.productId), stepNo)
+            tally('shelf counts')
+          }
+          // Things that must be refused: sending more than is owed, or more than is on the shelf.
+          const open = workspace.orders.filter((item) => hasOutstanding(workspace, item))
+          if (open.length) {
+            const order = pick(open)
+            const line = remainingLines(workspace, order)[0]
+            if (!('error' in sendOrder(workspace, order.id, [{ productId: line.productId, quantity: line.quantity + 1 }], now))) broken.push(`${now}: sending more than ${order.id} still needs was allowed`)
+            const shelf = book.get(pairOf(order.locationId, line.productId)) ?? 0
+            if (shelf < line.quantity && !('error' in sendOrder(setSplitAllowed(workspace, order.id, true), order.id, [{ productId: line.productId, quantity: line.quantity }], now))) broken.push(`${now}: sending ${line.quantity} from a shelf of ${shelf} was allowed`)
+            tally('impossible sends tried')
+          }
+          // Editing an order below what already left must be refused by the order editor.
+          const partlySent = workspace.orders.filter((item) => sentLines(workspace, item.id).length > 0 && hasOutstanding(workspace, item))
+          if (partlySent.length) {
+            const order = pick(partlySent)
+            const config = editorFor({ type: 'order', orderId: order.id }, workspace, createFormat(workspace.settings))!
+            const sentLine = sentLines(workspace, order.id)[0]
+            const values = Object.fromEntries(config.fields.map((field) => [field.key, parseField(field, config.initial[field.key] ?? '', createFormat(workspace.settings))]).map(([key, result]) => [key, 'value' in (result as object) ? (result as { value: unknown }).value : null]))
+            if (!config.validate?.({ ...values, [`line:${sentLine.productId}`]: sentLine.quantity - 1 } as never)) broken.push(`${now}: ${order.id} could be edited below what was sent`)
+            tally('edits below sent tried')
+          }
+          // A cancelled order comes back: only what was not sent counts again.
+          const cancelled = workspace.orders.filter((item) => item.status === 'cancelled')
+          if (cancelled.length && chance(0.3)) {
+            const order = pick(cancelled)
+            const reopened = reopenOrder(workspace, order.id)
+            if (!('error' in reopened)) {
+              workspace = reopened.workspace; record(now, 'order', `${order.id} reopened`); tally('orders reopened')
+              const reopenedOrder = workspace.orders.find((item) => item.id === order.id)!
+              if (!hasOutstanding(workspace, reopenedOrder) && order.lines.some((line) => orderedOf(order, line.productId) > sentOf(order.id, line.productId))) broken.push(`${now}: reopened ${order.id} owes nothing although not all was sent`)
+            }
+          }
+          // Saved and loaded again (browser, account, backup all go through this): nothing changes.
+          const loaded = parseWorkspace(JSON.parse(JSON.stringify(workspace)))
+          if (!loaded || canonical(loaded) !== canonical(workspace)) broken.push(`${now}: saving and loading changed the business`)
           check(now, 'end of day')
         }
       }
@@ -321,10 +495,11 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
       history: { entries: workspace.history?.length, kinds: [...new Set(workspace.history?.map((item) => item.kind))] },
       slowestPlannerRunMs: Math.round(slowest.ms), slowestAt: slowest.when,
       savedSizeKb: Math.round(JSON.stringify(workspace).length / 1024),
-      openRulingReceivingLimit: { violations: openRulings.length, example: openRulings[0] ?? null },
+      correctionsAfterACount: afterCount,
       broken,
     }
     console.log(JSON.stringify(summary, null, 2))
+    writeFileSync('/tmp/deccan-week-summary.json', JSON.stringify(summary, null, 2))
     writeFileSync('/tmp/deccan-week-backup.json', serializeBackup({ ...workspace, mode: 'real' }))
 
     expect(broken).toEqual([])

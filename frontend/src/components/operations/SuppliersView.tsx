@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FileUp, LifeBuoy, PackageCheck, PencilLine, Plus, Repeat, Settings2, Trash2, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
@@ -8,11 +9,13 @@ import { useWorkspaceView } from '../../presentation/workspaceView'
 import { repeatLabel } from '../editing/editorConfigs'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { EmptyState } from '../layout/EmptyState'
+import { ResolveTransferDialog } from './ResolveTransferDialog'
 
 type SuppliersViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
   onReceive: (shipmentId: string) => void
   onRemoveSupplier: (supplierId: string) => void
+  onResolveTransfer: (shipmentId: string, outcomes: { productId: string; fate: 'returned' | 'lost' }[]) => string | null
 }
 
 const toneFor = (status: string | undefined) => (status === 'ready' ? 'success' : status === 'rejected' ? 'danger' : 'warning')
@@ -27,11 +30,13 @@ function FactLine<T>({ label, fact, show }: { label: string; fact: Fact<T>; show
   )
 }
 
-export function SuppliersView({ onEdit, onReceive, onRemoveSupplier }: SuppliersViewProps) {
+export function SuppliersView({ onEdit, onReceive, onRemoveSupplier, onResolveTransfer }: SuppliersViewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
   const delayed = new Set(workspace.disruptions.map((disruption) => disruption.shipmentId))
   const atLimit = workspace.suppliers.length >= LIMITS.suppliers
   const manyPlaces = workspace.products.length > 1 || workspace.locations.length > 2
+  const resolving = workspace.shipments.find((shipment) => shipment.id === resolvingId)
 
   return (
     <div className="suppliers-page">
@@ -42,31 +47,41 @@ export function SuppliersView({ onEdit, onReceive, onRemoveSupplier }: Suppliers
             <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-shipment' }, 'manual')} variant="primary">Add delivery</Button>
           </div>
         </div>
-        {workspace.shipments.length === 0
+        {workspace.shipments.filter((shipment) => shipment.lines.length > 0).length === 0
           ? <EmptyState body="Without deliveries recorded, orders only count the stock already in each warehouse." icon={<Truck size={20} />} title="No deliveries recorded">
             <Button icon={<Plus size={15} />} onClick={() => onEdit({ type: 'new-shipment' }, 'manual')} variant="primary">Add delivery</Button>
           </EmptyState>
           : <div className="supplier-list">
-            {workspace.shipments.map((shipment) => {
+            {workspace.shipments.filter((shipment) => shipment.lines.length > 0).map((shipment) => {
               const late = delayed.has(shipment.id)
+              const awaitingDeparture = shipment.fromLocationId && shipment.transferStatus === 'booked'
+              const unresolved = shipment.transferStatus === 'unresolved'
               return (
                 <article className={`supplier-row delivery-row ${late ? 'delivery-late' : ''}`} key={shipment.id}>
                   <div className="supplier-icon">{shipment.repeatEveryDays ? <Repeat size={18} /> : <Truck size={18} />}</div>
                   <div className="supplier-main">
                     <div className="supplier-title"><h3>{shipment.supplierName}</h3>
-                      {late ? <StatusBadge tone="danger" dot>Late</StatusBadge> : shipment.repeatEveryDays ? <StatusBadge tone="success" dot>Regular delivery</StatusBadge> : <StatusBadge tone="neutral" dot>Expected</StatusBadge>}
+                      {unresolved ? <StatusBadge tone="warning" dot>Unresolved in transit</StatusBadge> : shipment.transferStatus === 'cancelled'
+                        ? <StatusBadge tone="warning" dot>Booked remainder cancelled</StatusBadge>
+                        : awaitingDeparture ? <StatusBadge tone="warning" dot>Booked · not departed</StatusBadge> : late ? <StatusBadge tone="danger" dot>Late</StatusBadge> : shipment.repeatEveryDays ? <StatusBadge tone="success" dot>Regular delivery</StatusBadge> : <StatusBadge tone="neutral" dot>Expected</StatusBadge>}
                     </div>
                     <p>{shipment.lines.map((line) => `${words.quantity(line.quantity, line.productId)} of ${words.productName(line.productId)}`).join(', ')} · to {words.locationName(shipment.locationId)} · {shipment.id}</p>
                     <EvidenceMark evidence={shipment.evidence} />
                   </div>
                   <div className="delivery-when">
                     {shipment.repeatEveryDays && <span>{repeatLabel(shipment.repeatEveryDays)}</span>}
-                    <strong className={late ? 'supplier-late-date' : ''}>{shipment.repeatEveryDays ? 'Next ' : 'Arrives '}{format.dateTime(shipment.confirmedArrivalAt)}</strong>
+                    <strong className={late ? 'supplier-late-date' : ''}>{unresolved ? 'Expected date no longer used' : `${shipment.repeatEveryDays ? 'Next ' : 'Arrives '}${format.dateTime(shipment.confirmedArrivalAt)}`}</strong>
                     {late && <small>Was {format.dateTime(shipment.originalArrivalAt)} · {shipment.updateSource}</small>}
                   </div>
                   <div className="supplier-actions">
-                    <Button aria-label={`Mark ${shipment.id} received`} icon={<PackageCheck size={14} />} onClick={() => onReceive(shipment.id)} variant="primary">Mark received</Button>
-                    <Button aria-label={`Report ${shipment.id} late`} icon={<TriangleAlert size={14} />} onClick={() => onEdit({ type: 'report-delay', shipmentId: shipment.id }, 'manual')} variant="secondary">{late ? 'Update delay' : 'Report late'}</Button>
+                    {awaitingDeparture
+                      ? <small>Record departure in Between locations before receiving.</small>
+                      : <>
+                        <Button aria-label={`Mark ${shipment.id} received`} icon={<PackageCheck size={14} />} onClick={() => onReceive(shipment.id)} variant="primary">Mark received</Button>
+                        {unresolved
+                          ? <Button aria-label={`Resolve missing goods for ${shipment.id}`} icon={<LifeBuoy size={14} />} onClick={() => setResolvingId(shipment.id)} variant="secondary">Resolve fate</Button>
+                          : <Button aria-label={`Report ${shipment.id} late`} icon={<TriangleAlert size={14} />} onClick={() => onEdit({ type: 'report-delay', shipmentId: shipment.id }, 'manual')} variant="secondary">{late ? 'Update delay' : 'Report late'}</Button>}
+                      </>}
                   </div>
                 </article>
               )
@@ -127,6 +142,11 @@ export function SuppliersView({ onEdit, onReceive, onRemoveSupplier }: Suppliers
         </div>
         <p className="sample-data-note">Typed-in details are usable but marked unverified. Attach a quote or receipt to verify them.</p>
       </section>
+      {resolving && <ResolveTransferDialog
+        onClose={() => setResolvingId(null)}
+        onResolve={(outcomes) => onResolveTransfer(resolving.id, outcomes)}
+        shipment={resolving}
+      />}
     </div>
   )
 }

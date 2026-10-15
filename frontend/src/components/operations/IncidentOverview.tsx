@@ -1,6 +1,7 @@
 import { ArrowRight, CircleCheck, Package, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
+import { hasOutstanding } from '../../../../shared/planner/ledger'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 
@@ -14,10 +15,10 @@ type IncidentOverviewProps = {
 export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: IncidentOverviewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
-  const shortages = impact.groups.filter((group) => group.kind === 'shortage')
+  const shortages = impact.groups.filter((group) => group.kind === 'shortage' && group.exposedQuantity > 0)
 
   if (workspace.disruptions.length === 0 && shortages.length === 0) {
-    const watched = workspace.orders.filter((order) => (order.status ?? 'open') === 'open').length
+    const watched = workspace.orders.filter((order) => hasOutstanding(workspace, order)).length
     return (
       <section className="incident-section" aria-label="Disruptions">
         <div className="calm-card">
@@ -25,7 +26,7 @@ export function IncidentOverview({ onReportDelay, onAddShipment, onResolve }: In
           <div className="calm-main">
             <h2>No disruption right now</h2>
             <p>{watched > 0
-              ? `Every one of your ${format.number(watched)} open order${watched === 1 ? ' is' : 's is'} covered by stock or recorded deliveries. When a shipment is late, report it and Rehearsal shows who is affected.`
+              ? `Every one of your ${format.number(watched)} open order${watched === 1 ? ' is' : 's is'} covered at its warehouse by stock or recorded deliveries.${impact.watchOrderIds.length > 0 ? ` ${format.number(impact.watchOrderIds.length)} ${impact.watchOrderIds.length === 1 ? 'order needs' : 'orders need'} a timing check: it depends on incoming stock or customer travel time is unconfirmed.` : ''} When a shipment is late, report it and Rehearsal shows who is affected.`
               : 'Add your orders and shipments, and Rehearsal will watch them for you. When a shipment is late, report it here.'}</p>
           </div>
           {workspace.shipments.length > 0

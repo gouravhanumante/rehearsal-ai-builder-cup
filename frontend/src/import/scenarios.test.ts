@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Evidence, Workspace } from '../../../shared/planner/model'
 import { createBlankWorkspace } from '../../../shared/planner/blank'
 import { rehearse } from '../../../shared/planner/plan'
-import { setOrderStatus } from '../../../shared/planner/apply'
+import { cancelRemaining, countStock, sendOrder } from '../../../shared/planner/ledger'
 import type { ImportKind } from '../../../shared/import/fields'
 import { editorFor, parseField } from '../components/editing/editorConfigs'
 import { createFormat } from '../presentation/format'
@@ -141,14 +141,27 @@ describe('03 Summit Electronics (US, CSV, month/day dates): ASN-4410 chargers mo
     expect(summit().orders.find((order) => order.id === 'PO-88101')?.dueAt).toBe('2026-10-16T15:00:00-04:00')
   })
 
-  it('delivering TechNest takes both its products off Dallas: 60 chargers (all 35 there) and 40 of the 60 mice', () => {
-    const delivered = setOrderStatus(delayed(), 'PO-88101', 'delivered', now)
-    expect(countOf(delivered, 'Dallas Warehouse', '65W GaN Charger')).toBe(0)
-    expect(countOf(delivered, 'Dallas Warehouse', 'Wireless Mouse')).toBe(20)
+  it('TechNest cannot dispatch 60 chargers from a count of 35; neither product leaves', () => {
+    const workspace = delayed()
+    const order = workspace.orders.find((item) => item.id === 'PO-88101')!
+    expect(sendOrder(workspace, order.id, order.lines, now)).toHaveProperty('error')
+    expect(countOf(workspace, 'Dallas Warehouse', '65W GaN Charger')).toBe(35)
+    expect(countOf(workspace, 'Dallas Warehouse', 'Wireless Mouse')).toBe(60)
   })
 
-  it('once TechNest is delivered, only Lone Star is waiting on chargers: 50 short, 1 order at risk', () => {
-    const workspace = setOrderStatus(delayed(), 'PO-88101', 'delivered', now)
+  it('after correcting Dallas to 60 chargers, TechNest can dispatch both products and Lone Star is 50 short', () => {
+    const data = delayed()
+    const locationId = data.locations.find((location) => location.name === 'Dallas Warehouse')!.id
+    const productId = data.products.find((product) => product.name === '65W GaN Charger')!.id
+    const at = new Date().toISOString()
+    const corrected = countStock(data, locationId, productId, 60, { kind: 'manual', source: 'Recount', recordedAt: at }, at)
+    if ('error' in corrected) throw new Error(corrected.error)
+    const order = data.orders.find((item) => item.id === 'PO-88101')!
+    const sent = sendOrder(corrected.workspace, order.id, order.lines, at)
+    if ('error' in sent) throw new Error(sent.error)
+    const workspace = sent.workspace
+    expect(countOf(workspace, 'Dallas Warehouse', '65W GaN Charger')).toBe(0)
+    expect(countOf(workspace, 'Dallas Warehouse', 'Wireless Mouse')).toBe(20)
     const [delay] = delayOf(workspace, now)
     expect(delay.exposedQuantity).toBe(50)
     expect(customersOf(workspace, delay.affectedOrderIds)).toEqual(['Lone Star Office Supply'])
@@ -182,7 +195,9 @@ describe('04 Lion City Foods (Singapore, messy semicolon CSV): D-501 rice moves 
   })
 
   it('cancelling Hawker Centre (rice and oil) frees its rice: Sunrise is covered and nothing is exposed', () => {
-    const workspace = setOrderStatus(enter(lionCity().workspace, { type: 'report-delay', shipmentId: 'D-501' }, { arrivalAt: '2026-10-21T15:00' }), 'T-9001', 'cancelled', now)
+    const cancelled = cancelRemaining(enter(lionCity().workspace, { type: 'report-delay', shipmentId: 'D-501' }, { arrivalAt: '2026-10-21T15:00' }), 'T-9001', now)
+    if ('error' in cancelled) throw new Error(cancelled.error)
+    const workspace = cancelled.workspace
     expect(delayOf(workspace, now)[0]?.exposedQuantity ?? 0).toBe(0)
     expect(countOf(workspace, 'Lion City DC', 'Jasmine Rice 5kg')).toBe(420)
   })

@@ -35,11 +35,13 @@ The sample is a coffee distributor, **Northstar Supply**. Open it and you land o
 | **The delay** | Supplier Meridian Foods' shipment SH-204 (Harbor Blend Coffee) was due Tue 13 Oct and is now due Fri 16 Oct, 3 pm |
 | **The impact** | **24 cases exposed**, **3 orders at risk** |
 | **Orders at risk** | Common Ground Cafe (priority order) needs 18 cases but only 14 are covered. Harbor Market needs 12 and 0 are covered |
-| **Best option** | **Transfer 8 cases from South Hub** for ₹95 (₹55 a trip + ₹5 a case). It fits North Hub's receiving limit of 8 cases per day and arrives before the priority order is due. 16 cases remain exposed |
+| **Best option** | **Transfer 8 cases from South Hub** for ₹95 (₹55 a trip + ₹5 a case). It fits North Hub's receiving limit and reaches the warehouse before the customer due time, but arrival to the customer is unconfirmed because outbound travel time is unknown. 16 cases remain exposed (`sampleWorkspace` in `shared/planner/sample.ts`; wording in `createWording` in `frontend/src/presentation/planText.ts`) |
 | **Option waiting for a reply** | **Buy from Supplier B.** Can't be checked yet: stock available, price and arrival time are missing. Rehearsal drafts the message to ask them |
 | **Option that can't be done** | **Transfer all 14 cases in one day.** North Hub can receive at most 8 a day, so it would exceed capacity by 6 |
 
-Options are grouped by problem, best first. Each is marked **Ready to use**, **Ready · unverified**, **Waiting for reply**, **Needs your answer**, **Needs information** or **Can't be done**, with the reason in plain words (`statusLabel` in `frontend/src/presentation/planText.ts`). Click **Add details** on a waiting one, type in or upload the supplier's quote, and watch the option become checkable.
+Options are grouped by problem, best first. Each is marked **Ready to use**, **Ready · unverified**, **Waiting for reply**, **Needs your answer**, **Needs information** or **Can't be done**, with the reason in plain words (`statusLabel` in `frontend/src/presentation/planText.ts`). Click **Record reply** on a waiting supplier option, type in or upload the supplier's quote, and watch the option become checkable (`RecoveryPlans.tsx`).
+
+Local correctness updates: incoming transfers and actual arrivals share local-day receiving capacity; **Mark received** records arrivals automatically, without an upload (`receiveDelivery`, receipt movements in `Workspace.movements`). Incoming-dependent orders are **Watch** even without a delay, and transfer **Book by** follows the first short order actually helped (`orderCoverage`, `rehearse`). Duplicate late shipments do not duplicate a shortage; ship-from cannot deepen another customer's shortage. **Mark delivered** is blocked when counted stock cannot cover the order (`setOrderStatus`). The browser results and remaining gaps are in [docs/Progress.md](docs/Progress.md) and [docs/Feedback.md](docs/Feedback.md). These updates have not been deployed; receipt-enabled Firestore rules must precede the frontend rollout.
 
 ---
 
@@ -65,7 +67,7 @@ flowchart LR
 ## Try it yourself
 
 ### Option 1: the sample (30 seconds)
-Open the link, click **Try the sample**. Click around: **Overview**, **Orders**, **Inventory**, **Between locations**, **Suppliers**, **Rehearsals** (the options), **History**. Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. Approve the transfer and watch South Hub's stock go down and the transfer appear under incoming deliveries. **Reset** puts the sample back.
+Open the link, click **Try the sample**. Click around: **Overview**, **Orders**, **Inventory**, **Between locations**, **Suppliers**, **Rehearsals** (the options), **History**. Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. Approve the transfer to reserve stock, then record its departure to reduce South Hub's on-hand and create an incoming batch. **Reset** puts the sample back.
 
 ### Option 2: your own business, from a blank page
 Click **Sign in with Google**, then **Set up my business**, give it a name and a country (this sets currency, number format and timezone). It is saved to your account, so it opens on any device. Then the **Setup** tab walks you through it, in any order:
@@ -103,7 +105,7 @@ Don't want to invent a business? Four independent scenarios are in the [`test-da
 4. **The WhatsApp message arrives.** She clicks **Report a delay**, picks shipment SH-7001 (Mango Juice 1L, 120 cases) and uploads the screenshot `delay-message-alphonso-agro.png`. Gemini reads **22 Oct 2026, 5:00 pm** and shows the quote it found. She confirms.
 5. **See the impact.** Mumbai Warehouse has only 30 cases of mango juice. Two orders need 90 cases before the 22nd (Spice Route Cafe 40, Metro Mart 50). So **60 cases are exposed and 2 orders are at risk.**
 6. **Find a way out.** She adds a transfer route from Surat DC to Mumbai Warehouse and uploads the carrier booking (arrives 17 Oct 08:00). She also adds a supplier and uploads the FreshPress quote (150 cases at ₹410, delivery 18 Oct 12:00). Both options are now checked with real numbers and can be compared.
-7. **Decide.** She approves one. Approving records it: a transfer takes the stock out of Surat DC now and adds it as an incoming delivery at Mumbai Warehouse; a purchase adds the supplier's delivery.
+7. **Decide.** She approves one. A transfer approval books stock at Surat DC (on-hand stays visible, but the quantity is no longer free); when staff records departure, it comes off the source and becomes a dated incoming batch at Mumbai Warehouse. A purchase adds the supplier's delivery.
 
 ---
 
@@ -147,7 +149,7 @@ Rules worth knowing:
 - Costs: transfer routes cost per trip and per package, suppliers have a price per package and a delivery charge, locations have a delivery cost per order. Options are ranked on total cost. A product's optional selling price gives a warning when a fix costs more than the stock it saves is worth. Ready transfers show the latest time to book.
 - Storage room per product per warehouse; Rehearsal asks suppliers only for what still fits.
 - **Ask your backup suppliers**: a ready-to-send message per problem, with Email all (BCC). Nothing is sent by Rehearsal.
-- Orders can be marked delivered (stock goes down), cancelled, or reopened. Suppliers and transfer routes can be edited and removed.
+- Orders can be **sent** in full or in part (part needs the customer's yes, asked once), each send **corrected** on its own, the rest **cancelled**, and a cancelled order **reopened**. Stock is worked out from recorded counts, receipts, sends and transfers, never edited directly. Suppliers and transfer routes can be edited and removed.
 - **Approving records the plan** in the workspace after the server re-checks it: a transfer lowers the source's stock and adds an incoming delivery, a purchase adds the supplier's delivery, ship-from moves the order. Nothing is sent to anyone.
 - **Mark received** on any incoming delivery: what arrived goes into stock and the delivery stops counting, so it is never counted twice. If only part came, Rehearsal asks whether the rest is still coming and when.
 - **History**: a read-only list of delays, approvals, deliveries received, orders closed and changes saved.

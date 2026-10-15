@@ -25,6 +25,19 @@ const missingLabels = { available: 'stock available', pricePerUnit: 'price per u
 export function createWording(workspace: Workspace, format: Format) {
   const productById = new Map(workspace.products.map((product) => [product.id, product]))
   const locationName = (id: string) => workspace.locations.find((location) => location.id === id)?.name ?? 'Unknown location'
+  const arrivalLocation = (plan: Plan) => plan.kind === 'ship-from' ? plan.sourceLocationId ?? plan.locationId : plan.locationId
+  const hasCustomerTravelTime = (plan: Plan) => workspace.locations.find((location) => location.id === arrivalLocation(plan))?.customerTravelHours?.value != null
+  const customerTimingNote = (plan: Plan) => {
+    const locationId = arrivalLocation(plan)
+    const location = workspace.locations.find((item) => item.id === locationId)
+    const hours = location?.customerTravelHours?.value
+    return hours == null
+      ? ` Customer arrival from ${locationName(locationId)} is unconfirmed because its outbound travel time is not recorded.`
+      : ` Customer travel time from ${locationName(locationId)} (${hours} ${hours === 1 ? 'hour' : 'hours'}) is included.`
+  }
+  const orderDeadline = (plan: Plan, singular: boolean) => hasCustomerTravelTime(plan)
+    ? singular ? 'dispatch cutoff' : 'dispatch cutoffs'
+    : singular ? 'due time' : 'due times'
   /** "Warehouse B (Delhi)" when an area is set: helps the user answer where-can-it-deliver questions. */
   const placeName = (id: string) => {
     const location = workspace.locations.find((item) => item.id === id)
@@ -47,12 +60,8 @@ export function createWording(workspace: Workspace, format: Format) {
   }
   const totalQuantity = (value: number) => `${format.number(value)} ${totalUnit(value)}`
 
-  /** "the priority order" only when one is waiting on this product here; otherwise "the first short order". */
-  const dueWhat = (plan: Plan) => workspace.orders.some((order) => order.locationId === plan.locationId && order.priority === 'protected' && order.lines.some((line) => line.productId === plan.productId))
-    ? 'the priority order' : 'the first short order'
-
   const statusLabel = (plan: Plan) =>
-    plan.status === 'ready' ? (plan.unverified.length ? 'Ready · unverified' : 'Ready to use')
+    plan.status === 'ready' ? (!hasCustomerTravelTime(plan) ? 'Ready · customer ETA unknown' : plan.unverified.length ? 'Ready · unverified' : 'Ready to use')
       : plan.reason.code === 'supplier-missing' ? 'Waiting for reply'
       : plan.reason.code === 'ship-from-ask' ? 'Needs your answer'
       : plan.status === 'conditional' ? 'Needs information' : "Can't be done"
@@ -61,7 +70,7 @@ export function createWording(workspace: Workspace, format: Format) {
     if (plan.outcome) {
       const left = plan.outcome.exposedQuantity
       const hasPriority = workspace.orders.some((order) => order.locationId === plan.locationId && order.priority === 'protected' && order.lines.some((line) => line.productId === plan.productId))
-      if (left === 0) return 'Covers every order'
+      if (left === 0) return hasCustomerTravelTime(plan) ? 'Covers every order by its customer due time' : 'Warehouse stock covers demand; customer arrival is unconfirmed'
       if (!hasPriority) return `${quantity(left, plan.productId)} still short`
       return plan.outcome.protectsPriority ? `Priority orders covered; ${quantity(left, plan.productId)} still short` : `${quantity(left, plan.productId)} still short, including a priority order`
     }
@@ -101,21 +110,22 @@ export function createWording(workspace: Workspace, format: Format) {
     switch (reason.code) {
       case 'transfer-ok':
         return (reason.limit === null
-          ? `${quantity(reason.quantity, plan.productId)} arrive before ${dueWhat(plan)} is due.`
-          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day and arrive before ${dueWhat(plan)} is due.`) + storageNote
+          ? `${quantity(reason.quantity, plan.productId)} reach ${destination} before the affected orders' ${orderDeadline(plan, false)}.`
+          : `${quantity(reason.quantity, plan.productId)} fit within ${destination}’s receiving limit of ${quantity(reason.limit, plan.productId)} per day${reason.booked ? ` (${quantity(reason.booked, plan.productId)} already received or booked for that day by transfer)` : ''} and reach the warehouse before the affected orders' ${orderDeadline(plan, false)}.`) + customerTimingNote(plan) + storageNote
           + (plan.bookBy ? ` Book by ${format.dateTime(plan.bookBy)} to make it.` : '')
       case 'transfer-none-available': return `${locationName(plan.sourceLocationId ?? '')} has no ${productName(plan.productId)} to spare after its own orders.`
+      case 'receiving-full': return `${destination} can receive ${quantity(reason.limit, plan.productId)} per day, and ${quantity(reason.booked, plan.productId)} are already received or booked for that day by transfer. No room for more.`
       case 'transfer-arrival-unknown': return 'Transfer arrival time is not confirmed, so this option cannot yet be checked against the order promise.'
-      case 'transfer-late': return 'The confirmed transfer arrival is after the priority order promise.'
-      case 'transfer-over-limit': return `${destination} can receive at most ${quantity(reason.limit, plan.productId)} per day. This transfer exceeds capacity by ${quantity(reason.excess, plan.productId)}.`
+      case 'transfer-late': return 'Does not reach a short priority order in time, or arrives too late to reduce the shortage.'
+      case 'transfer-over-limit': return `${destination} can receive at most ${quantity(reason.limit, plan.productId)} per day${reason.booked ? `, and ${quantity(reason.booked, plan.productId)} are already received or booked for that day by transfer` : ''}. This transfer exceeds capacity by ${quantity(reason.excess, plan.productId)}.`
       case 'supplier-missing': return plan.request
         ? `Ask ${supplierName(plan.supplierId)} for ${quantity(plan.request.quantity, plan.productId)} by ${format.dateTime(plan.request.neededBy)}, then record their reply. Still missing: ${reason.missing.map((field) => missingLabels[field]).join(', ')}.`
         : `Missing: ${reason.missing.map((field) => missingLabels[field]).join(', ')}. Add these to check whether this option works.`
       case 'supplier-no-stock': return `${supplierName(plan.supplierId)} has no stock to offer.`
-      case 'supplier-too-late': return 'Arrives after every affected order is due, so it does not help.'
-      case 'supplier-ok': return `Arrives before ${reason.protectsPriority ? 'the priority order is due' : 'some affected orders are due'} and cuts the shortage from ${quantity(reason.exposedBefore, plan.productId)} to ${quantity(reason.exposedAfter, plan.productId)}.${storageNote}`
+      case 'supplier-too-late': return `Arrives after every affected order's ${orderDeadline(plan, true)}, so it does not help.`
+      case 'supplier-ok': return `Arrives at the warehouse before ${reason.protectsPriority ? `the priority order’s ${orderDeadline(plan, true)}` : `some affected orders’ ${orderDeadline(plan, false)}`} and cuts the shortage from ${quantity(reason.exposedBefore, plan.productId)} to ${quantity(reason.exposedAfter, plan.productId)}.${customerTimingNote(plan)}${storageNote}`
       case 'no-space': return `${destination} is full: it holds at most ${quantity(reason.limit, plan.productId)} of ${productName(plan.productId)} and already has that many.`
-      case 'ship-from-ok': return `${locationName(plan.sourceLocationId ?? '')} has enough for the whole order and still covers its own orders.`
+      case 'ship-from-ok': return `${locationName(plan.sourceLocationId ?? '')} has enough for the whole order and still covers its own orders.${customerTimingNote(plan)}`
       case 'ship-from-short': return `${locationName(plan.sourceLocationId ?? '')} doesn't have enough for the whole order once its own orders are covered.`
       case 'ship-from-ask': return `${locationName(plan.sourceLocationId ?? '')} has enough. Can it deliver to ${locationName(plan.locationId)}'s customers? Only you know.`
     }
@@ -131,7 +141,7 @@ export function createWording(workspace: Workspace, format: Format) {
 
   const descriptionOf = (plan: Plan) => {
     const destination = locationName(plan.locationId)
-    if (plan.kind === 'transfer') return plan.quantity ? `Move ${quantity(plan.quantity, plan.productId)} to ${destination} before ${dueWhat(plan)} is due.` : `Nothing to move from ${locationName(plan.sourceLocationId ?? '')}.`
+    if (plan.kind === 'transfer') return plan.quantity ? `Move ${quantity(plan.quantity, plan.productId)} to ${destination} before the affected orders' ${orderDeadline(plan, false)}.${customerTimingNote(plan)}` : `Nothing to move from ${locationName(plan.sourceLocationId ?? '')}.`
     if (plan.kind === 'bulk-transfer') return `Move the full available ${locationName(plan.sourceLocationId ?? '')} balance to ${destination}.`
     if (plan.kind === 'ship-from') return `Send ${plan.orderId ?? 'this order'} to ${customer(plan.orderId ?? '')} from ${locationName(plan.sourceLocationId ?? '')} instead of ${destination}. Approving moves the order there.`
     if (plan.quantity === null || plan.arrivalAt === null) {
@@ -181,6 +191,13 @@ export function createWording(workspace: Workspace, format: Format) {
         target: { type: 'order', orderId: fact.orderId },
       }
     }
+    if (fact.type === 'customer-travel') {
+      return {
+        label: `${locationName(fact.locationId)} customer travel time`,
+        value: `${fact.hours} ${fact.hours === 1 ? 'hour' : 'hours'}`,
+        target: { type: 'location', locationId: fact.locationId },
+      }
+    }
     if (fact.type === 'route') {
       const route = workspace.routes.find((item) => item.id === fact.routeId)
       return {
@@ -203,9 +220,10 @@ export function createWording(workspace: Workspace, format: Format) {
   /** Why an order line is short, in words: what's missing and whether anything is on its way. */
   const shortageText = (line: OrderCoverage) => {
     const due = orderById.get(line.orderId)?.dueAt
-    const by = due ? ` before ${format.dateTime(due)}` : ''
+    const by = line.mustLeaveBy ? ` by ${format.dateTime(line.mustLeaveBy)}` : due ? ` before ${format.dateTime(due)}` : ''
     return `Short by ${quantity(line.ordered - line.covered, line.productId)} at ${locationName(line.locationId)}`
       + (line.arriving === 0 ? ` · no incoming shipment recorded${by}` : ` · counts ${quantity(line.arriving, line.productId)} arriving${by}`)
+      + (line.arrivalConfirmed ? '' : ' · customer arrival time unconfirmed (travel time unknown)')
   }
 
   /** "Takes 6 hours · arrives Thu 3:00 pm if booked now", or why the time is unknown. */

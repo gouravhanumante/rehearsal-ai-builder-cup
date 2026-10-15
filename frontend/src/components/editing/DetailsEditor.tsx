@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, FileUp, LoaderCircle, PencilLine, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { Workspace } from '../../../../shared/planner/model'
 import { orderCoverage, rehearse, spareStock } from '../../../../shared/planner/plan'
@@ -40,6 +40,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const [opening] = useState(() => openingState(config.fields, config.initial, config.prefilled))
   const [values, setValues] = useState(opening.values)
   const [origin, setOrigin] = useState<Record<string, Origin>>(opening.origin)
+  const [touched, setTouched] = useState<Set<string>>(() => new Set())
   const [quotes, setQuotes] = useState<Record<string, string>>({})
   const [documentName, setDocumentName] = useState<string | null>(null)
   const [documentSummary, setDocumentSummary] = useState<string | null>(null)
@@ -60,7 +61,10 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const evidenceFor = (key: string, value: ParsedValue) => resolveEvidence(origin[key], value, config.initialEvidence[key], documentName, recordedAt)
 
   const isNew = config.isNew ?? false
-  const changedKeys = reviewFieldKeys(isNew, config.fields, values, config.initial, origin, config.initialEvidence)
+  const changedKeys = [...new Set([
+    ...reviewFieldKeys(isNew, config.fields, values, config.initial, origin, config.initialEvidence),
+    ...(config.recordUnchanged ?? []).filter((key) => touched.has(key)),
+  ])]
   const changedFields = config.fields.filter((field) => changedKeys.includes(field.key))
   // One line for History, e.g. "Add order: Customer Hotel Annapoorna, Quantity 30".
   const summary = `${config.title}: ${changedFields.slice(0, 4).map((field) => isNew
@@ -121,8 +125,9 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const otherShortages = newShortages.filter((line) => line.orderId !== targetOrderId)
 
   const updateValue = (key: string, value: string) => {
+    setTouched((previous) => new Set(previous).add(key))
     setValues((previous) => ({ ...previous, [key]: value }))
-    setOrigin((previous) => ({ ...previous, [key]: originAfterTyping(value, config.initial[key]) }))
+    setOrigin((previous) => ({ ...previous, [key]: config.recordUnchanged?.includes(key) && value === config.initial[key] ? 'typed' : originAfterTyping(value, config.initial[key]) }))
   }
 
   const readDocument = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -232,6 +237,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
                     : <span className="editor-input-wrap"><input aria-describedby={field.hint ? `${inputId}-hint` : undefined} id={inputId} inputMode={field.type === 'integer' ? 'numeric' : field.type === 'money' ? 'decimal' : undefined} onChange={(event) => updateValue(field.key, event.target.value)} placeholder={field.placeholder ?? (field.required ? '' : 'Unknown')} type={field.type === 'datetime' ? 'datetime-local' : 'text'} value={values[field.key]} />{field.suffix && <span className="editor-suffix">{field.suffix}</span>}</span>}
                   <div className="editor-field-meta">
                     {field.isFact && (values[field.key] ?? '').trim() !== '' && <EvidenceMark evidence={evidenceFor(field.key, values[field.key])} />}
+                    {config.recordUnchanged?.includes(field.key) && values[field.key] === config.initial[field.key] && <Button icon={<RefreshCw size={13} />} onClick={() => { setTouched((previous) => new Set(previous).add(field.key)); setOrigin((previous) => ({ ...previous, [field.key]: 'typed' })) }} variant="quiet">Record this count again</Button>}
                     {fieldOrigin === 'document' && quotes[field.key] && <small className="editor-quote">“{quotes[field.key]}”</small>}
                     {mode === 'document' && documentName && field.extractable && fieldOrigin !== 'document' && <small className="editor-missing">Not found in the document</small>}
                   </div>

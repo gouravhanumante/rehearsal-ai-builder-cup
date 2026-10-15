@@ -21,6 +21,12 @@ export function isTimeZone(value: string) {
   }
 }
 
+/** The calendar day (YYYY-MM-DD) an instant falls on in the given timezone. */
+export function localDay(iso: string, timeZone: string) {
+  const utcMs = Date.parse(iso)
+  return new Date(utcMs + offsetMinutes(utcMs, timeZone) * 60_000).toISOString().slice(0, 10)
+}
+
 /** A wall-clock time like 2026-11-02T09:00 in the given timezone -> ISO string with that day's offset. */
 export function localToIso(local: string, timeZone: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::00)?$/.exec(local)

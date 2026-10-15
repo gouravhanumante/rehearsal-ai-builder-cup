@@ -23,20 +23,14 @@ describe('a blank workspace', () => {
 })
 
 describe('saved data checks', () => {
-  it('treats an older save with no mode as the sample', () => {
-    const { mode, ...older } = sampleWorkspace
-    expect(mode).toBe('demo')
-    expect(parseWorkspace(older)?.mode).toBe('demo')
-  })
-
   it('accepts values that came from an imported file', () => {
-    const imported = { ...sampleWorkspace, stock: [{ locationId: 'north', productId: 'harbor-blend', available: { value: 5, evidence: { kind: 'import' as const, source: 'stock.xlsx', recordedAt: '2026-10-15T09:00:00+05:30' } } }] }
-    expect(parseWorkspace(imported)).not.toBeNull()
+    const count = { id: 'CNT-1', kind: 'count' as const, locationId: 'north', productId: 'harbor-blend', quantity: 5, at: '2026-10-15T09:00:00+05:30', evidence: { kind: 'import' as const, source: 'stock.xlsx', recordedAt: '2026-10-15T09:00:00+05:30' } }
+    expect(parseWorkspace({ ...sampleWorkspace, movements: [count] })?.stock[0].available.evidence.kind).toBe('import')
   })
 
   it('allows a big distributor, but still refuses unbounded input', () => {
-    expect(LIMITS.stock).toBeGreaterThanOrEqual(100 * 1000)
-    const tooMany = { ...sampleWorkspace, stock: Array.from({ length: LIMITS.stock + 1 }, () => sampleWorkspace.stock[0]) }
+    expect(LIMITS.movements).toBeGreaterThanOrEqual(100 * 1000)
+    const tooMany = { ...sampleWorkspace, movements: Array.from({ length: LIMITS.movements + 1 }, (_, index) => ({ ...sampleWorkspace.movements[0], id: `CNT-${index}` })) }
     expect(parseWorkspace(tooMany)).toBeNull()
   })
 
@@ -46,6 +40,14 @@ describe('saved data checks', () => {
 
   it('keeps a saved "stock can\'t move from South Hub to North Hub" answer', () => {
     expect(parseWorkspace({ ...sampleWorkspace, noTransfers: [{ fromLocationId: 'south', toLocationId: 'north' }] })).not.toBeNull()
+  })
+
+  it('accepts recorded arrivals but refuses invalid times, quantities and kinds', () => {
+    const receipt = { id: 'RCV-1:harbor-blend', kind: 'receipt' as const, locationId: 'north', productId: 'harbor-blend', quantity: 6, at: '2026-10-15T09:30:00+05:30', evidence: sampleEvidence, shipmentId: 'TR-1', fromLocationId: 'south' }
+    expect(parseWorkspace({ ...sampleWorkspace, movements: [...sampleWorkspace.movements, receipt] })?.stock.find((item) => item.locationId === 'north')?.available.value).toBe(20)
+    for (const invalid of [{ ...receipt, at: 'invalid' }, { ...receipt, quantity: -6 }, { ...receipt, kind: 'gift' }]) {
+      expect(parseWorkspace({ ...sampleWorkspace, movements: [...sampleWorkspace.movements, invalid] })).toBeNull()
+    }
   })
 })
 
@@ -88,5 +90,29 @@ describe('the data a plan check needs', () => {
 
   it('has no slice for a plan that does not exist', () => {
     expect(sliceForPlan(bigger, 'transfer:nowhere:nothing')).toBeNull()
+  })
+
+  it('the server still counts a different product already booked against the same receiving day', () => {
+    const data: Workspace = { ...bigger, shipments: [...bigger.shipments, {
+      ...sampleWorkspace.shipments[0], id: 'TR-oat', supplierName: 'Transfer from East Store', fromLocationId: 'east',
+      lines: [{ productId: 'oat', quantity: 3 }],
+      originalArrivalAt: '2026-10-15T10:00:00+05:30', confirmedArrivalAt: '2026-10-15T10:00:00+05:30',
+    }] }
+    const planId = 'transfer:south-to-north:harbor-blend'
+    expect(rehearse(data).plans.find((plan) => plan.id === planId)?.quantity).toBe(5)
+    const slice = sliceForPlan(data, planId) as Workspace
+    expect(rehearse(slice).plans.find((plan) => plan.id === planId)?.quantity).toBe(5)
+  })
+
+  it('the server keeps other-product arrivals at the destination without sending unrelated receipt history', () => {
+    const receipt = { id: 'RCV-oat', kind: 'receipt' as const, locationId: 'north', productId: 'oat', quantity: 3, at: '2026-10-15T09:00:00+05:30', evidence: sampleEvidence, shipmentId: 'TR-oat', fromLocationId: 'east' }
+    const data: Workspace = { ...bigger, movements: [...bigger.movements, receipt, { ...receipt, id: 'RCV-east', locationId: 'east' }] }
+    const planId = 'transfer:south-to-north:harbor-blend'
+    const slice = sliceForPlan(data, planId) as Workspace
+    expect(slice.movements).toContainEqual(receipt)
+    expect(slice.movements.map((item) => item.id)).not.toContain('RCV-east')
+    expect(parseWorkspace(slice)).not.toBeNull()
+    expect(rehearse(slice).plans.find((plan) => plan.id === planId)).toEqual(rehearse(data).plans.find((plan) => plan.id === planId))
+    expect(rehearse(slice).plans.find((plan) => plan.id === planId)?.quantity).toBe(5)
   })
 })

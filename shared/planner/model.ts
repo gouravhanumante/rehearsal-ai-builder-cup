@@ -14,7 +14,7 @@ export type Product = { id: string; name: string; unit: string; pack: string; pe
 
 export type LocationKind = 'warehouse' | 'store' | 'distribution-centre'
 /** deliveryCostPerOrder: what it costs to send one customer order out of this location. area: city or region, shown to help the user answer questions; never used to decide anything. */
-export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; deliveryCostPerOrder?: number | null; area?: string | null }
+export type Location = { id: string; name: string; kind: LocationKind; receivingLimitPerDay: number | null; deliveryCostPerOrder?: number | null; area?: string | null; customerTravelHours?: Fact<number> }
 
 export type StockRecord = { locationId: string; productId: string; available: Recorded<number> }
 /** Most of one product this location can hold. */
@@ -29,9 +29,11 @@ export type Order = {
   priority: 'protected' | 'standard'
   lines: OrderLine[]
   evidence: Evidence
-  /** Delivered or cancelled orders no longer need stock. Missing means open (older saves). */
-  status?: 'open' | 'delivered' | 'cancelled'
+  /** Cancelled stops what is not yet sent; what was sent is in `movements`. Missing means open. */
+  status?: 'open' | 'cancelled'
   closedAt?: string
+  /** The customer's answer to receiving it in parts. Missing means not asked yet. */
+  splitAllowed?: boolean
 }
 
 export type InboundShipment = {
@@ -45,6 +47,12 @@ export type InboundShipment = {
   evidence: Evidence
   /** Repeats every N days from originalArrivalAt; confirmedArrivalAt is only the next delivery. */
   repeatEveryDays?: number
+  /** Set only for a transfer between our own locations: where it left from. */
+  fromLocationId?: string
+  /** Departure batches point back to the booking that reserved their stock. */
+  transferBookingId?: string
+  /** A booking holds source stock until departure; cancellation cannot take back goods already departed. */
+  transferStatus?: 'booked' | 'in-transit' | 'unresolved' | 'cancelled'
 }
 
 export type Disruption = { id: string; kind: 'shipment-delay'; shipmentId: string }
@@ -87,14 +95,40 @@ export type HistoryMessage = { to: string; email: string | null; subject: string
 /** One line in the business's History. Read-only; written when a change is saved. */
 export type HistoryEntry = { at: string; kind: HistoryKind; text: string; messages?: HistoryMessage[] }
 
+export type MovementKind = 'count' | 'receipt' | 'dispatch' | 'transfer-out' | 'transfer-return' | 'transfer-loss'
+/**
+ * One thing that happened to physical stock. Stock is never edited; it is worked out from these.
+ * A count is what was on the shelf at `at`, so anything earlier no longer changes stock.
+ */
+export type Movement = {
+  id: string
+  kind: MovementKind
+  locationId: string
+  productId: string
+  quantity: number
+  at: string
+  evidence: Evidence
+  orderId?: string
+  shipmentId?: string
+  /** Booking whose reserved quantity this transfer departure consumes. */
+  bookingId?: string
+  /** Receipts of a transfer: the location the goods came from. */
+  fromLocationId?: string
+  /** A correction: the id of the movement whose quantity this replaces. */
+  corrects?: string
+}
+
 export type Workspace = {
-  version: 2
+  version: 3
   /** The sample is a shared demo; a real workspace belongs to one business. */
   mode: 'demo' | 'real'
   businessName: string
   settings: WorkspaceSettings
   products: Product[]
   locations: Location[]
+  /** Oldest first. The only source of stock numbers. */
+  movements: Movement[]
+  /** Worked out from `movements` by `stockFrom`; never edited directly. */
   stock: StockRecord[]
   storageLimits?: StorageLimit[]
   orders: Order[]

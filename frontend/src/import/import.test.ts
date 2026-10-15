@@ -4,6 +4,8 @@ import { buildImport, parseDate, parseQuantity } from './build'
 import { parseCsv } from './csv'
 import { autoMatch } from './match'
 import { toTable } from './table'
+import { sampleWorkspace, SAMPLE_NOW } from '../../../shared/planner/sample'
+import { sendOrder } from '../../../shared/planner/ledger'
 
 const blank = () => createBlankWorkspace('Priya Traders', 'IN')
 const csv = (text: string, name = 'file.csv') => toTable(name, parseCsv(text.trim()))
@@ -143,6 +145,17 @@ describe('importing orders', () => {
   it('marks imported orders as coming from the file, not typed in', () => {
     const result = run('orders', `${header}\nO-1,Cafe Aroma,Beans,10,16/10/2026 09:00,North Hub`)
     expect(result.workspace.orders[0].evidence).toMatchObject({ kind: 'import', source: 'file.csv' })
+  })
+
+  it('refuses a CSV edit that reduces an order below goods already sent', () => {
+    const order = sampleWorkspace.orders[0]
+    const sent = sendOrder({ ...sampleWorkspace, orders: sampleWorkspace.orders.map((item) => item.id === order.id ? { ...item, splitAllowed: true } : item) }, order.id,
+      [{ productId: order.lines[0].productId, quantity: 5 }], SAMPLE_NOW, 'CSV-GUARD')
+    if ('error' in sent) throw new Error(sent.error)
+    const result = run('orders', `Order,Customer,Product,Qty,Due,Location,Priority\n${order.id},${order.customer},Harbor Blend Coffee,4,15/10/2026 14:00,North Hub,High`, sent.workspace)
+    expect(result.workspace.orders.find((item) => item.id === order.id)?.lines).toEqual(order.lines)
+    expect(result.problems).toContainEqual({ row: 2, message: `${order.id} already has 5 Harbor Blend Coffee sent; the imported order was left unchanged.` })
+    expect(result.updated).toBe(0)
   })
 })
 

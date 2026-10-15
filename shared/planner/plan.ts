@@ -1,5 +1,7 @@
 import type { Evidence, Goal, InboundShipment, Money, Order, TransferRoute, Workspace } from './model.js'
+import { effectiveMovements, freeStock, outstandingOrders } from './ledger.js'
 import { SAMPLE_NOW } from './sample.js'
+import { localDay } from './time.js'
 
 export type PlanStatus = 'ready' | 'conditional' | 'rejected'
 
@@ -7,15 +9,17 @@ export type PlanStatus = 'ready' | 'conditional' | 'rejected'
 export type UnverifiedFact =
   | { type: 'stock'; locationId: string; productId: string; quantity: number }
   | { type: 'order'; orderId: string }
+  | { type: 'customer-travel'; locationId: string; hours: number }
   | { type: 'route'; routeId: string; arrivalAt: string }
   | { type: 'offer'; supplierId: string; productId: string; locationId: string; field: 'available' | 'pricePerUnit' | 'arrivalAt'; value: number | string }
 
 export type PlanReason =
-  | { code: 'transfer-ok'; quantity: number; limit: number | null }
+  | { code: 'transfer-ok'; quantity: number; limit: number | null; booked?: number }
   | { code: 'transfer-none-available' }
   | { code: 'transfer-arrival-unknown' }
   | { code: 'transfer-late' }
-  | { code: 'transfer-over-limit'; limit: number; excess: number }
+  | { code: 'transfer-over-limit'; limit: number; excess: number; booked?: number }
+  | { code: 'receiving-full'; limit: number; booked: number }
   | { code: 'supplier-missing'; missing: ('available' | 'pricePerUnit' | 'arrivalAt')[] }
   | { code: 'supplier-no-stock' }
   | { code: 'supplier-too-late' }
@@ -89,15 +93,24 @@ export type ImpactGroup = {
 }
 
 type Batch = { at: string | null; quantity: number }
-type Demand = { order: Order; quantity: number }
+type Demand = { order: Order; quantity: number; serveBy: string }
 
 const time = (iso: string | null) => (iso === null ? Number.NEGATIVE_INFINITY : Date.parse(iso))
 const isManual = (evidence: Evidence | null) => evidence?.kind === 'manual'
 const lineQuantity = (record: { lines: { productId: string; quantity: number }[] }, productId: string) =>
   record.lines.filter((line) => line.productId === productId).reduce((total, line) => total + line.quantity, 0)
+const countsAsInbound = (shipment: InboundShipment) => !shipment.fromLocationId
+  || (shipment.transferStatus !== 'booked' && shipment.transferStatus !== 'unresolved' && (shipment.transferStatus !== 'cancelled' || shipment.lines.length > 0))
+const customerTravelHours = (workspace: Workspace, locationId: string) => workspace.locations.find((location) => location.id === locationId)?.customerTravelHours?.value ?? null
+export const mustLeaveBy = (workspace: Workspace, order: Order) => {
+  const hours = customerTravelHours(workspace, order.locationId)
+  return hours === null ? null : new Date(Date.parse(order.dueAt) - hours * 3_600_000).toISOString()
+}
+const serveBy = (workspace: Workspace, order: Order) => mustLeaveBy(workspace, order) ?? order.dueAt
+const demandFor = (workspace: Workspace, order: Order, productId: string): Demand => ({ order, quantity: lineQuantity(order, productId), serveBy: serveBy(workspace, order) })
 
 const byDueThenPriority = (first: Demand, second: Demand) =>
-  time(first.order.dueAt) - time(second.order.dueAt)
+  time(first.serveBy) - time(second.serveBy)
   || Number(second.order.priority === 'protected') - Number(first.order.priority === 'protected')
   || first.order.id.localeCompare(second.order.id)
 
@@ -109,9 +122,9 @@ const byDueThenPriority = (first: Demand, second: Demand) =>
 function allocate(demands: Demand[], batches: Batch[], firstServed: Set<string>): Allocation[] {
   const remaining = batches.map((batch) => ({ ...batch })).sort((first, second) => time(first.at) - time(second.at))
   const covered = new Map<string, number>()
-  const take = (demand: Demand, latestFirst: boolean) => {
+    const take = (demand: Demand, latestFirst: boolean) => {
     let needed = demand.quantity
-    const usable = remaining.filter((batch) => time(batch.at) <= time(demand.order.dueAt))
+    const usable = remaining.filter((batch) => time(batch.at) <= time(demand.serveBy))
     for (const batch of latestFirst ? usable.reverse() : usable) {
       const used = Math.min(needed, batch.quantity)
       batch.quantity -= used
@@ -159,7 +172,7 @@ function priorityConflicts(demands: Demand[], batches: Batch[], decisions: Map<s
   for (const demand of demands.filter((item) => item.order.priority === 'protected')) {
     const own = defaultAllocation.find((item) => item.orderId === demand.order.id)
     const short = own ? own.ordered - own.covered : 0
-    const earlier = demands.filter((item) => item.order.priority === 'standard' && time(item.order.dueAt) < time(demand.order.dueAt))
+    const earlier = demands.filter((item) => item.order.priority === 'standard' && time(item.serveBy) < time(demand.serveBy))
     const takenByEarlier = earlier.reduce((total, item) => total + (defaultAllocation.find((a) => a.orderId === item.order.id)?.covered ?? 0), 0)
     if (short <= 0 || takenByEarlier <= 0) continue
     const id = `conflict:${demand.order.id}:${productId}`
@@ -176,8 +189,12 @@ export type OrderCoverage = {
   locationId: string
   ordered: number
   covered: number
+  onHandCovered: number
   /** Arriving at this warehouse by the order's due time, from incoming shipments (before other orders take any). */
   arriving: number
+  /** Latest warehouse-ready time when travel time is known; null means customer arrival is unconfirmed. */
+  mustLeaveBy: string | null
+  arrivalConfirmed: boolean
   status: 'covered' | 'short'
   /** False when this warehouse never had a count for the product: it is treated as 0 (user decision 2026-10-15). */
   counted: boolean
@@ -188,12 +205,12 @@ export type OrderCoverage = {
  * arrive by the due time, shared with other orders due first. No stock count means unknown.
  */
 export const isOpen = (order: Order) => (order.status ?? 'open') === 'open'
-/** The planner only works with open orders; delivered and cancelled ones need no stock. */
-const openOnly = (workspace: Workspace): Workspace =>
-  workspace.orders.every(isOpen) ? workspace : { ...workspace, orders: workspace.orders.filter(isOpen) }
 
-export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderCoverage[] {
-  const workspace = openOnly(input)
+/** Every order line against its own warehouse. Order quantities count only what is still to be sent. */
+export const orderCoverage = (input: Workspace, onlyLocationId?: string) => coverageOf(outstandingOrders(input), onlyLocationId)
+
+// Internal: expects orders already reduced to what is still to be sent, so sends are never subtracted twice.
+function coverageOf(workspace: Workspace, onlyLocationId?: string): OrderCoverage[] {
   const decisions = new Map(workspace.conflictDecisions.map((decision) => [decision.conflictId, decision.winner]))
   const result: OrderCoverage[] = []
   const pairs = new Set(workspace.orders
@@ -202,20 +219,27 @@ export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderC
   for (const pair of pairs) {
     const [locationId, productId] = pair.split('|')
     const stock = workspace.stock.find((record) => record.locationId === locationId && record.productId === productId)
+    const available = freeStock(workspace, locationId, productId)
     const demands: Demand[] = workspace.orders
       .filter((order) => order.locationId === locationId)
-      .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+      .map((order) => demandFor(workspace, order, productId))
       .filter((demand) => demand.quantity > 0)
-    const horizon = Math.max(...demands.map((demand) => time(demand.order.dueAt)))
+    const horizon = Math.max(...demands.map((demand) => time(demand.serveBy)))
     const inbound: Batch[] = workspace.shipments
-      .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
+      .filter((shipment) => countsAsInbound(shipment) && shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
       .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
-    const allocations = allocate(demands, [{ at: null, quantity: stock?.available.value ?? 0 }, ...inbound], priorityConflicts(demands, [{ at: null, quantity: stock?.available.value ?? 0 }, ...inbound], decisions, locationId, productId).prioritiesFirst)
+    const batches: Batch[] = [{ at: null, quantity: available }, ...inbound]
+    const { prioritiesFirst } = priorityConflicts(demands, batches, decisions, locationId, productId)
+    const allocations = allocate(demands, batches, prioritiesFirst)
+    const stockOnly = allocate(demands, batches.slice(0, 1), prioritiesFirst)
     for (const allocation of allocations) {
-      const dueAt = demands.find((demand) => demand.order.id === allocation.orderId)?.order.dueAt ?? null
-      const arriving = inbound.filter((batch) => time(batch.at) <= time(dueAt)).reduce((total, batch) => total + batch.quantity, 0)
+      const demand = demands.find((item) => item.order.id === allocation.orderId)
+      const leaveBy = demand ? mustLeaveBy(workspace, demand.order) : null
+      const arriving = inbound.filter((batch) => time(batch.at) <= time(demand?.serveBy ?? null)).reduce((total, batch) => total + batch.quantity, 0)
       result.push({
         orderId: allocation.orderId, productId, locationId, ordered: allocation.ordered, covered: allocation.covered, arriving,
+        mustLeaveBy: leaveBy, arrivalConfirmed: leaveBy !== null,
+        onHandCovered: stockOnly.find((item) => item.orderId === allocation.orderId)?.covered ?? 0,
         status: allocation.covered < allocation.ordered ? 'short' : 'covered',
         counted: Boolean(stock),
       })
@@ -228,17 +252,18 @@ export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderC
  * How much of a product a location can give away today and still cover every one of its own
  * orders as well as it does now (stock on hand plus deliveries arriving by each due time).
  */
-export function spareStock(input: Workspace, locationId: string, productId: string): number {
-  const workspace = openOnly(input)
-  const onHand = workspace.stock.find((record) => record.locationId === locationId && record.productId === productId)?.available.value ?? 0
+export const spareStock = (input: Workspace, locationId: string, productId: string) => spareOf(outstandingOrders(input), locationId, productId)
+
+function spareOf(workspace: Workspace, locationId: string, productId: string): number {
+  const onHand = freeStock(workspace, locationId, productId)
   const demands: Demand[] = workspace.orders
     .filter((order) => order.locationId === locationId)
-    .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+    .map((order) => demandFor(workspace, order, productId))
     .filter((demand) => demand.quantity > 0)
   if (demands.length === 0) return onHand
-  const horizon = Math.max(...demands.map((demand) => time(demand.order.dueAt)))
+  const horizon = Math.max(...demands.map((demand) => time(demand.serveBy)))
   const inbound: Batch[] = workspace.shipments
-    .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
+    .filter((shipment) => countsAsInbound(shipment) && shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
     .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
   const coveredWith = (stock: number) => allocate(demands, [{ at: null, quantity: stock }, ...inbound], new Set())
     .reduce((total, item) => total + item.covered, 0)
@@ -266,7 +291,7 @@ export function routeArrival(route: TransferRoute, now: string): { at: string | 
 }
 
 export function rehearse(input: Workspace, now: string = planningNow(input)) {
-  const workspace = openOnly(input)
+  const workspace = outstandingOrders(input)
   const { settings } = workspace
   const stockKey = (locationId: string, productId: string) => `${locationId}|${productId}`
   const stockByKey = new Map(workspace.stock.map((record) => [stockKey(record.locationId, record.productId), record]))
@@ -286,35 +311,37 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
     if (!shipment) continue
     for (const productId of new Set(shipment.lines.map((line) => line.productId))) {
       const locationId = shipment.locationId
+      if (problems.some((problem) => problem.locationId === locationId && problem.productId === productId)) continue
       const delayedUntil = shipment.confirmedArrivalAt
       // Every order at this place, and every delivery, the late one at its new date (user decision
       // 2026-10-16): an order due after the late delivery that is still short gets options too.
       const demands: Demand[] = workspace.orders
         .filter((order) => order.locationId === locationId)
-        .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+        .map((order) => demandFor(workspace, order, productId))
         .filter((demand) => demand.quantity > 0)
-      const horizon = Math.max(time(delayedUntil), ...demands.map((demand) => time(demand.order.dueAt)))
+      const horizon = Math.max(time(delayedUntil), ...demands.map((demand) => time(demand.serveBy)))
       const inbound: Batch[] = workspace.shipments
-        .filter((other) => other.locationId === locationId && lineQuantity(other, productId) > 0)
+        .filter((other) => countsAsInbound(other) && other.locationId === locationId && lineQuantity(other, productId) > 0)
         .flatMap((other) => arrivalsOf(other, horizon).map((at) => ({ at, quantity: lineQuantity(other, productId) })))
       problems.push({ kind: 'delay', disruptionId: disruption.id, shipmentId: shipment.id, locationId, productId, delayedUntil, demands, inbound })
     }
   }
 
   // Orders short with nothing late: same options, for warehouses not already in a reported delay.
+  const allCoverage = coverageOf(workspace)
   const inDelay = new Set(problems.map((problem) => stockKey(problem.locationId, problem.productId)))
-  const shortPairs = new Set(orderCoverage(workspace)
-    .filter((line) => line.status === 'short' && !inDelay.has(stockKey(line.locationId, line.productId)))
+  const shortPairs = new Set(allCoverage
+    .filter((line) => (line.onHandCovered < line.ordered || !line.arrivalConfirmed) && !inDelay.has(stockKey(line.locationId, line.productId)))
     .map((line) => stockKey(line.locationId, line.productId)))
   for (const pair of shortPairs) {
     const [locationId, productId] = pair.split('|')
     const demands: Demand[] = workspace.orders
       .filter((order) => order.locationId === locationId)
-      .map((order) => ({ order, quantity: lineQuantity(order, productId) }))
+      .map((order) => demandFor(workspace, order, productId))
       .filter((demand) => demand.quantity > 0)
-    const horizon = Math.max(...demands.map((demand) => time(demand.order.dueAt)))
-    const inbound: Batch[] = workspace.shipments
-      .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
+    const horizon = Math.max(...demands.map((demand) => time(demand.serveBy)))
+      const inbound: Batch[] = workspace.shipments
+        .filter((shipment) => countsAsInbound(shipment) && shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
       .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
     problems.push({ kind: 'shortage', disruptionId: `short:${locationId}:${productId}`, shipmentId: null, locationId, productId, delayedUntil: null, demands, inbound })
   }
@@ -323,7 +350,7 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
     {
       const { locationId, productId, demands, delayedUntil } = problem
       const stock = stockByKey.get(stockKey(locationId, productId))
-      const onHand: Batch[] = [{ at: null, quantity: stock?.available.value ?? 0 }, ...problem.inbound]
+      const onHand: Batch[] = [{ at: null, quantity: freeStock(workspace, locationId, productId) }, ...problem.inbound]
 
       const found = priorityConflicts(demands, onHand, decisions, locationId, productId)
       const { prioritiesFirst } = found
@@ -345,6 +372,9 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
       const watchIds = baseline.allocations
         .filter((item) => item.covered >= item.ordered && (fromStockOnly.find((own) => own.orderId === item.orderId)?.covered ?? 0) < item.ordered)
         .map((item) => item.orderId)
+      for (const line of allCoverage.filter((item) => item.locationId === locationId && item.productId === productId && !item.arrivalConfirmed && item.status === 'covered')) {
+        if (!watchIds.includes(line.orderId)) watchIds.push(line.orderId)
+      }
       shortIds.forEach((id) => affected.add(id))
       watchIds.forEach((id) => watched.add(id))
       groups.push({
@@ -358,11 +388,15 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
       if (baseline.exposedQuantity === 0) continue
 
       const onHandCount = stock?.available.value ?? 0
+      const customerTravel = workspace.locations.find((location) => location.id === locationId)?.customerTravelHours
       const baseUnverified: UnverifiedFact[] = [
         ...(stock && isManual(stock.available.evidence) ? [{ type: 'stock' as const, locationId, productId, quantity: stock.available.value }] : []),
         ...demands.filter((item) => isManual(item.order.evidence)).map((item) => ({ type: 'order' as const, orderId: item.order.id })),
+        ...(customerTravel && customerTravel.value !== null && isManual(customerTravel.evidence)
+          ? [{ type: 'customer-travel' as const, locationId, hours: customerTravel.value }]
+          : []),
       ]
-      const earliestPriorityDue = Math.min(...demands.filter((item) => item.order.priority === 'protected').map((item) => time(item.order.dueAt)))
+      const earliestPriorityDue = Math.min(...demands.filter((item) => item.order.priority === 'protected' && shortIds.includes(item.order.id)).map((item) => time(item.serveBy)))
       const destinationLimit = locationById.get(locationId)?.receivingLimitPerDay ?? null
       // Room is measured against today's count; stock leaving for orders before arrival is not credited.
       const cap = storageCap(workspace, locationId, productId)
@@ -370,15 +404,25 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
       const common = { disruptionId: problem.disruptionId, productId, locationId, spaceLeft }
       const fits = (quantity: number) => (spaceLeft === null ? quantity : Math.min(quantity, spaceLeft))
       const firstShort = baseline.allocations.find((item) => item.covered < item.ordered)
-      const neededBy = demands.find((item) => item.order.id === firstShort?.orderId)?.order.dueAt ?? delayedUntil ?? demands[0].order.dueAt
+      const neededBy = demands.find((item) => item.order.id === firstShort?.orderId)?.serveBy ?? delayedUntil ?? demands[0].serveBy
 
       for (const route of workspace.routes.filter((item) => item.toLocationId === locationId)) {
         const source = stockByKey.get(stockKey(route.fromLocationId, productId))
         if (!source) continue
         const sourceQuantity = source.available.value
-        const spare = spareStock(workspace, route.fromLocationId, productId)
+        const spare = spareOf(workspace, route.fromLocationId, productId)
+        const arrival = routeArrival(route, now)
+        // Transfers already approved to arrive here that day use up the receiving limit (user decision 2026-10-16).
+        const incoming = destinationLimit === null || arrival.at === null ? 0 : workspace.shipments
+          .filter((item) => item.locationId === locationId && item.fromLocationId && localDay(item.confirmedArrivalAt, settings.timeZone) === localDay(arrival.at!, settings.timeZone))
+          .flatMap((item) => item.lines).reduce((total, line) => total + line.quantity, 0)
+        const received = destinationLimit === null || arrival.at === null ? 0 : effectiveMovements(workspace.movements)
+          .filter((item) => (item.kind === 'receipt' || item.kind === 'transfer-return') && item.locationId === locationId && item.fromLocationId && localDay(item.at, settings.timeZone) === localDay(arrival.at!, settings.timeZone))
+          .reduce((total, item) => total + item.quantity, 0)
+        const booked = incoming + received
+        const roomToday = destinationLimit === null ? null : Math.max(0, destinationLimit - booked)
         // Move only what is short, from what the source can spare, within receiving and storage limits.
-        const quantity = fits(Math.min(spare, baseline.exposedQuantity, destinationLimit ?? spare))
+        const quantity = fits(Math.min(spare, baseline.exposedQuantity, roomToday ?? spare))
         const costFor = (amount: number): Money | null => {
           const quote = route.quotes.find((item) => item.quantity === amount)
           if (quote) return { amount: quote.amount, currency: settings.currency }
@@ -387,7 +431,6 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
           if (trip === null && perUnit === null) return null
           return { amount: Math.round(((trip ?? 0) + (perUnit ?? 0) * amount) * 100) / 100, currency: settings.currency }
         }
-        const arrival = routeArrival(route, now)
         const unverified: UnverifiedFact[] = [
           ...baseUnverified,
           ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: route.fromLocationId, productId, quantity: sourceQuantity }] : []),
@@ -398,6 +441,8 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
 
         if (cap !== null && spaceLeft === 0) {
           plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'rejected', reason: { code: 'no-space', limit: cap }, quantity: 0, cost: null, outcome: null, unverified: [] })
+        } else if (destinationLimit !== null && roomToday === 0 && spare > 0) {
+          plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'rejected', reason: { code: 'receiving-full', limit: destinationLimit, booked }, quantity: 0, cost: null, outcome: null, unverified: [] })
         } else if (quantity <= 0) {
           plans.push({ ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer', status: 'rejected', reason: { code: 'transfer-none-available' }, quantity: 0, cost: null, outcome: null, unverified: [] })
         } else if (arrivalAt === null) {
@@ -406,11 +451,12 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
           const result = outcome([{ at: arrivalAt, quantity }])
           const late = time(arrivalAt) > earliestPriorityDue || result.exposedQuantity >= baseline.exposedQuantity
           const hours = route.travelHours?.value ?? null
-          const deadline = Math.min(time(neededBy), earliestPriorityDue)
+          const helpedIds = new Set(result.allocations.filter((item) => item.covered > (baseline.allocations.find((before) => before.orderId === item.orderId)?.covered ?? 0)).map((item) => item.orderId))
+          const deadline = Math.min(...demands.filter((item) => helpedIds.has(item.order.id)).map((item) => time(item.serveBy)))
           plans.push({
             ...base, id: `transfer:${route.id}:${productId}`, kind: 'transfer',
             status: late ? 'rejected' : 'ready',
-            reason: late ? { code: 'transfer-late' } : { code: 'transfer-ok', quantity, limit: destinationLimit },
+            reason: late ? { code: 'transfer-late' } : { code: 'transfer-ok', quantity, limit: destinationLimit, ...(booked > 0 ? { booked } : {}) },
             quantity, cost: costFor(quantity),
             outcome: late ? null : { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
             unverified: late ? [] : unverified,
@@ -420,10 +466,10 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
         }
         // Only worth showing when moving all that is needed would break the receiving limit.
         const wanted = Math.min(spare, baseline.exposedQuantity)
-        if (destinationLimit !== null && wanted > destinationLimit) {
+        if (roomToday !== null && destinationLimit !== null && roomToday > 0 && wanted > roomToday) {
           plans.push({
             ...base, id: `bulk:${route.id}:${productId}`, kind: 'bulk-transfer', status: 'rejected',
-            reason: { code: 'transfer-over-limit', limit: destinationLimit, excess: wanted - destinationLimit },
+            reason: { code: 'transfer-over-limit', limit: destinationLimit, excess: wanted - roomToday, ...(booked > 0 ? { booked } : {}) },
             quantity: wanted, cost: costFor(wanted), outcome: null, unverified: [],
           })
         }
@@ -479,16 +525,17 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
           const answer = workspace.deliveryAnswers?.find((item) => item.fromLocationId === from && item.forLocationId === locationId)
           if (answer && !answer.canDeliver) continue
           const moved = { ...workspace, orders: workspace.orders.map((item) => item.id === order.id ? { ...item, locationId: from } : item) }
-          const before = new Map(orderCoverage(workspace, from).map((line) => [`${line.orderId}|${line.productId}`, line.status]))
-          const covers = orderCoverage(moved, from).every((line) => line.orderId === order.id
+          const before = new Map(coverageOf(workspace, from).map((line) => [`${line.orderId}|${line.productId}`, line.covered]))
+          const covers = coverageOf(moved, from).every((line) => line.orderId === order.id
             ? line.status === 'covered'
-            : line.status === 'covered' || line.status === before.get(`${line.orderId}|${line.productId}`))
+            : line.covered >= (before.get(`${line.orderId}|${line.productId}`) ?? 0))
           const ready = covers && answer?.canDeliver === true
           const result = ready ? outcome([], order.id) : null
           // The extra cost of delivering this order from the other location instead of its own.
           const fromCost = locationById.get(from)?.deliveryCostPerOrder ?? null
           const ownCost = locationById.get(locationId)?.deliveryCostPerOrder ?? null
           const extra = fromCost === null || ownCost === null ? null : { amount: Math.max(0, fromCost - ownCost), currency: settings.currency }
+          const sourceTravel = locationById.get(from)?.customerTravelHours
           plans.push({
             ...common, id: `ship:${order.id}:${from}:${productId}`, kind: 'ship-from', orderId: order.id, sourceLocationId: from,
             status: !covers ? 'rejected' : ready ? 'ready' : 'conditional',
@@ -497,7 +544,11 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
             outcome: result && { exposedQuantity: result.exposedQuantity, protectsPriority: result.protectsPriority },
             ...(result ? { savedQuantity: baseline.exposedQuantity - result.exposedQuantity } : {}),
             unverified: ready
-              ? [...baseUnverified, ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: from, productId, quantity: source.available.value }] : [])]
+              ? [
+                ...baseUnverified.filter((fact) => fact.type !== 'customer-travel'),
+                ...(sourceTravel && sourceTravel.value !== null && isManual(sourceTravel.evidence) ? [{ type: 'customer-travel' as const, locationId: from, hours: sourceTravel.value }] : []),
+                ...(isManual(source.available.evidence) ? [{ type: 'stock' as const, locationId: from, productId, quantity: source.available.value }] : []),
+              ]
               : [],
           })
         }

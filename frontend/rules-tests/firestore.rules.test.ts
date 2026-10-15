@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 let env: RulesTestEnvironment
 const summary = { name: 'Priya Traders', country: 'IN', updatedAt: 1 }
 const core = { json: '{}', chunkIds: [], revision: 1, updatedAt: 1 }
-const chunk = { list: 'stock', index: 0, json: '[]' }
+const chunk = { list: 'movements', index: 0, json: '[]' }
 const first = 'users/alice/businesses/traders'
 const second = 'users/alice/businesses/beverages'
 
@@ -29,13 +29,26 @@ const seedAlice = () => env.withSecurityRulesDisabled(async (context) => {
 })
 
 describe('who can see and change a saved business', () => {
+  it('lets only the owner save and read stock movements', async () => {
+    const alice = env.authenticatedContext('alice').firestore()
+    const path = `${first}/parts/movements-0-${'a'.repeat(32)}`
+    await assertSucceeds(setDoc(doc(alice, path), { ...chunk, list: 'movements' }))
+    await assertSucceeds(getDoc(doc(alice, path)))
+    await assertFails(setDoc(doc(alice, path), { ...chunk, list: 'movements', json: '[{"tampered":true}]' }))
+    const bob = env.authenticatedContext('bob').firestore()
+    await assertFails(getDoc(doc(bob, path)))
+    await assertFails(setDoc(doc(bob, path), { ...chunk, list: 'movements' }))
+    await assertFails(deleteDoc(doc(bob, path)))
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), path)))
+  })
+
   it('lets the owner save, list and read several businesses', async () => {
     const db = env.authenticatedContext('alice').firestore()
     for (const path of [first, second]) {
       await assertSucceeds(setDoc(doc(db, path), summary))
       await assertSucceeds(setDoc(doc(db, `${path}/parts/core`), core))
-      await assertSucceeds(setDoc(doc(db, `${path}/parts/stock-0`), chunk))
-      await assertSucceeds(setDoc(doc(db, `${path}/parts/history-0`), { ...chunk, list: 'history' }))
+      await assertSucceeds(setDoc(doc(db, `${path}/parts/movements-0-${'a'.repeat(32)}`), chunk))
+      await assertSucceeds(setDoc(doc(db, `${path}/parts/history-0-${'b'.repeat(32)}`), { ...chunk, list: 'history' }))
     }
     await assertSucceeds(getDocs(collection(db, 'users/alice/businesses')))
     await assertSucceeds(getDoc(doc(db, `${second}/parts/core`)))
@@ -62,7 +75,7 @@ describe('who can see and change a saved business', () => {
   it('does not let the owner park arbitrary documents in the project', async () => {
     const db = env.authenticatedContext('alice').firestore()
     await assertFails(setDoc(doc(db, `${first}/parts/anything`), core))
-    await assertFails(setDoc(doc(db, `${first}/parts/stock-12345`), chunk))
+    await assertFails(setDoc(doc(db, `${first}/parts/movements-12345-${'a'.repeat(32)}`), chunk))
     await assertFails(setDoc(doc(db, `${first}/elsewhere/core`), core))
     await assertFails(setDoc(doc(db, 'users/alice/businesses/bad id!'), summary))
     await assertFails(setDoc(doc(db, 'public/note'), core))
@@ -74,8 +87,9 @@ describe('who can see and change a saved business', () => {
     await assertFails(setDoc(doc(db, first), { ...summary, name: '' }))
     await assertFails(setDoc(doc(db, first), { ...summary, country: 'India' }))
     await assertFails(setDoc(doc(db, `${first}/parts/core`), { ...core, extra: 'x' }))
-    await assertFails(setDoc(doc(db, `${first}/parts/stock-1`), { ...chunk, json: 'x'.repeat(700_001) }))
-    await assertFails(setDoc(doc(db, `${first}/parts/stock-2`), { ...chunk, index: 'zero' }))
+    await assertFails(setDoc(doc(db, `${first}/parts/movements-1-${'b'.repeat(32)}`), { ...chunk, json: 'x'.repeat(700_001) }))
+    await assertFails(setDoc(doc(db, `${first}/parts/movements-2-${'c'.repeat(32)}`), { ...chunk, index: 'zero' }))
+    await assertFails(setDoc(doc(db, `${first}/parts/stock-0`), { ...chunk, list: 'stock' }))
   })
 
   it('lets the owner read and remove the old one-business copy, but nobody can write it any more', async () => {

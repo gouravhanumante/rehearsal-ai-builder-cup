@@ -668,6 +668,7 @@
 .stock-row-name small { color: #66766b; font-size: 10px; line-height: 1.4; }
 .stock-row-inbound { display: inline-flex; align-items: center; gap: 4px; color: #3f6948 !important; }
 .stock-row-quantity { display: flex; align-items: baseline; gap: 5px; }
+.stock-row-quantity small { flex-basis: 100%; color: #66766b; font-size: 10px; }
 .stock-row-quantity strong { color: #293f33; font-size: 18px; font-weight: 800; }
 .stock-row-quantity span { color: #5f7065; font-size: 11px; }
 .stock-row-quantity .stock-row-unknown { color: #75581f; font-size: 10px; }

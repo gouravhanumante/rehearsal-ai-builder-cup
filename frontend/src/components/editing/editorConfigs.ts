@@ -1,4 +1,5 @@
 import type { Evidence, InboundShipment, LocationKind, Order, Supplier, SupplierOffer, Workspace } from '../../../../shared/planner/model'
+import { countStock, sentLines } from '../../../../shared/planner/ledger'
 import { pluralUnit, type Format } from '../../presentation/format'
 import type { EditTarget } from '../../presentation/planText'
 
@@ -38,6 +39,8 @@ export type EditorConfig = {
   documentHint: string
   /** Creates a record rather than editing one, so the review lists every detail instead of before → after. */
   isNew?: boolean
+  /** Fields whose deliberate re-entry records a new fact even when the value is unchanged (e.g. a stocktake). */
+  recordUnchanged?: string[]
   /** Quantity boxes to check against what the warehouse can spare. orderId: the order being edited, left out of "its other orders". */
   stockChecks?: StockCheck[]
   fields: FieldSpec[]
@@ -131,6 +134,7 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       title: `Stock at ${locationName(target.locationId)}`,
       subtitle: productName(target.productId),
       documentHint: 'Stock count sheet or goods receipt',
+      recordUnchanged: ['available'],
       fields: [
         { key: 'available', label: `${capitalize(pluralUnit(unit, 2))} available`, type: 'integer', required: true, extractable: true, isFact: true, placeholder: 'e.g. 40', suffix: pluralUnit(unit, 2) },
         { key: 'storageLimit', label: `Most ${pluralUnit(unit, 2)} it can store here`, type: 'integer', required: false, extractable: false, isFact: false, placeholder: 'No limit (∞)', suffix: pluralUnit(unit, 2),
@@ -139,14 +143,15 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       initial: { available: record ? String(record.available.value) : '', storageLimit: ownLimit ? String(ownLimit.limit) : '' },
       initialEvidence: { available: record?.available.evidence ?? null, storageLimit: null },
       apply: (values, evidence) => {
-        const next = { locationId: target.locationId, productId: target.productId, available: { value: values.available as number, evidence: evidence.available as Evidence } }
+        const value = values.available as number
+        const proof = evidence.available as Evidence
         const limit = asNumber(values.storageLimit)
         const otherLimits = (workspace.storageLimits ?? []).filter((item) => item !== ownLimit)
+        const unchanged = record && record.available.value === value && record.available.evidence === proof
+        const counted = unchanged ? { workspace } : countStock(workspace, target.locationId, target.productId, value, proof, proof.recordedAt)
+        if ('error' in counted) return workspace
         return {
-          ...workspace,
-          stock: record
-            ? workspace.stock.map((item) => item === record ? next : item)
-            : [...workspace.stock, next],
+          ...counted.workspace,
           storageLimits: limit === null ? otherLimits : [...otherLimits, { locationId: target.locationId, productId: target.productId, limit }],
         }
       },
@@ -176,6 +181,10 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
       initialEvidence: {
         customer: order.evidence, dueAt: order.evidence, locationId: null, priority: null,
         ...Object.fromEntries(order.lines.map((line) => [lineKey(line.productId), order.evidence])),
+      },
+      validate: (values) => {
+        const below = sentLines(workspace, order.id).find((line) => (values[lineKey(line.productId)] as number) < line.quantity)
+        return below ? `${below.quantity} ${pluralUnit(unitOf(below.productId), below.quantity)} of ${productName(below.productId)} already left for this order, so it cannot be for less than that.` : null
       },
       apply: (values, evidence) => {
         const next: Order = {
@@ -455,11 +464,12 @@ export function editorFor(target: EditTarget, workspace: Workspace, format: Form
         { key: 'area', label: 'City or area', type: 'text', required: false, extractable: false, isFact: false, placeholder: 'e.g. Whitefield, Bangalore', hint: 'Shown when Rehearsal asks which places can deliver where. It never decides on its own.' },
         { key: 'receivingLimitPerDay', label: 'Most it can unload per day', type: 'integer', required: false, extractable: false, isFact: false, placeholder: 'No limit (∞)', suffix: 'per day', hint: 'Caps transfers from another location per day. It does not limit supplier deliveries. Leave blank for no limit.' },
         { key: 'deliveryCostPerOrder', label: `Cost to deliver one order from here (${format.currencySymbol})`, type: 'money', required: false, extractable: false, isFact: false, placeholder: 'e.g. 150', suffix: 'per order', hint: 'Used to compare shipping an order from a different warehouse. Leave blank if you don’t know.' },
+        { key: 'customerTravelHours', label: 'Travel time to the customer', type: 'integer', required: false, extractable: false, isFact: true, placeholder: 'Unknown', suffix: 'hours', hint: 'Typical elapsed time from this location to the customer. Without it, Rehearsal cannot confirm arrival by the order due time.' },
       ],
-      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', area: location?.area ?? '', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', deliveryCostPerOrder: location?.deliveryCostPerOrder?.toString() ?? '' },
-      initialEvidence: { name: null, kind: null, area: null, receivingLimitPerDay: null, deliveryCostPerOrder: null },
-      apply: (values) => {
-        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, area: asText(values.area), receivingLimitPerDay: asNumber(values.receivingLimitPerDay), deliveryCostPerOrder: asNumber(values.deliveryCostPerOrder) }
+      initial: { name: location?.name ?? '', kind: location?.kind ?? 'store', area: location?.area ?? '', receivingLimitPerDay: location?.receivingLimitPerDay?.toString() ?? '', deliveryCostPerOrder: location?.deliveryCostPerOrder?.toString() ?? '', customerTravelHours: location?.customerTravelHours?.value?.toString() ?? '' },
+      initialEvidence: { name: null, kind: null, area: null, receivingLimitPerDay: null, deliveryCostPerOrder: null, customerTravelHours: location?.customerTravelHours?.evidence ?? null },
+      apply: (values, evidence) => {
+        const next = { id: location?.id ?? newId('location'), name: values.name as string, kind: values.kind as LocationKind, area: asText(values.area), receivingLimitPerDay: asNumber(values.receivingLimitPerDay), deliveryCostPerOrder: asNumber(values.deliveryCostPerOrder), customerTravelHours: fact(asNumber(values.customerTravelHours), evidence.customerTravelHours) }
         return {
           ...workspace,
           locations: location ? workspace.locations.map((item) => item.id === location.id ? next : item) : [...workspace.locations, next],

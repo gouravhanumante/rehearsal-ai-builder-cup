@@ -1,5 +1,6 @@
 import { importKinds, type ImportField, type ImportKind } from '../../../shared/import/fields'
-import type { Evidence, InboundShipment, Order, OrderLine, Product, Location, StockRecord, Workspace } from '../../../shared/planner/model'
+import type { Evidence, InboundShipment, Movement, Order, OrderLine, Product, Location, Workspace } from '../../../shared/planner/model'
+import { newId, record, sentLines } from '../../../shared/planner/ledger'
 import { LIMITS } from '../../../shared/planner/validate'
 import { localToIso } from '../../../shared/planner/time'
 import type { Mapping } from './match'
@@ -143,6 +144,7 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
   if (kind === 'stock') {
     const byKey = new Map(workspace.stock.map((record) => [`${record.locationId}|${record.productId}`, record]))
     const seen = new Set<string>()
+    const counts: Movement[] = []
     for (const { row, values } of parsed) {
       const product = productFor(String(values.product))
       const location = locationFor(String(values.location))
@@ -152,10 +154,11 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
       markUsed(product, location)
       const existing = byKey.get(key)
       if (existing?.available.value === values.quantity) { unchanged += 1; continue }
-      byKey.set(key, { locationId: location.id, productId: product.id, available: { value: values.quantity as number, evidence } } satisfies StockRecord)
+      counts.push({ id: newId('CNT'), kind: 'count', locationId: location.id, productId: product.id, quantity: values.quantity as number, at: evidence.recordedAt, evidence })
       if (existing) updated += 1; else added += 1
     }
-    next.stock = [...byKey.values()]
+    const counted = record(next, counts)
+    if (!('error' in counted)) Object.assign(next, { movements: counted.workspace.movements, stock: counted.workspace.stock })
   } else {
     // Rows with the same reference are lines of one record; a record with any bad row is left out whole, so a missing line never understates it.
     const groups = new Map<string, Row[]>()
@@ -190,8 +193,6 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
       if (dupe) { problems.push({ row: dupe.row, message: `${ref || 'This record'} lists the same product twice; the whole ${kind === 'orders' ? 'order' : 'shipment'} was left out` }); continue }
       if (lines.length > LIMITS.lines) { problems.push({ row: first.row, message: `${ref} has more than ${LIMITS.lines} lines` }); continue }
       const location = locationFor(String(first.values.location))
-      rows.forEach((item) => markUsed(productFor(String(item.values.product)), location))
-
       if (kind === 'orders') {
         const id = ref || newCode('ORD', orderCodes)
         const previous = existingOrders.get(id)
@@ -199,8 +200,16 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
           id, customer: String(first.values.customer), locationId: location.id, dueAt: String(first.values.due),
           priority: first.values.priority as Order['priority'], lines, evidence,
         }
+        const sent = sentLines(workspace, id)
+        const belowSent = sent.find((line) => line.quantity > (lines.find((candidate) => candidate.productId === line.productId)?.quantity ?? 0))
+        if (belowSent) {
+          const productName = workspace.products.find((product) => product.id === belowSent.productId)?.name ?? belowSent.productId
+          problems.push({ row: first.row, message: `${id} already has ${belowSent.quantity} ${productName} sent; the imported order was left unchanged.` })
+          continue
+        }
         if (previous && previous.customer === order.customer && previous.locationId === order.locationId && previous.dueAt === order.dueAt && previous.priority === order.priority && sameLines(previous.lines, lines)) { unchanged += 1; continue }
         orders.set(id, order)
+        rows.forEach((item) => markUsed(productFor(String(item.values.product)), location))
         if (previous) updated += 1; else added += 1
       } else {
         const id = ref || newCode('SH', shipmentCodes)
@@ -211,6 +220,7 @@ export function buildImport(workspace: Workspace, kind: ImportKind, table: Table
           originalArrivalAt: previous?.originalArrivalAt ?? arrival, confirmedArrivalAt: arrival, updateSource: table.fileName, evidence,
         }
         if (previous && previous.supplierName === shipment.supplierName && previous.locationId === location.id && previous.confirmedArrivalAt === arrival && sameLines(previous.lines, lines)) { unchanged += 1; continue }
+        rows.forEach((item) => markUsed(productFor(String(item.values.product)), location))
         if (previous && previous.confirmedArrivalAt !== arrival) changedArrivals += 1
         shipments.set(id, shipment)
         if (previous) updated += 1; else added += 1

@@ -19,7 +19,7 @@ Rules:
 - An alternative supplier is a *possible* option, not an available one, until stock, price
   and date are known.
 - Fact states are explicit: **proposed**, **confirmed**, **unknown**, **conflicting**, or **outdated**. Unknown is never treated as zero or as available.
-- Real workspace stock counts require attached evidence in V1. A receipt scan can propose a received quantity, but does not change available stock until the user confirms the extracted fields and then confirms the resulting inventory update.
+- Manual stock counts and **Mark received** require no uploaded receipt. Manual facts keep their source; optional document extraction proposes values that the user checks before saving (`Evidence`, `receiveDelivery`, `DetailsEditor`).
 - These are two distinct checks: “Did Rehearsal read this evidence correctly?” and “Should this confirmed update change the workspace?”
 - A purchase order or supplier confirmation changes expected inbound supply only. On-hand stock changes only after a received quantity is confirmed; damaged or held goods are not available stock.
 
@@ -62,14 +62,20 @@ Agreed with the user: both paths exist, and the difference is always visible.
   **Watch**, and an order due after it that is still short gets recovery options like any other
   shortage. An order with several products counts only the delayed product. Everything else is
   listed as **Not affected**. (`rehearse` in `shared/planner/plan.ts`)
+  Multiple delayed deliveries at the same location/product share one recovery group, so the
+  shortage and options are not duplicated; the first delay supplies its displayed context.
 - A location with no stock count for the product **counts as 0** (user decision 2026-10-15; it
   replaces the earlier "unknown, never zero" rule because most missing counts really are none, and
   unknown blocked every fix). It is never silent: the order says "No stock count for Broom at
   Warehouse A, so it counts as 0" with **Add count**, the Overview counts such locations, and the
   order form says so under Quantity (`ImpactGroup.counted`, `OrderCoverage.counted`).
-- Stock only counts for an order if it has arrived by that order's due time. By default the
-  order **due first** gets the stock (user decision 2026-10-14: it leaves more time to find stock
-  for the later order).
+- An order's due time means arrival at the customer (user decision). Stock and deliveries are
+  checked against the warehouse cutoff: due time minus the location's recorded
+  `customerTravelHours`. If customer travel is unknown, Rehearsal can show warehouse cover but
+  marks customer arrival unconfirmed and does not promise on-time delivery. The sample locations
+  intentionally leave this fact unknown (`sampleWorkspace` in `shared/planner/sample.ts`); the
+  location editor can record it (`editorFor` in `frontend/src/components/editing/editorConfigs.ts`).
+  By default the order **due first** gets the stock.
 - **Conflicts:** when a priority order is left short because an earlier standard order took the
   stock, the app asks "Who gets the 14 cases?" with **Order due first** / **Priority order**.
   Until answered, the order due first keeps it. Approving with an unanswered conflict shows a
@@ -79,15 +85,24 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - Each transfer route into the delayed location is its own option. It moves **only what is
   short**, and only what the source can **spare** after covering its own orders (`spareStock`,
   user decision 2026-10-14), capped by the destination's daily receiving limit and storage room,
-  and checked against the priority order's due time. A route stores **how long a transfer takes**
+  minus approved transfers still incoming on that arrival day and transfers actually received on
+  that local day (`rehearse`, `localDay`; receipt movements with `fromLocationId`). A full day rejects another
+  transfer; other products use the same capacity. Partial receipts use their actual arrival day;
+  the remainder reserves capacity on its expected arrival day. Supplier receipts are recorded but
+  do not use this transfer-only limit. Transfers must reach any still-short priority order in time;
+  an already-covered priority order does not reject a useful later transfer. A route stores **how long a transfer takes**
   (`travelHours`, user decision 2026-10-15); arrival = now + that time (`routeArrival`), so it never
   goes stale. The sample uses a fixed morning (`SAMPLE_NOW`); older saves with a fixed arrival time
   still work until edited. **Cost** (user decision 2026-10-15) = cost per trip + cost per package ×
   quantity (`costPerTrip`, `costPerUnit`); an older quote for exactly that quantity wins; neither set
   → "Transfer cost not set". A route with unknown travel time
   is **Needs information** with **Add details** (no dead end). A ready transfer says **Book by**
-  {time}: the earlier of when it is needed and the priority order's due time, minus the travel time
-  (`plan.bookBy`, user decision 2026-10-15).
+  {time}: the earliest warehouse cutoff among orders whose covered quantity this transfer increases,
+  minus route travel time. The cutoff is customer due time minus recorded customer travel time;
+  when that duration is unknown, the plan says customer arrival is unconfirmed and does not claim
+  a dispatch cutoff (`Plan.bookBy`, `mustLeaveBy`, `rehearse`; `customerTravelHours` on `Location`).
+  It is not constrained
+  by an already-covered priority order or a missed standard order the transfer cannot help.
 - Each supplier offer for that product and location is its own option. At setup a backup
   supplier is only who / contact / products / where; **Add backup supplier** ticks every product
   they supply and saves one supplier with one offer per product (user decision 2026-10-14,
@@ -115,23 +130,62 @@ Agreed with the user: both paths exist, and the difference is always visible.
   supplier options are capped to the room; a full location rejects them as **Can't be done**.
 - "Transfer all … in one day" is only shown when it would break the receiving limit;
   otherwise it is the same move as the normal transfer.
-- **Closing orders** (user decision 2026-10-15, `setOrderStatus` in `shared/planner/apply.ts`):
-  **Delivered** takes the order's goods off its warehouse's stock; **Cancel** leaves stock alone.
-  Both ask first, and the order moves to "Delivered and cancelled" on the Orders page, where
-  **Reopen** undoes it (a delivered order's goods are counted back in). The planner only looks at
-  open orders (`isOpen`).
+- **Stock comes from movements** (user decision 2026-10-15, `shared/planner/ledger.ts`): stock is
+  never edited directly. Every physical event is one `Movement`: a **count** (what was on the
+  shelf at that moment), a **receipt**, a **dispatch** to a customer, or a **transfer-out**. Stock
+  per location and product = the latest count, plus receipts and minus dispatches and transfers
+  after it (`stockFrom`). Nothing may leave stock below zero (`record`). Saved data stores only the
+  movements; stock is worked out again on every load, so an edited stock number cannot be
+  smuggled in (`parseWorkspace`). Each action has its own id: repeating the same action records
+  it once (`alreadyRecorded`). Saves made before this change are not read (fresh start, user
+  decision 2026-10-15).
+- **Transfer bookings and departures** (user decision 2026-10-15, `applyPlan`, `departTransfer`,
+  `reservedStock`, `freeStock`): approving a transfer creates a booking; it does not remove
+  physical stock or count it as already arriving. Inventory shows **on hand**, **booked**, and
+  **free**. Booked stock is excluded from customer cover and further source allocations. In
+  Between locations, staff record each departure; that movement reduces source stock and creates
+  its own inbound batch with an arrival time based on the actual departure and route duration.
+  Departures from one booking are separate batches. Cancelling the remaining booking releases
+  only unshipped quantities; batches that left remain expected at the destination. Suppliers does
+  not allow a booked batch to be received (`TransfersView`, `SuppliersView`).
+- **Sending orders** (user decision 2026-10-15, `sendOrder`, `SendDialog.tsx`): **Send** on an
+  open order is prefilled with everything still to send. Sending part (6 of 10) needs the
+  customer's yes to receiving it in parts, asked once per order and kept on the order
+  (`Order.splitAllowed`); if they said no, only the whole remainder can go. A send is refused when
+  it is more than the order still needs or more than is counted at that warehouse. Only what was
+  sent leaves stock; the rest stays on the order, still due on its original date, and the planner
+  only looks at what is still to send (`remainingLines`, `outstandingOrders`). An order with
+  nothing left to send moves to "Sent and cancelled".
+- **Correcting a send** (user decision 2026-10-15, `correctMovement`, `CorrectSendsDialog.tsx`):
+  **Correct** lists each recorded send separately; changing one (6 recorded, 4 actually left)
+  corrects only that send and puts the difference back at its warehouse. Other sends, including
+  other customers' on the same truck, are untouched. A correction keeps the original time: if a
+  stock count was taken after the send, stock stays as counted, because the count already
+  included what really left (6→4 after a recount of 8 leaves 8, not 10). A send can be corrected
+  to 0; a correction cannot exceed what was ordered or take stock below zero. Goods that
+  physically come back are a return, not a correction (not built yet).
+  **Cancel** stops only what is not yet sent; what already left stays recorded and stock does
+  not change. **Reopen** (on a cancelled order) brings back only the unsent demand; it never adds
+  stock. An order's quantity cannot be edited below what was already sent (`editorFor` order
+  `validate`).
+- **Same-number stocktake**: Inventory offers **Record this count again** when the saved number
+  is still correct. This writes a fresh count movement so later corrections know this physical
+  count already includes earlier activity (`DetailsEditor`, `editorFor`, `countStock`).
 - Adding or editing an order shows, under each quantity, how much the warehouse can **spare**
   after its other orders, and an amber warning when the order needs more. It never blocks saving.
 - **Every order is checked, delay or not** (user decision 2026-10-14, `orderCoverage`): stock on
   hand at its warehouse plus deliveries arriving by its due time, shared with orders due first.
-  Covered / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows
+  Covered / Watch / Short ("no incoming shipment recorded" when nothing is on its way — the app only knows
   deliveries the user entered); a warehouse never counted counts as 0 and is labelled so.
 - **What "at risk" means** (user decision 2026-10-15, `affectedOrderIds` / `watchOrderIds` in
   `rehearse`): an order is **at risk** only when the problem leaves it short. An order due before
   the late delivery but fully covered by stock already on hand is **not at risk** and is listed
   with the fine orders. An order covered only by stock still on its way (an approved transfer, an
-  expected delivery) is **Watch**: listed under the problem with an amber tag, not counted, because
-  it becomes short if that delivery slips. The Orders badge, the Overview count, the heading and
+  expected delivery) is **Watch**, even when nothing is late: listed with an amber tag and dependency
+  note, not counted as at risk, because it becomes short if that delivery slips. `orderCoverage.onHandCovered`
+  compares stock-only allocation with total coverage under the same priority choice; a shortage on
+  any product takes precedence over Watch in the order-level lists. A Watch-only group does not
+  create a "Not enough stock" alert (`IncidentOverview`). Unknown customer travel also leaves arrival unconfirmed and is shown as Watch even when the warehouse has enough stock. The Orders badge, the Overview count, the heading and
   Ask AI all use this; exposed quantities are unchanged. Example: Kaveri has 40 bags on hand and a
   15-bag transfer arriving; Hotel Annapoorna (30) is covered from stock (not at risk), Green Leaf
   (25) relies on the transfer (Watch), and the Orders heading reads "No order short · 1 to watch".
@@ -175,9 +229,11 @@ Agreed with the user: both paths exist, and the difference is always visible.
   saves are worth (₹900)." It warns only; it does not change the ranking (`worthNote` in
   `planText.ts`).
 - **Approving changes the records** (user decision 2026-10-15, `applyPlan` in
-  `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
-  out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a
-  **purchase** adds the supplier's delivery and lowers what they still offer; **ship from another
+  `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** books source
+  stock; a departure records a transfer-out movement and creates a dated inbound batch, marked
+  with its source and booking (`InboundShipment.fromLocationId`, `transferBookingId`; transfers
+  are no longer recognised by the "Transfer from …" name); a **purchase** adds the supplier's
+  delivery and lowers what they still offer; **ship from another
   warehouse** moves the order. Changed counts are marked typed-in until recounted.
 - **Messages to send after approving** (user decision 2026-10-15, `approvalMessages` in
   `frontend/src/presentation/approvalMessages.ts`, `ReadyMessages.tsx`): written by code from the
@@ -189,18 +245,34 @@ Agreed with the user: both paths exist, and the difference is always visible.
   delivery recorded after their due date, or "we will confirm" when none is recorded. They open in
   a "Messages to send" box right after approving, with **Copy message** and **Email** (when an email
   is known); a copy stays on that approval in History. Nothing is sent automatically.
+- **Customer-message causes** (`approvalMessages`, `frontend/src/presentation/approvalMessages.ts`):
+  a plain shortage states what can be delivered and what remains unknown without guessing why.
+  A supplier-delay explanation requires a reported delay for this product and destination whose
+  original arrival met the customer's due time but whose confirmed arrival misses it. An unrelated
+  product's delay or an already-too-late original arrival is not used as the cause.
 - **Mark received** (user decision 2026-10-15, `receiveDelivery` in `shared/planner/apply.ts`,
-  `ReceiveDialog.tsx`): every incoming delivery in Suppliers has it. The user enters what actually
+  `ReceiveDialog.tsx`): every supplier delivery and departed transfer batch in Suppliers has it;
+  booked, not-yet-departed transfers do not. The user enters what actually
   arrived per product (prefilled with what was expected). It is added to that location's stock (a
   count is started if there was none) and the delivery stops counting as incoming, so it is never
   counted twice; a delay reported on it is cleared. If part is missing (6 of 8) Rehearsal asks "Are
   the other 2 still coming?": **Yes** needs a date, and the 2 stay incoming as `{id}-REST` for that
   date; **No** closes it. **Add to stock** stays disabled until that is answered, so no date is
-  guessed. A regular delivery moves to its next date on the original schedule. Nothing arrived:
-  the dialog offers **Report it late** instead.
+  guessed. A regular delivery moves to its next date on the original schedule. If no supplier
+  goods arrived, **Report it late** remains available; the separate **Nothing arrived and nothing
+  else will arrive** confirmation closes the expected delivery without changing stock. For a
+  departed transfer where no more is expected, the missing quantity stays **Unresolved in
+  transit** and is removed from forecasts until staff record it as **physically returned** or
+  **lost/damaged** (`resolveTransferFate`). A return adds stock only at the source; a loss never
+  restores stock. A later actual arrival can still be recorded against an unresolved batch.
+  Each confirmation records one receipt movement per product (with the shipment, actual time and,
+  for a transfer, `fromLocationId`). No upload or new control is needed. Editing an Inventory count
+  records a count movement; it does not create an arrival or consume receiving capacity. Movements
+  are separate from the newest-500 History. A delivery listing the same product twice is compared
+  against its total for that product.
 - **History** (user decision 2026-10-15, `HistoryView.tsx`, `addHistory`): a read-only list, newest
   first, written whenever a change is saved: delays reported or resolved, plans approved (and whether
-  with a warning), deliveries received, orders delivered/cancelled/reopened, edits (the editor's
+  with a warning), deliveries received, orders sent/corrected/cancelled/reopened, edits (the editor's
   title and changed fields), imports, conflict and "can it deliver?" answers, routes and suppliers
   removed. It keeps the newest 500 entries and is saved with the business (guest or account).
 - **Can stock move between them?** (`RecoveryPlans.tsx`): when another location can spare a short

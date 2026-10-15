@@ -2,7 +2,7 @@ import type { Workspace } from '../../../shared/planner/model'
 import { parseWorkspace } from '../../../shared/planner/validate'
 
 /** The long lists are stored as separate size-bounded documents; Firestore refuses documents over 1 MiB. */
-export const LIST_NAMES = ['products', 'locations', 'stock', 'storageLimits', 'orders', 'shipments', 'routes', 'suppliers', 'history'] as const
+export const LIST_NAMES = ['products', 'locations', 'movements', 'storageLimits', 'orders', 'shipments', 'routes', 'suppliers', 'history'] as const
 export type ListName = typeof LIST_NAMES[number]
 /** Lists older or smaller workspaces may not have; when absent or empty they stay in the core document as they are. */
 const OPTIONAL_LISTS: readonly ListName[] = ['storageLimits', 'history']
@@ -17,6 +17,8 @@ const byteLength = (text: string) => encoder.encode(text).length
 /** Splits a workspace into one small "core" document and size-bounded chunks, keeping the order of every list. */
 export function splitWorkspace(workspace: Workspace, maxBytes = MAX_CHUNK_BYTES): { coreJson: string; chunks: Chunk[] } {
   const core: Record<string, unknown> = { ...workspace }
+  // Stock is worked out from movements when the business is read back.
+  delete core.stock
   const chunks: Chunk[] = []
   for (const list of LIST_NAMES) {
     const all = workspace[list] as unknown[] | undefined
@@ -45,7 +47,7 @@ export function splitWorkspace(workspace: Workspace, maxBytes = MAX_CHUNK_BYTES)
 /** Puts the pieces back together and checks the result like any other saved data: it came from outside the app. */
 export function joinWorkspace(coreJson: string, chunks: Pick<Chunk, 'list' | 'index' | 'json'>[]): Workspace | null {
   try {
-    const joined: Record<string, unknown> = { ...JSON.parse(coreJson) as Record<string, unknown> }
+    const joined: Record<string, unknown> = { ...JSON.parse(coreJson) as Record<string, unknown>, stock: [] }
     for (const list of LIST_NAMES) {
       const pieces = chunks.filter((chunk) => chunk.list === list)
       if (pieces.length === 0 && OPTIONAL_LISTS.includes(list)) continue
@@ -60,6 +62,22 @@ export function joinWorkspace(coreJson: string, chunks: Pick<Chunk, 'list' | 'in
 export async function hashText(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(text))
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** Stable, content-addressed IDs let a manifest point to one immutable snapshot of each chunk. */
+export async function contentAddressChunks(chunks: Chunk[]): Promise<Chunk[]> {
+  return Promise.all(chunks.map(async (chunk) => ({
+    ...chunk,
+    id: `${chunk.list}-${chunk.index}-${(await hashText(chunk.json)).slice(0, 32)}`,
+  })))
+}
+
+export async function verifyContentAddressedChunks(chunks: Chunk[]): Promise<boolean> {
+  for (const chunk of chunks) {
+    const hash = await hashText(chunk.json)
+    if (chunk.id !== `${chunk.list}-${chunk.index}-${hash.slice(0, 32)}`) return false
+  }
+  return true
 }
 
 export type SyncedState = { revision: number; hashes: Record<string, string> }

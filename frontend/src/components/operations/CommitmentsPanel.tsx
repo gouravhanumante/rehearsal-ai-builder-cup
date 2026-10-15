@@ -1,12 +1,15 @@
 import { useMemo, type ReactNode } from 'react'
-import { Ban, ChevronDown, ChevronUp, ClipboardPlus, FileUp, PackageCheck, PencilLine, RotateCcw, Warehouse } from 'lucide-react'
+import { Ban, ChevronDown, ChevronUp, ClipboardPlus, FileUp, PackageCheck, PencilLine, RotateCcw, Undo2, Warehouse } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Order } from '../../../../shared/planner/model'
-import { isOpen, orderCoverage } from '../../../../shared/planner/plan'
+import { hasOutstanding, remainingLines, sentLines } from '../../../../shared/planner/ledger'
+import { orderCoverage } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { EmptyState } from '../layout/EmptyState'
+
+export type OrderAction = 'send' | 'correct' | 'cancel' | 'reopen'
 
 type CommitmentsPanelProps = {
   showAll: boolean
@@ -14,23 +17,27 @@ type CommitmentsPanelProps = {
   onEditOrder?: (orderId: string) => void
   onAddOrder?: () => void
   onImportOrders?: () => void
-  /** Delivered / cancel on open orders; reopen on closed ones. */
-  onSetStatus?: (orderId: string, status: 'open' | 'delivered' | 'cancelled') => void
+  onOrderAction?: (orderId: string, action: OrderAction) => void
   onAddCount?: (locationId: string, productId: string) => void
 }
 
 const avatarTones = ['green', 'blue', 'yellow'] as const
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join('')
 
-export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder, onImportOrders, onSetStatus, onAddCount }: CommitmentsPanelProps) {
+export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder, onImportOrders, onOrderAction, onAddCount }: CommitmentsPanelProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const { impact } = rehearsal
   const editable = Boolean(onEditOrder)
-  const rowClass = onSetStatus ? 'order-row--actions' : editable ? 'order-row--editable' : ''
+  const rowClass = onOrderAction ? 'order-row--actions' : editable ? 'order-row--editable' : ''
   const noDisruption = impact.groups.length === 0
   const orderById = new Map(workspace.orders.map((order) => [order.id, order]))
+  const isOpen = (order: Order) => hasOutstanding(workspace, order)
   const openOrders = workspace.orders.filter(isOpen)
   const closedOrders = workspace.orders.filter((order) => !isOpen(order))
+  const sentNote = (order: Order) => {
+    const sent = sentLines(workspace, order.id)
+    return sent.length ? `Sent so far: ${sent.map((line) => words.quantity(line.quantity, line.productId)).join(', ')} of ${order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', ')}` : undefined
+  }
   const manyProducts = workspace.products.length > 1
   const affectedRows = impact.groups.flatMap((group) => group.allocations
     .filter((allocation) => group.affectedOrderIds.includes(allocation.orderId) || group.watchOrderIds.includes(allocation.orderId))
@@ -45,7 +52,7 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
     <div className={`order-row ${rowClass} ${isOpen(order) ? '' : 'order-row--closed'}`} key={key}>
       <div className="order-customer">
         <span className={`customer-avatar avatar-${avatarTones[workspace.orders.indexOf(order) % avatarTones.length]}`}>{initialsOf(order.customer)}</span>
-        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{cells.note && <small className="order-shortage">{cells.note}</small>}
+        <span><strong>{order.customer}</strong><small>{order.id} · {order.priority === 'protected' ? 'High priority' : 'Standard'} · {words.locationName(order.locationId)}</small>{sentNote(order) && <small>{sentNote(order)}</small>}{cells.note && <small className="order-shortage">{cells.note}</small>}
           {cells.uncounted?.map((item) => (
             <small className="order-uncounted" key={`${item.locationId}|${item.productId}`}>
               No stock count for {words.productName(item.productId)} at {words.locationName(item.locationId)}, so it counts as 0.
@@ -58,15 +65,13 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
       <strong className="order-quantity">{cells.quantity}</strong>
       <span className="order-available">{cells.covered}</span>
       {cells.badge}
-      {onSetStatus
+      {onOrderAction
         ? <div className="order-actions">
-          {isOpen(order)
-            ? <>
-              {onEditOrder && <Button aria-label={`Edit ${order.id}`} icon={<PencilLine size={14} />} onClick={() => onEditOrder(order.id)} variant="quiet">Edit</Button>}
-              <Button aria-label={`Mark ${order.id} delivered`} icon={<PackageCheck size={14} />} onClick={() => onSetStatus(order.id, 'delivered')} variant="quiet">Delivered</Button>
-              <Button aria-label={`Cancel ${order.id}`} icon={<Ban size={14} />} onClick={() => onSetStatus(order.id, 'cancelled')} variant="quiet">Cancel</Button>
-            </>
-            : <Button aria-label={`Reopen ${order.id}`} icon={<RotateCcw size={14} />} onClick={() => onSetStatus(order.id, 'open')} variant="quiet">Reopen</Button>}
+          {isOpen(order) && onEditOrder && <Button aria-label={`Edit ${order.id}`} icon={<PencilLine size={14} />} onClick={() => onEditOrder(order.id)} variant="quiet">Edit</Button>}
+          {isOpen(order) && <Button aria-label={`Send ${order.id}`} icon={<PackageCheck size={14} />} onClick={() => onOrderAction(order.id, 'send')} variant="quiet">Send</Button>}
+          {sentLines(workspace, order.id).length > 0 && <Button aria-label={`Correct what was sent for ${order.id}`} icon={<Undo2 size={14} />} onClick={() => onOrderAction(order.id, 'correct')} variant="quiet">Correct</Button>}
+          {isOpen(order) && <Button aria-label={`Cancel ${order.id}`} icon={<Ban size={14} />} onClick={() => onOrderAction(order.id, 'cancel')} variant="quiet">Cancel</Button>}
+          {order.status === 'cancelled' && <Button aria-label={`Reopen ${order.id}`} icon={<RotateCcw size={14} />} onClick={() => onOrderAction(order.id, 'reopen')} variant="quiet">Reopen</Button>}
         </div>
         : onEditOrder && <Button aria-label={`Edit ${order.id}`} className="order-edit" icon={<PencilLine size={14} />} onClick={() => onEditOrder(order.id)} variant="quiet">Edit</Button>}
     </div>
@@ -97,48 +102,49 @@ export function CommitmentsPanel({ showAll, onToggleAll, onEditOrder, onAddOrder
         </Button>}
       </div>
       <div className="orders-table">
-        <div className={`orders-table-head ${rowClass}`}><span>Customer</span><span>Due</span><span>Order</span><span>Covered</span><span>Status</span>{(editable || onSetStatus) && <span />}</div>
+        <div className={`orders-table-head ${rowClass}`}><span>Customer</span><span>Due</span><span>To send</span><span>Covered</span><span>Status</span>{(editable || onOrderAction) && <span />}</div>
         {visibleRows.map(({ group, allocation }) => {
           const order = orderById.get(allocation.orderId)
           if (!order) return null
           const quantity = `${words.quantity(allocation.ordered, group.productId)}${manyProducts ? ` · ${words.productName(group.productId)}` : ''}`
           const atRisk = allocation.covered < allocation.ordered
+          const arrivalConfirmed = coverage.find((line) => line.orderId === order.id && line.productId === group.productId)?.arrivalConfirmed ?? false
           return row(`${group.disruptionId}-${group.productId}-${order.id}`, order, {
             quantity,
             covered: words.quantity(allocation.covered, group.productId),
             badge: atRisk
               ? <StatusBadge tone="danger" dot>At risk</StatusBadge>
               : <StatusBadge tone="warning" dot>Watch</StatusBadge>,
-            note: atRisk ? undefined : 'Covered only by stock still on its way. If that delivery slips, this order is short.',
+            note: atRisk ? undefined : arrivalConfirmed ? 'Covered only by stock still on its way. If that delivery slips, this order is short.' : 'Stock coverage is estimated, but the customer arrival time is unconfirmed. Set this location’s travel time.',
             uncounted: group.counted ? [] : [{ locationId: group.locationId, productId: group.productId }],
           })
         })}
       </div>
       {unaffected.length > 0 && <>
-        {!noDisruption && <p className="orders-subheading">Not at risk · covered by stock or deliveries, or for other products and locations</p>}
+        {!noDisruption && <p className="orders-subheading">Not short · warehouse cover is shown below; customer arrival time may still need confirmation</p>}
         <div className="orders-table">
           {unaffected.map((order) => {
             const lines = coverage.filter((line) => line.orderId === order.id)
             const short = lines.filter((line) => line.status === 'short')
             return row(order.id, order, {
-              quantity: order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', '),
+              quantity: remainingLines(workspace, order).map((line) => words.quantity(line.quantity, line.productId)).join(', '),
               covered: lines.map((line) => words.quantity(line.covered, line.productId)).join(', ') || '—',
               badge: short.length > 0
                 ? <StatusBadge tone="danger" dot>Short</StatusBadge>
-                : <StatusBadge tone="success" dot>Covered</StatusBadge>,
-              note: short.map(words.shortageText).join(' · ') || undefined,
+                : lines.some((line) => !line.arrivalConfirmed) ? <StatusBadge tone="warning" dot>Arrival unconfirmed</StatusBadge> : <StatusBadge tone="success" dot>Covered</StatusBadge>,
+              note: short.map(words.shortageText).join(' · ') || (lines.some((line) => !line.arrivalConfirmed) ? `Customer arrival time is unconfirmed from ${words.locationName(order.locationId)}. Add its travel time to assess the promise.` : undefined),
               uncounted: lines.filter((line) => !line.counted).map((line) => ({ locationId: line.locationId, productId: line.productId })),
             })
           })}
         </div>
       </>}
       {showAll && closedOrders.length > 0 && <>
-        <p className="orders-subheading">Delivered and cancelled · no longer counted</p>
+        <p className="orders-subheading">Sent and cancelled · no longer counted</p>
         <div className="orders-table">
           {closedOrders.map((order) => row(order.id, order, {
             quantity: order.lines.map((line) => words.quantity(line.quantity, line.productId)).join(', '),
             covered: order.closedAt ? format.day(order.closedAt) : '—',
-            badge: order.status === 'delivered' ? <StatusBadge tone="success" dot>Delivered</StatusBadge> : <StatusBadge tone="neutral" dot>Cancelled</StatusBadge>,
+            badge: order.status === 'cancelled' ? <StatusBadge tone="neutral" dot>{sentLines(workspace, order.id).length ? 'Rest cancelled' : 'Cancelled'}</StatusBadge> : <StatusBadge tone="success" dot>Sent</StatusBadge>,
           }))}
         </div>
       </>}

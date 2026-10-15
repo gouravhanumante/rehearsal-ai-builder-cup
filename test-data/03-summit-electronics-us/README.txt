@@ -19,3 +19,9 @@ HOW TO USE (start with "Set up my business" on the start screen)
 Delay to try: ASN-4410 (65W GaN Charger) to 10/23/2026 13:00.
 Expected: Dallas Warehouse has 35 chargers, and 110 are due before the new date (TechNest 60 priority, Lone Star 50),
 so about 75 are exposed and two orders are at risk.
+
+Dispatch check (frontend/src/import/scenarios.test.ts, shared/planner/ledger.ts:sendOrder):
+TechNest needs 60 chargers, so Send must be refused with only 35 counted;
+neither chargers nor mice leave. After checking the physical stock and recording
+a charger count of 60, sending consumes 60 chargers and 40 mice. Dallas then has
+0 chargers and 20 mice; Lone Star remains 50 chargers short.

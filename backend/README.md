@@ -23,6 +23,8 @@ The frontend's Vite server proxies `/api` to `http://localhost:8080`.
 
 No endpoint stores or changes business records; the browser applies changes after the user confirms. Gemini answers must not invent quantities, dates, or costs; exact values remain in the code-checked UI.
 
+Plan slices retain destination transfers and transfer receipt movements for other products too: booked and received quantities consume the same local-day receiving limit (`sliceForPlan`, `rehearse`; regression in `shared/planner/blank.test.ts`). Slices also keep every movement for their locations and products, because `parseWorkspace` recomputes stock from `Workspace.movements` (`shared/planner/ledger.ts`); workspaces older than format version 3 are rejected. Shared-planner changes require both backend and frontend deployment. The `movements-N` Firestore chunks require the updated `firestore.rules` before deploying the frontend (`frontend/src/cloud/chunks.ts`).
+
 ## Deploy
 
 The Dockerfile builds a Cloud Run container. Build it from the repository root so the shared planner in `shared/` is included: `docker build -f backend/Dockerfile .` (`cloudbuild.yaml` does this). Configure `GEMINI_API_KEY` as a Cloud Run secret and set `GEMINI_MODEL` / `PORT` as environment variables. Do not bake secrets into the image.

@@ -8,6 +8,7 @@ import { searchPage } from '../../presentation/listPage'
 import { pluralUnit } from '../../presentation/format'
 import { storageCap } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
+import { freeStock, reservedStock } from '../../../../shared/planner/ledger'
 import { EvidenceMark } from '../evidence/EvidenceMark'
 import { EmptyState } from '../layout/EmptyState'
 
@@ -104,8 +105,10 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
 
   const stockRow = (rowLocation: Location, rowProduct: Product, title: string, fallbackNote: string): ReactNode => {
     const record = stockByPair.get(pairKey(rowLocation.id, rowProduct.id))
-    const inbound = workspace.shipments.filter((shipment) => shipment.locationId === rowLocation.id && shipment.lines.some((line) => line.productId === rowProduct.id))
+    const inbound = workspace.shipments.filter((shipment) => shipment.transferStatus !== 'booked' && shipment.transferStatus !== 'unresolved' && shipment.locationId === rowLocation.id && shipment.lines.some((line) => line.productId === rowProduct.id))
     const inboundQuantity = inbound.reduce((total, shipment) => total + shipment.lines.filter((line) => line.productId === rowProduct.id).reduce((sum, line) => sum + line.quantity, 0), 0)
+      const booked = reservedStock(workspace, rowLocation.id, rowProduct.id)
+      const free = freeStock(workspace, rowLocation.id, rowProduct.id)
     const target = { type: 'stock' as const, locationId: rowLocation.id, productId: rowProduct.id }
     const cap = storageCap(workspace, rowLocation.id, rowProduct.id)
     const overCap = cap !== null && record !== undefined && record.available.value > cap
@@ -119,7 +122,7 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
         </div>
         <div className="stock-row-quantity">
           {record
-            ? <><strong>{format.number(record.available.value)}</strong><span>{pluralUnit(rowProduct.unit, record.available.value)}{cap !== null && ` of ${format.number(cap)} max`}</span></>
+            ? <><strong>{format.number(record.available.value)}</strong><span>{pluralUnit(rowProduct.unit, record.available.value)}{cap !== null && ` of ${format.number(cap)} max`}</span><small>{format.number(booked)} booked · {format.number(free)} free</small></>
             : <span className="stock-row-unknown">Not counted · counts as 0</span>}
         </div>
         <div className="stock-row-status">

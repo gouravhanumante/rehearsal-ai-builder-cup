@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { PackageCheck, X } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import type { InboundShipment, OrderLine } from '../../../../shared/planner/model'
+import { newId } from '../../../../shared/planner/ledger'
 import { localToIso } from '../../../../shared/planner/time'
 import { useEscapeKey } from '../../lib/useEscapeKey'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 
 type ReceiveDialogProps = {
   shipment: InboundShipment
-  onReceive: (received: OrderLine[], rest: { arrivalAt: string } | null) => void
+  onReceive: (received: OrderLine[], rest: { arrivalAt: string } | null, actionId: string) => void
   onReportLate: () => void
   onClose: () => void
 }
@@ -19,9 +20,11 @@ const readCount = (text: string) => (/^\d{1,7}$/.test(text.trim()) ? Number(text
 export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: ReceiveDialogProps) {
   const { workspace, format, words } = useWorkspaceView()
   useEscapeKey(onClose)
+  const [actionId] = useState(() => newId('RCV'))
   const [counts, setCounts] = useState<Record<string, string>>(() => Object.fromEntries(shipment.lines.map((line) => [line.productId, String(line.quantity)])))
   const [restComing, setRestComing] = useState<'yes' | 'no' | null>(null)
   const [restAt, setRestAt] = useState('')
+  const [nothingComing, setNothingComing] = useState(false)
 
   const arrived = shipment.lines.map((line) => ({ line, got: readCount(counts[line.productId] ?? '') }))
   const unreadable = arrived.some((item) => item.got === null)
@@ -29,12 +32,12 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
   const missingText = missing.map((item) => `${words.quantity(item.line.quantity - (item.got ?? 0), item.line.productId)} of ${words.productName(item.line.productId)}`).join(' and ')
   const total = arrived.reduce((sum, item) => sum + (item.got ?? 0), 0)
   const restIso = restAt ? localToIso(restAt, workspace.settings.timeZone) : null
-  const needsAnswer = missing.length > 0 && (restComing === null || (restComing === 'yes' && !restIso))
-  const canSave = !unreadable && total > 0 && !needsAnswer
+  const needsAnswer = missing.length > 0 && !nothingComing && (restComing === null || (restComing === 'yes' && !restIso))
+  const canSave = !unreadable && !needsAnswer && (total > 0 || (nothingComing && !shipment.fromLocationId))
 
   const save = () => {
     if (!canSave) return
-    onReceive(arrived.map((item) => ({ productId: item.line.productId, quantity: item.got ?? 0 })), missing.length > 0 && restComing === 'yes' && restIso ? { arrivalAt: restIso } : null)
+    onReceive(arrived.map((item) => ({ productId: item.line.productId, quantity: item.got ?? 0 })), missing.length > 0 && restComing === 'yes' && restIso ? { arrivalAt: restIso } : null, actionId)
   }
 
   return (
@@ -56,6 +59,10 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
         </ul>
         {unreadable && <p className="receive-error" role="alert">Enter a whole number for each product (0 if none came).</p>}
         {!unreadable && total === 0 && <p className="receive-error" role="alert">Nothing arrived? <button className="link-button" onClick={onReportLate} type="button">Report it late instead</button>.</p>}
+        {!unreadable && total === 0 && !shipment.fromLocationId && <fieldset className="receive-rest">
+          <legend>Is this delivery cancelled?</legend>
+          <label><input checked={nothingComing} onChange={(event) => setNothingComing(event.target.checked)} type="checkbox" /> Nothing arrived and nothing else will arrive</label>
+        </fieldset>}
         {missing.length > 0 && total > 0 && <fieldset className="receive-rest">
           <legend>Are the other {missingText} still coming?</legend>
           <label><input checked={restComing === 'yes'} name="rest" onChange={() => setRestComing('yes')} type="radio" /> Yes, they are still coming</label>
@@ -65,7 +72,7 @@ export function ReceiveDialog({ shipment, onReceive, onReportLate, onClose }: Re
         {shipment.repeatEveryDays && <p className="receive-note">This is a regular delivery: the next one stays expected on its usual schedule.</p>}
         <footer>
           <Button onClick={onClose} variant="quiet">Cancel</Button>
-          <Button disabled={!canSave} icon={<PackageCheck size={15} />} onClick={save} variant="primary">Add to stock</Button>
+          <Button disabled={!canSave} icon={<PackageCheck size={15} />} onClick={save} variant="primary">{nothingComing ? 'Close cancelled delivery' : 'Add to stock'}</Button>
         </footer>
       </section>
     </div>

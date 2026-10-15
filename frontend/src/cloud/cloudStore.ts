@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 import { collection, doc, getDoc, getDocs, getFirestore, onSnapshot, runTransaction, writeBatch, type CollectionReference, type DocumentReference } from 'firebase/firestore'
 import type { Workspace } from '../../../shared/planner/model'
-import { diffChunks, joinWorkspace, splitWorkspace, type Chunk, type SyncedState } from './chunks'
+import { contentAddressChunks, diffChunks, joinWorkspace, splitWorkspace, verifyContentAddressedChunks, type Chunk, type SyncedState } from './chunks'
 
 // Public web-app identifiers, not secrets: access is decided by firestore.rules.
 const app = initializeApp({
@@ -28,8 +28,8 @@ const parts = (uid: string, id: string) => collection(db, 'users', uid, 'busines
 const coreRef = (uid: string, id: string) => doc(parts(uid, id), 'core')
 // The one-business layout used before several businesses were allowed.
 const legacyFolder = (uid: string) => collection(db, 'users', uid, 'workspace')
-// Firestore refuses one request over 10 MiB; stay well under it.
-const MAX_REQUEST_BYTES = 8_000_000
+const MAX_STAGED_CHUNKS_PER_BATCH = 8
+const MAX_DELETE_OPS_PER_BATCH = 400
 
 type Synced = SyncedState & { key: string }
 const keyOf = (uid: string, id: string) => `${uid}/${id}`
@@ -60,15 +60,22 @@ export async function signOutNow() {
 }
 
 async function readFrom(folder: CollectionReference, core: DocumentReference) {
-  const coreDoc = await getDoc(core)
-  if (!coreDoc.exists()) return null
-  const data = coreDoc.data() as { json: string; chunkIds: string[]; revision: number }
-  const wanted = new Set(data.chunkIds)
-  const pieces = (await getDocs(folder)).docs
-    .filter((item) => wanted.has(item.id))
-    .map((item) => ({ id: item.id, ...(item.data() as Omit<Chunk, 'id'>) }))
-  const workspace = pieces.length === wanted.size ? joinWorkspace(data.json, pieces) : null
-  return { workspace: workspace?.mode === 'real' ? workspace : null, pieces, revision: data.revision }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const coreDoc = await getDoc(core)
+    if (!coreDoc.exists()) return null
+    const data = coreDoc.data() as { json: string; chunkIds: string[]; revision: number }
+    const wanted = new Set(data.chunkIds)
+    const pieces = (await getDocs(folder)).docs
+      .filter((item) => wanted.has(item.id))
+      .map((item) => ({ id: item.id, ...(item.data() as Omit<Chunk, 'id'>) }))
+    if (pieces.length !== wanted.size) continue
+    if (!await verifyContentAddressedChunks(pieces)) continue
+    const workspace = joinWorkspace(data.json, pieces)
+    if (workspace?.mode === 'real') return { workspace, pieces, revision: data.revision }
+  }
+  const latest = await getDoc(core)
+  if (!latest.exists()) return null
+  return { workspace: null, pieces: [], revision: (latest.data() as { revision: number }).revision }
 }
 
 /** A business saved under the one-business layout is copied into the list, then the old copy is removed. */
@@ -100,40 +107,36 @@ export async function loadBusiness(uid: string, id: string): Promise<CloudLoad> 
 async function write(uid: string, id: string, workspace: Workspace) {
   const key = keyOf(uid, id)
   if (synced.key !== key) synced = { key, revision: 0, hashes: {} }
-  const { coreJson, chunks } = splitWorkspace(workspace)
+  const { coreJson, chunks: split } = splitWorkspace(workspace)
+  const chunks = await contentAddressChunks(split)
   const { write: changed, remove, hashes } = await diffChunks(chunks, synced.hashes)
-
-  // A very large first save cannot fit in one request; its extra pieces go first, the core last.
-  let inTransaction = changed
-  let bytes = changed.reduce((total, chunk) => total + chunk.json.length, coreJson.length)
-  if (bytes > MAX_REQUEST_BYTES) {
-    inTransaction = []
-    let batch = writeBatch(db)
-    bytes = 0
-    for (const chunk of changed) {
-      if (bytes + chunk.json.length > MAX_REQUEST_BYTES) { await batch.commit(); batch = writeBatch(db); bytes = 0 }
+  for (let offset = 0; offset < changed.length; offset += MAX_STAGED_CHUNKS_PER_BATCH) {
+    const batch = writeBatch(db)
+    for (const chunk of changed.slice(offset, offset + MAX_STAGED_CHUNKS_PER_BATCH)) {
       batch.set(doc(parts(uid, id), chunk.id), { list: chunk.list, index: chunk.index, json: chunk.json })
-      bytes += chunk.json.length
     }
     await batch.commit()
   }
 
-  const revision = await runTransaction(db, async (transaction) => {
+  const published = await runTransaction(db, async (transaction) => {
     const current = await transaction.get(coreRef(uid, id))
+    const oldChunkIds = current.exists() ? ((current.data() as { chunkIds: string[] }).chunkIds ?? []) : []
     const stored = current.exists() ? (current.data() as { revision: number }).revision : 0
     if (stored !== synced.revision) throw new ConflictError('Changed on another device.')
-    for (const chunk of inTransaction) transaction.set(doc(parts(uid, id), chunk.id), { list: chunk.list, index: chunk.index, json: chunk.json })
     const updatedAt = Date.now()
     transaction.set(coreRef(uid, id), { json: coreJson, chunkIds: chunks.map((chunk) => chunk.id), revision: stored + 1, updatedAt })
     transaction.set(summaryRef(uid, id), { name: workspace.businessName, country: workspace.settings.country, updatedAt })
-    return stored + 1
+    return { revision: stored + 1, oldChunkIds }
   })
-  synced = { key, revision, hashes }
+  synced = { key, revision: published.revision, hashes }
 
-  if (remove.length) {
+  const currentIds = new Set(chunks.map((chunk) => chunk.id))
+  const obsolete = new Set([...remove, ...published.oldChunkIds.filter((chunkId) => !currentIds.has(chunkId))])
+  const obsoleteIds = [...obsolete]
+  for (let offset = 0; offset < obsoleteIds.length; offset += MAX_DELETE_OPS_PER_BATCH) {
     const batch = writeBatch(db)
-    for (const chunkId of remove) batch.delete(doc(parts(uid, id), chunkId))
-    await batch.commit()
+    for (const chunkId of obsoleteIds.slice(offset, offset + MAX_DELETE_OPS_PER_BATCH)) batch.delete(doc(parts(uid, id), chunkId))
+    try { await batch.commit() } catch { /* Published snapshots remain valid; failed cleanup only leaves orphaned chunks. */ }
   }
 }
 

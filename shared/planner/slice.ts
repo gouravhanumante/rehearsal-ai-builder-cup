@@ -1,4 +1,5 @@
 import type { Workspace } from './model.js'
+import { outstandingOrders } from './ledger.js'
 import { rehearse } from './plan.js'
 
 /**
@@ -19,18 +20,26 @@ export function sliceForPlan(workspace: Workspace, planId: string): Workspace | 
   // Transfers only move what a source can spare, so its own orders and deliveries matter too.
   const served = (id: string) => id === locationId || id === shipFrom || sources.has(id)
 
-  const shipments = workspace.shipments.filter((shipment) => served(shipment.locationId) && hasProduct(shipment.lines))
+  const shipments = workspace.shipments.filter((shipment) => served(shipment.locationId) && (hasProduct(shipment.lines)
+    || (shipment.locationId === locationId && shipment.fromLocationId)))
+  const shipmentProducts = new Set(shipments.flatMap((shipment) => shipment.lines.map((line) => line.productId)))
   const shipmentIds = new Set(shipments.map((shipment) => shipment.id))
   const locationIds = new Set([locationId, ...sources, ...(shipFrom ? [shipFrom] : [])])
 
   return {
     ...workspace,
     approval: null,
-    products: workspace.products.filter((product) => productIds.has(product.id)),
+    products: workspace.products.filter((product) => productIds.has(product.id) || shipmentProducts.has(product.id)),
     locations: workspace.locations.filter((location) => locationIds.has(location.id)),
+    // Stock is worked out from movements, and transfers already received here use up today's receiving limit.
+    // Orders go already reduced to what is still to be sent, so sends keep their stock effect but lose their order link.
+    movements: workspace.movements
+      .filter((movement) => (productIds.has(movement.productId) && locationIds.has(movement.locationId))
+        || ((movement.kind === 'receipt' || movement.kind === 'transfer-return') && movement.locationId === locationId && movement.fromLocationId))
+      .map(({ orderId: _orderId, ...movement }) => movement),
     stock: workspace.stock.filter((record) => productIds.has(record.productId) && locationIds.has(record.locationId)),
     storageLimits: workspace.storageLimits?.filter((item) => productIds.has(item.productId) && locationIds.has(item.locationId)),
-    orders: workspace.orders.filter((order) => served(order.locationId) && hasProduct(order.lines)),
+    orders: outstandingOrders(workspace).orders.filter((order) => served(order.locationId) && hasProduct(order.lines)),
     shipments,
     disruptions: workspace.disruptions.filter((disruption) => shipmentIds.has(disruption.shipmentId)),
     routes,

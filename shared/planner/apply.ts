@@ -1,5 +1,6 @@
-import type { Evidence, HistoryEntry, InboundShipment, OrderLine, Workspace } from './model.js'
+import type { Evidence, HistoryEntry, InboundShipment, Movement, OrderLine, Workspace } from './model.js'
 import type { Plan } from './plan.js'
+import { alreadyRecorded, newId, record } from './ledger.js'
 import { LIMITS } from './validate.js'
 
 const DAY_MS = 86_400_000
@@ -15,7 +16,8 @@ const nextId = (prefix: string, taken: Set<string>) => {
  */
 export function applyPlan(workspace: Workspace, plan: Plan, now: string): Workspace {
   const locationName = (id: string) => workspace.locations.find((location) => location.id === id)?.name ?? id
-  const taken = new Set(workspace.shipments.map((shipment) => shipment.id))
+  // Ids already used by past movements stay taken, so an old record never points at a new delivery.
+  const taken = new Set([...workspace.shipments.map((shipment) => shipment.id), ...workspace.movements.flatMap((movement) => movement.shipmentId ? [movement.shipmentId] : [])])
   const delivery = (prefix: string, supplierName: string, updateSource: string, evidence: Evidence): InboundShipment => ({
     id: nextId(prefix, taken), supplierName, locationId: plan.locationId,
     lines: [{ productId: plan.productId, quantity: plan.quantity ?? 0 }],
@@ -30,13 +32,8 @@ export function applyPlan(workspace: Workspace, plan: Plan, now: string): Worksp
   if (plan.kind === 'transfer' && plan.sourceLocationId && plan.quantity && plan.arrivalAt) {
     const from = plan.sourceLocationId
     const evidence: Evidence = { kind: 'manual', source: `Approved transfer to ${locationName(plan.locationId)}`, recordedAt: now }
-    return {
-      ...workspace,
-      stock: workspace.stock.map((record) => record.locationId === from && record.productId === plan.productId
-        ? { ...record, available: { value: Math.max(0, record.available.value - plan.quantity!), evidence } }
-        : record),
-      shipments: [...workspace.shipments, delivery('TR', `Transfer from ${locationName(from)}`, 'Approved transfer', { ...evidence, source: `Approved transfer from ${locationName(from)}` })],
-    }
+    const shipment = { ...delivery('TR', `Transfer from ${locationName(from)}`, 'Approved transfer', { ...evidence, source: `Booked transfer from ${locationName(from)}` }), fromLocationId: from, transferStatus: 'booked' as const }
+    return { ...workspace, shipments: [...workspace.shipments, shipment] }
   }
 
   if (plan.kind === 'supplier' && plan.supplierId && plan.quantity && plan.arrivalAt) {
@@ -60,47 +57,27 @@ export function applyPlan(workspace: Workspace, plan: Plan, now: string): Worksp
 }
 
 /**
- * Delivered: the goods left the warehouse, so its stock goes down by the order. Cancelled: nothing
- * left, stock stays. Reopening undoes it (a delivered order's goods are counted back in).
- */
-export function setOrderStatus(workspace: Workspace, orderId: string, status: 'open' | 'delivered' | 'cancelled', now: string): Workspace {
-  const order = workspace.orders.find((item) => item.id === orderId)
-  if (!order || (order.status ?? 'open') === status) return workspace
-  const wasDelivered = order.status === 'delivered'
-  const sign = status === 'delivered' ? -1 : wasDelivered ? 1 : 0
-  const evidence: Evidence = { kind: 'manual', source: `${status === 'delivered' ? 'Delivered' : 'Reopened'} ${order.id}`, recordedAt: now }
-  const stock = sign === 0 ? workspace.stock : workspace.stock.map((record) => {
-    if (record.locationId !== order.locationId) return record
-    const moved = order.lines.filter((line) => line.productId === record.productId).reduce((total, line) => total + line.quantity, 0)
-    return moved === 0 ? record : { ...record, available: { value: Math.max(0, record.available.value + sign * moved), evidence } }
-  })
-  const { closedAt: _previous, ...rest } = order
-  const next = status === 'open' ? { ...rest, status } : { ...rest, status, closedAt: now }
-  return { ...workspace, stock, orders: workspace.orders.map((item) => item.id === orderId ? next : item) }
-}
-
-/**
  * A delivery arrived: what came is added to that location's stock, and the delivery stops counting as
  * incoming, so it is never counted twice. A regular delivery moves on to its next date. If part is
  * missing and the rest is still coming, the rest stays incoming for the date the user gives.
  */
-export function receiveDelivery(workspace: Workspace, shipmentId: string, received: OrderLine[], rest: { arrivalAt: string } | null, now: string): Workspace {
+export function receiveDelivery(workspace: Workspace, shipmentId: string, received: OrderLine[], rest: { arrivalAt: string } | null, now: string, id = newId('RCV')): Workspace {
   const shipment = workspace.shipments.find((item) => item.id === shipmentId)
-  if (!shipment) return workspace
+  if (!shipment || alreadyRecorded(workspace, id)) return workspace
+  if (shipment.fromLocationId && shipment.transferStatus === 'booked') return workspace
   const evidence: Evidence = { kind: 'manual', source: `Received ${shipment.id}`, recordedAt: now }
-  const arrived = (productId: string) => received.filter((line) => line.productId === productId).reduce((total, line) => total + line.quantity, 0)
+  const total = (lines: OrderLine[], productId: string) => lines.filter((line) => line.productId === productId).reduce((sum, line) => sum + line.quantity, 0)
+  const products = (lines: OrderLine[]) => [...new Set(lines.map((line) => line.productId))]
 
-  let stock = workspace.stock.map((record) => {
-    const quantity = record.locationId === shipment.locationId ? arrived(record.productId) : 0
-    return quantity === 0 ? record : { ...record, available: { value: record.available.value + quantity, evidence } }
-  })
-  for (const productId of new Set(received.map((line) => line.productId))) {
-    const counted = stock.some((record) => record.locationId === shipment.locationId && record.productId === productId)
-    if (!counted && arrived(productId) > 0) stock = [...stock, { locationId: shipment.locationId, productId, available: { value: arrived(productId), evidence } }]
-  }
+  const receipts: Movement[] = products(received).filter((productId) => total(received, productId) > 0).map((productId) => ({
+    id: `${id}:${productId}`, kind: 'receipt', locationId: shipment.locationId, productId, quantity: total(received, productId), at: now, evidence,
+    shipmentId: shipment.id, ...(shipment.fromLocationId ? { fromLocationId: shipment.fromLocationId } : {}),
+  }))
+  const recorded = record(workspace, receipts)
+  if ('error' in recorded) return workspace
 
-  const missing = shipment.lines
-    .map((line) => ({ productId: line.productId, quantity: Math.max(0, line.quantity - arrived(line.productId)) }))
+  const missing = products(shipment.lines)
+    .map((productId) => ({ productId, quantity: Math.max(0, total(shipment.lines, productId) - total(received, productId)) }))
     .filter((line) => line.quantity > 0)
 
   const others = workspace.shipments.filter((item) => item.id !== shipment.id)
@@ -114,16 +91,19 @@ export function receiveDelivery(workspace: Workspace, shipmentId: string, receiv
     shipments = [...others, { ...shipment, confirmedArrivalAt: nextAt, updateSource: 'Regular delivery', evidence }]
   }
   if (rest && missing.length > 0) {
-    const taken = new Set(shipments.map((item) => item.id))
-    let id = `${shipment.id}-REST`
-    for (let n = 2; taken.has(id); n += 1) id = `${shipment.id}-REST-${n}`
+    const taken = new Set([...shipments.map((item) => item.id), ...recorded.workspace.movements.flatMap((movement) => movement.shipmentId ? [movement.shipmentId] : [])])
+    let restId = `${shipment.id}-REST`
+    for (let n = 2; taken.has(restId); n += 1) restId = `${shipment.id}-REST-${n}`
     shipments = [...shipments, {
-      id, supplierName: shipment.supplierName, locationId: shipment.locationId, lines: missing,
+      id: restId, supplierName: shipment.supplierName, locationId: shipment.locationId, lines: missing,
       originalArrivalAt: rest.arrivalAt, confirmedArrivalAt: rest.arrivalAt, updateSource: `Rest of ${shipment.id}`, evidence,
+      ...(shipment.fromLocationId ? { fromLocationId: shipment.fromLocationId, ...(shipment.transferBookingId ? { transferBookingId: shipment.transferBookingId } : {}), transferStatus: 'in-transit' as const } : {}),
     }]
   }
-
-  return { ...workspace, stock, shipments, disruptions: workspace.disruptions.filter((item) => item.shipmentId !== shipment.id) }
+  if (shipment.fromLocationId && missing.length > 0 && !rest) {
+    shipments = [...others, { ...shipment, lines: missing, transferStatus: 'unresolved', updateSource: `Unresolved after receipt ${shipment.id}`, evidence }]
+  }
+  return { ...recorded.workspace, shipments, disruptions: workspace.disruptions.filter((item) => item.shipmentId !== shipment.id) }
 }
 
 /** Adds one line to History, keeping only the newest entries so a long-lived business stays small. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Evidence, Order, Supplier, Workspace } from './model.js'
 import { orderCoverage, rankPlans, recommendPlan, rehearse, storageCap } from './plan.js'
 import { sampleEvidence, sampleWorkspace } from './sample.js'
+import { stockFrom } from './ledger.js'
 
 const typed: Evidence = { kind: 'manual', source: 'Entered manually', recordedAt: '2026-10-15T09:00:00+05:30' }
 const quote: Evidence = { kind: 'document', source: 'supplier-b-quote.pdf', recordedAt: '2026-10-15T09:00:00+05:30' }
@@ -10,6 +11,10 @@ const thursdayMorning = '2026-10-15T10:00:00+05:30'
 const withStock = (data: Workspace, locationId: string, value: number, evidence: Evidence = typed): Workspace => ({
   ...data,
   stock: data.stock.map((record) => record.locationId === locationId ? { ...record, available: { value, evidence } } : record),
+})
+const withCustomerTravel = (data: Workspace, hours: number): Workspace => ({
+  ...data,
+  locations: data.locations.map((location) => location.id === 'north' ? { ...location, customerTravelHours: { value: hours, evidence: typed } } : location),
 })
 
 function withSupplierB(details: { cases: number | null; price: number | null; arrival: string | null; evidence: Evidence }): Workspace {
@@ -26,6 +31,17 @@ const supplierPlan = 'supplier:supplier-b:harbor-blend:north'
 const transferPlan = 'transfer:south-to-north:harbor-blend'
 
 describe('which orders the delay affects', () => {
+  it('two late deliveries at the same warehouse do not count the same customer shortage twice', () => {
+    const data: Workspace = { ...sampleWorkspace,
+      shipments: [...sampleWorkspace.shipments, { ...sampleWorkspace.shipments[0], id: 'SH-second', lines: [{ productId: 'harbor-blend', quantity: 1 }] }],
+      disruptions: [...sampleWorkspace.disruptions, { ...sampleWorkspace.disruptions[0], id: 'INC-second', shipmentId: 'SH-second' }],
+    }
+    const result = rehearse(data)
+    expect(result.impact.exposedQuantity).toBe(24)
+    expect(result.impact.groups).toHaveLength(1)
+    expect(new Set(result.plans.map((plan) => plan.id)).size).toBe(result.plans.length)
+  })
+
   it('orders due before the late delivery are at risk; an order due after it is covered by it', () => {
     const { impact } = rehearse(sampleWorkspace)
     expect(impact.affectedOrderIds).toEqual(['ORD-1082', 'ORD-1086', 'ORD-1091'])
@@ -51,7 +67,7 @@ describe('which orders the delay affects', () => {
 
   it('an order the stock on hand fully covers is not at risk, even when it is due before the late delivery', () => {
     // 30 on hand: Common Ground (18) and Harbor Market (12) are covered; only Daily Goods (8) is short.
-    const { impact } = rehearse(withStock(sampleWorkspace, 'north', 30))
+    const { impact } = rehearse(withCustomerTravel(withStock(sampleWorkspace, 'north', 30), 1))
     expect(impact.affectedOrderIds).toEqual(['ORD-1091'])
     expect(impact.unaffectedOrderIds).toEqual(expect.arrayContaining(['ORD-1082', 'ORD-1086']))
   })
@@ -59,7 +75,7 @@ describe('which orders the delay affects', () => {
   it('an order covered only by stock still on its way is "watch", not at risk and not fine', () => {
     // 18 on hand covers Common Ground; Harbor Market and Daily Goods (20) rely on a transfer of 20 arriving Thursday 11 am.
     const transfer = { ...sampleWorkspace.shipments[0], id: 'TR-1', supplierName: 'Transfer from South Hub', lines: [{ productId: 'harbor-blend', quantity: 20 }], originalArrivalAt: '2026-10-15T11:00:00+05:30', confirmedArrivalAt: '2026-10-15T11:00:00+05:30' }
-    const { impact } = rehearse({ ...withStock(sampleWorkspace, 'north', 18), shipments: [...sampleWorkspace.shipments, transfer] })
+    const { impact } = rehearse(withCustomerTravel({ ...withStock(sampleWorkspace, 'north', 18), shipments: [...sampleWorkspace.shipments, transfer] }, 1))
     expect(impact.exposedQuantity).toBe(0)
     expect(impact.affectedOrderIds).toEqual([])
     expect(impact.watchOrderIds).toEqual(['ORD-1086', 'ORD-1091', 'ORD-1104'])
@@ -76,6 +92,18 @@ describe('which orders the delay affects', () => {
 })
 
 describe('is every order covered by its warehouse, even with nothing late', () => {
+  it('on-time incoming cover is Watch even without a reported delay; counted-stock cover stays unaffected', () => {
+    const data: Workspace = withCustomerTravel({ ...sampleWorkspace, disruptions: [], orders: [
+      { ...sampleWorkspace.orders[0], id: 'COUNTED', lines: [{ productId: 'harbor-blend', quantity: 10 }], dueAt: '2026-10-15T14:00:00+05:30', priority: 'standard' },
+      { ...sampleWorkspace.orders[0], id: 'INCOMING', lines: [{ productId: 'harbor-blend', quantity: 10 }], dueAt: '2026-10-15T15:00:00+05:30', priority: 'standard' },
+    ], shipments: [{ ...sampleWorkspace.shipments[0], lines: [{ productId: 'harbor-blend', quantity: 10 }], confirmedArrivalAt: '2026-10-15T12:00:00+05:30' }] }, 1)
+    expect(rehearse(data).impact).toMatchObject({ affectedOrderIds: [], watchOrderIds: ['INCOMING'], unaffectedOrderIds: ['COUNTED'], exposedQuantity: 0 })
+    const noStock: Workspace = { ...data, stock: [] }
+    expect(rehearse(noStock).impact).toMatchObject({ affectedOrderIds: ['INCOMING'], watchOrderIds: ['COUNTED'], unaffectedOrderIds: [] })
+    const mixed: Workspace = { ...data, orders: data.orders.map((order) => order.id === 'INCOMING' ? { ...order, lines: [...order.lines, { productId: 'oat', quantity: 1 }] } : order) }
+    expect(rehearse(mixed).impact).toMatchObject({ affectedOrderIds: ['INCOMING'], watchOrderIds: [], unaffectedOrderIds: ['COUNTED'] })
+  })
+
   it('after the user chooses "priority order first", the Orders page gives the stock to the priority order too, so both screens agree', () => {
     // North Hub has 14, nothing late. Cafe A (standard, 10) is due Thu 10 am; Hotel B (priority, 10) Thu 2 pm.
     const order = (id: string, priority: 'protected' | 'standard', dueAt: string): Order => ({ id, customer: id, locationId: 'north', dueAt, priority, lines: [{ productId: 'harbor-blend', quantity: 10 }], evidence: typed })
@@ -220,7 +248,7 @@ describe('warehouse transfer options', () => {
   })
 
   it('a covered order raises no problem at all', () => {
-    const data: Workspace = { ...sampleWorkspace, disruptions: [], shipments: [], orders: [{ ...sampleWorkspace.orders[0], lines: [{ productId: 'harbor-blend', quantity: 5 }] }] }
+    const data: Workspace = withCustomerTravel({ ...sampleWorkspace, disruptions: [], shipments: [], orders: [{ ...sampleWorkspace.orders[0], lines: [{ productId: 'harbor-blend', quantity: 5 }] }] }, 1)
     expect(rehearse(data)).toMatchObject({ plans: [], impact: { groups: [] } })
   })
   it('allows a transfer within receiving capacity and calculates remaining exposure', () => {
@@ -242,14 +270,37 @@ describe('warehouse transfer options', () => {
 
   // The sample morning is Thu 15 Oct, 9:00; the priority order is due at 2:00 pm the same day.
   const withTravel = (hours: number | null, evidence: Evidence = sampleEvidence) =>
-    ({ ...sampleWorkspace, routes: [{ ...sampleWorkspace.routes[0], travelHours: hours === null ? { value: null, evidence: null } : { value: hours, evidence } }] })
+    ({
+      ...sampleWorkspace,
+      locations: sampleWorkspace.locations.map((location) => location.id === 'north' ? { ...location, customerTravelHours: { value: 1, evidence } } : location),
+      routes: [{ ...sampleWorkspace.routes[0], travelHours: hours === null ? { value: null, evidence: null } : { value: hours, evidence } }],
+    })
 
   it('rejects a capacity-valid transfer that arrives after the priority promise: 30 hours is too slow', () => {
     expect(planIn(withTravel(30), transferPlan)).toMatchObject({ status: 'rejected', reason: { code: 'transfer-late' } })
   })
 
   it('says when to book at the latest: a 3-hour route for an order due at 2 pm must be booked by 11 am', () => {
-    expect(planIn(withTravel(3), transferPlan)).toMatchObject({ bookBy: new Date('2026-10-15T11:00:00+05:30').toISOString(), savedQuantity: 8 })
+    expect(planIn(withTravel(3), transferPlan)).toMatchObject({ bookBy: new Date('2026-10-15T10:00:00+05:30').toISOString(), savedQuantity: 8 })
+  })
+
+  it('a covered priority order does not set the booking deadline or reject a later useful transfer', () => {
+    const data: Workspace = { ...sampleWorkspace, shipments: [], disruptions: [], orders: [
+      { ...sampleWorkspace.orders[0], id: 'PRIORITY', dueAt: '2026-10-15T10:00:00+05:30', lines: [{ productId: 'harbor-blend', quantity: 14 }] },
+      { ...sampleWorkspace.orders[1], id: 'FRIDAY', dueAt: '2026-10-16T16:00:00+05:30', lines: [{ productId: 'harbor-blend', quantity: 10 }] },
+    ] }
+    const withTravelTime = withCustomerTravel(data, 1)
+    expect(planIn(withTravelTime, transferPlan)).toMatchObject({ status: 'ready', quantity: 8, bookBy: new Date('2026-10-16T12:00:00+05:30').toISOString(), savedQuantity: 8 })
+    const afterPriority = rehearse(withTravelTime, '2026-10-15T11:00:00+05:30').plans.find((plan) => plan.id === transferPlan)
+    expect(afterPriority).toMatchObject({ status: 'ready', bookBy: new Date('2026-10-16T12:00:00+05:30').toISOString() })
+  })
+
+  it('booking follows the first short customer the transfer actually helps, not an earlier missed standard order', () => {
+    const data: Workspace = { ...sampleWorkspace, shipments: [], disruptions: [], orders: [
+      { ...sampleWorkspace.orders[1], id: 'EARLY', dueAt: '2026-10-15T10:00:00+05:30', lines: [{ productId: 'harbor-blend', quantity: 20 }] },
+      { ...sampleWorkspace.orders[1], id: 'LATER', dueAt: '2026-10-16T16:00:00+05:30', lines: [{ productId: 'harbor-blend', quantity: 10 }] },
+    ] }
+    expect(planIn(withCustomerTravel(data, 1), transferPlan)).toMatchObject({ status: 'ready', bookBy: new Date('2026-10-16T12:00:00+05:30').toISOString(), savedQuantity: 8 })
   })
 
   it('needs information when nobody knows how long the transfer takes', () => {
@@ -279,7 +330,10 @@ describe('warehouse transfer options', () => {
     ])
   })
   it('flags the transfer as unverified when its travel time was typed in', () => {
-    expect(planIn(withTravel(2, typed), transferPlan)?.unverified).toEqual([{ type: 'route', routeId: 'south-to-north', arrivalAt: new Date('2026-10-15T11:00:00+05:30').toISOString() }])
+    expect(planIn(withTravel(2, typed), transferPlan)?.unverified).toEqual([
+      { type: 'customer-travel', locationId: 'north', hours: 1 },
+      { type: 'route', routeId: 'south-to-north', arrivalAt: new Date('2026-10-15T11:00:00+05:30').toISOString() },
+    ])
   })
 })
 
@@ -351,6 +405,20 @@ describe('priority order vs an earlier order (conflicts)', () => {
 })
 
 describe('overview recommendation', () => {
+  it('shipping from another warehouse must not deepen the shortfall of its already-short customer', () => {
+    const data: Workspace = {
+      ...sampleWorkspace, disruptions: [], shipments: [],
+      stock: sampleWorkspace.stock.map((record) => ({ ...record, available: { ...record.available, value: record.locationId === 'north' ? 3 : 9 } })),
+      orders: [
+        { ...sampleWorkspace.orders[0], id: 'guest-order', priority: 'standard', lines: [{ productId: 'harbor-blend', quantity: 4 }] },
+        { ...sampleWorkspace.orders[1], id: 'source-order', locationId: 'south', lines: [{ productId: 'harbor-blend', quantity: 24 }] },
+      ],
+      deliveryAnswers: [{ fromLocationId: 'south', forLocationId: 'north', canDeliver: true }],
+    }
+    expect(planIn(data, 'ship:guest-order:south:harbor-blend')).toMatchObject({ status: 'rejected', reason: { code: 'ship-from-short' } })
+    expect(orderCoverage(data).find((line) => line.orderId === 'source-order')?.covered).toBe(9)
+  })
+
   it('prefers the plan that protects the priority order with the least left exposed', () => {
     expect(recommendPlan(rehearse(withSupplierB({ cases: 20, price: 11, arrival: thursdayMorning, evidence: quote })).plans)?.id).toBe(supplierPlan)
     expect(recommendPlan(rehearse(sampleWorkspace).plans)?.id).toBe(transferPlan)
@@ -400,13 +468,13 @@ describe('the business picks a goal', () => {
 
 describe('storage limits', () => {
   // North Hub has 14 cases and is 24 short before the delayed shipment lands.
-  const withLimit = (atNorth?: number): Workspace => ({
+  const withLimit = (atNorth?: number): Workspace => withCustomerTravel({
     ...sampleWorkspace,
     storageLimits: atNorth === undefined ? [] : [{ locationId: 'north', productId: 'harbor-blend', limit: atNorth }],
-  })
+  }, 1)
 
   it('asks a backup supplier only for what still fits: holds 20, has 14, so ask for 6 even though 24 are short', () => {
-    expect(planIn(withLimit(20), supplierPlan)?.request).toEqual({ quantity: 6, neededBy: '2026-10-15T14:00:00+05:30' })
+    expect(planIn(withLimit(20), supplierPlan)?.request).toEqual({ quantity: 6, neededBy: new Date('2026-10-15T13:00:00+05:30').toISOString() })
   })
 
   it('asks for the whole shortage when no storage limit is set', () => {
@@ -501,6 +569,14 @@ describe('ship a short order from another warehouse instead', () => {
     expect(recommendPlan(plans)?.id).toBe(shipPlan)
   })
 
+  it('a ship-from plan marks the source location travel time unverified, not the original warehouse travel time', () => {
+    const workspace = data([shiva], { locations: sampleWorkspace.locations.map((location) => location.id === 'south'
+      ? { ...location, customerTravelHours: { value: 2, evidence: typed } }
+      : location) })
+    const travelFacts = planIn(workspace, shipPlan)?.unverified.filter((fact) => fact.type === 'customer-travel')
+    expect(travelFacts).toEqual([{ type: 'customer-travel', locationId: 'south', hours: 2 }])
+  })
+
   it("not when it would leave South Hub short for its own later order: 14 there, 12 promised for Saturday, 3 asked", () => {
     expect(planIn(data([shiva, southOrder(12)]), shipPlan)).toMatchObject({ status: 'rejected', reason: { code: 'ship-from-short' }, outcome: null })
   })
@@ -509,5 +585,38 @@ describe('ship a short order from another warehouse instead', () => {
     const mixed = { ...shiva, lines: [...shiva.lines, { productId: 'oat-milk', quantity: 2 }] }
     const products = [...sampleWorkspace.products, { id: 'oat-milk', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }]
     expect(planIn(data([mixed], { products }), shipPlan)?.status).toBe('rejected')
+  })
+})
+
+describe('customer due time means arrival, not warehouse availability', () => {
+  const due = '2026-10-16T17:00:00+05:30'
+  const withArrival = (hours: number | null, warehouseArrival: string): Workspace => {
+    const movements = sampleWorkspace.movements.map((movement) => movement.locationId === 'north' && movement.kind === 'count' ? { ...movement, quantity: 0 } : movement)
+    const fact = hours === null ? { value: null, evidence: null } : { value: hours, evidence: typed }
+    return {
+      ...sampleWorkspace,
+      movements,
+      stock: stockFrom(movements),
+      locations: sampleWorkspace.locations.map((location) => location.id === 'north' ? { ...location, customerTravelHours: fact } : location),
+      orders: [{ ...sampleWorkspace.orders[0], id: 'ARRIVAL', dueAt: due, lines: [{ productId: 'harbor-blend', quantity: 10 }] }],
+      shipments: [{ ...sampleWorkspace.shipments[0], id: 'ETA-SH', lines: [{ productId: 'harbor-blend', quantity: 10 }], originalArrivalAt: warehouseArrival, confirmedArrivalAt: warehouseArrival }],
+      disruptions: [],
+    }
+  }
+
+  it('arrival at the warehouse after the dispatch cutoff is not customer-time coverage', () => {
+    const data = withArrival(3, '2026-10-16T14:30:00+05:30')
+    expect(orderCoverage(data).find((line) => line.orderId === 'ARRIVAL')).toMatchObject({ status: 'short', covered: 0, mustLeaveBy: '2026-10-16T08:30:00.000Z', arrivalConfirmed: true })
+  })
+
+  it('with no outbound travel time, warehouse cover is visibly unconfirmed, not an on-time promise', () => {
+    const data = withArrival(null, '2026-10-16T16:00:00+05:30')
+    expect(orderCoverage(data).find((line) => line.orderId === 'ARRIVAL')).toMatchObject({ status: 'covered', covered: 10, mustLeaveBy: null, arrivalConfirmed: false })
+    expect(rehearse(data).impact.watchOrderIds).toContain('ARRIVAL')
+  })
+
+  it('marks a manually entered customer travel duration as unverified on plans that rely on it', () => {
+    const plan = planIn(withArrival(3, '2026-10-16T16:00:00+05:30'), transferPlan)
+    expect(plan?.unverified).toContainEqual({ type: 'customer-travel', locationId: 'north', hours: 3 })
   })
 })
