@@ -121,7 +121,7 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
     const tally = (key: string, by = 1) => { count[key] = (count[key] ?? 0) + by }
     const broken: string[] = []
     const openRulings: string[] = []
-    const openFindings = { conflictChoiceIgnoredByOrdersPage: [] as string[], shortAfterDelayGetsNoOptions: [] as string[] }
+    const openFindings = { shortAfterDelayGetsNoOptions: [] as string[] }
     const slowest = { ms: 0, when: '' }
     let orderNo = 2000
     const record = (now: string, kind: Parameters<typeof addHistory>[1]['kind'], text: string) => { workspace = addHistory(workspace, { at: now, kind, text }) }
@@ -154,12 +154,9 @@ describe('one week at Deccan Wholesale, every feature, every rule checked after 
       for (const line of shortLines.filter((item) => !atRisk.has(item.orderId))) {
         const order = workspace.orders.find((item) => item.id === line.orderId)
         const sameSpot = result.impact.groups.find((group) => group.locationId === line.locationId && group.productId === line.productId)
-        const choseItsOwnPriority = workspace.conflictDecisions.some((item) => item.winner === 'priority' && item.conflictId.endsWith(`:${line.productId}`) && workspace.orders.find((other) => other.id === item.conflictId.split(':')[1])?.locationId === line.locationId)
         const text = `${line.orderId} at ${line.locationId} due ${order?.dueAt}: Orders page ${line.covered} of ${line.ordered}`
-        // Known, awaiting a ruling (docs/TODO.md): the Orders page ignores "priority order first".
-        if (sameSpot?.kind === 'shortage' && choseItsOwnPriority) openFindings.conflictChoiceIgnoredByOrdersPage.push(text)
-        // Known, awaiting a ruling: an order due after a delayed delivery that is still short gets no problem.
-        else if (sameSpot?.kind === 'delay' && !sameSpot.allocations.some((item) => item.orderId === line.orderId)) openFindings.shortAfterDelayGetsNoOptions.push(text)
+        // Known, awaiting a ruling (docs/TODO.md): an order due after a delayed delivery that is still short gets no problem.
+        if (sameSpot?.kind === 'delay' && !sameSpot.allocations.some((item) => item.orderId === line.orderId)) openFindings.shortAfterDelayGetsNoOptions.push(text)
         else broken.push(`${where}: ${text} shown Short in Orders but not at risk`)
       }
       const exposure = result.impact.groups.reduce((total, group) => total + group.allocations.reduce((sum, item) => sum + item.ordered - item.covered, 0), 0)

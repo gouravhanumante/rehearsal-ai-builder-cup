@@ -148,6 +148,28 @@ export function storageCap(workspace: Workspace, locationId: string, productId: 
   return own?.limit ?? null
 }
 
+/**
+ * A priority order left short because earlier standard orders were served first. The user's answer
+ * (default: the order due first) decides who is served first, everywhere stock is shared out.
+ */
+function priorityConflicts(demands: Demand[], batches: Batch[], decisions: Map<string, 'earliest-due' | 'priority'>, locationId: string, productId: string) {
+  const defaultAllocation = allocate(demands, batches, new Set())
+  const prioritiesFirst = new Set<string>()
+  const conflicts: Conflict[] = []
+  for (const demand of demands.filter((item) => item.order.priority === 'protected')) {
+    const own = defaultAllocation.find((item) => item.orderId === demand.order.id)
+    const short = own ? own.ordered - own.covered : 0
+    const earlier = demands.filter((item) => item.order.priority === 'standard' && time(item.order.dueAt) < time(demand.order.dueAt))
+    const takenByEarlier = earlier.reduce((total, item) => total + (defaultAllocation.find((a) => a.orderId === item.order.id)?.covered ?? 0), 0)
+    if (short <= 0 || takenByEarlier <= 0) continue
+    const id = `conflict:${demand.order.id}:${productId}`
+    const winner = decisions.get(id) ?? 'earliest-due'
+    if (winner === 'priority') prioritiesFirst.add(demand.order.id)
+    conflicts.push({ id, productId, locationId, priorityOrderId: demand.order.id, earlierOrderIds: earlier.map((item) => item.order.id), quantity: Math.min(short, takenByEarlier), winner, decided: decisions.has(id) })
+  }
+  return { conflicts, prioritiesFirst }
+}
+
 export type OrderCoverage = {
   orderId: string
   productId: string
@@ -172,6 +194,7 @@ const openOnly = (workspace: Workspace): Workspace =>
 
 export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderCoverage[] {
   const workspace = openOnly(input)
+  const decisions = new Map(workspace.conflictDecisions.map((decision) => [decision.conflictId, decision.winner]))
   const result: OrderCoverage[] = []
   const pairs = new Set(workspace.orders
     .filter((order) => onlyLocationId === undefined || order.locationId === onlyLocationId)
@@ -187,7 +210,7 @@ export function orderCoverage(input: Workspace, onlyLocationId?: string): OrderC
     const inbound: Batch[] = workspace.shipments
       .filter((shipment) => shipment.locationId === locationId && lineQuantity(shipment, productId) > 0)
       .flatMap((shipment) => arrivalsOf(shipment, horizon).map((at) => ({ at, quantity: lineQuantity(shipment, productId) })))
-    const allocations = allocate(demands, [{ at: null, quantity: stock?.available.value ?? 0 }, ...inbound], new Set())
+    const allocations = allocate(demands, [{ at: null, quantity: stock?.available.value ?? 0 }, ...inbound], priorityConflicts(demands, [{ at: null, quantity: stock?.available.value ?? 0 }, ...inbound], decisions, locationId, productId).prioritiesFirst)
     for (const allocation of allocations) {
       const dueAt = demands.find((demand) => demand.order.id === allocation.orderId)?.order.dueAt ?? null
       const arriving = inbound.filter((batch) => time(batch.at) <= time(dueAt)).reduce((total, batch) => total + batch.quantity, 0)
@@ -304,20 +327,9 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
       const stock = stockByKey.get(stockKey(locationId, productId))
       const onHand: Batch[] = [{ at: null, quantity: stock?.available.value ?? 0 }, ...problem.inbound]
 
-      // Conflicts: a priority order left short while earlier standard orders were served.
-      const defaultAllocation = allocate(demands, onHand, new Set())
-      const prioritiesFirst = new Set<string>()
-      for (const demand of demands.filter((item) => item.order.priority === 'protected')) {
-        const own = defaultAllocation.find((item) => item.orderId === demand.order.id)
-        const short = own ? own.ordered - own.covered : 0
-        const earlier = demands.filter((item) => item.order.priority === 'standard' && time(item.order.dueAt) < time(demand.order.dueAt))
-        const takenByEarlier = earlier.reduce((total, item) => total + (defaultAllocation.find((a) => a.orderId === item.order.id)?.covered ?? 0), 0)
-        if (short <= 0 || takenByEarlier <= 0) continue
-        const id = `conflict:${demand.order.id}:${productId}`
-        const winner = decisions.get(id) ?? 'earliest-due'
-        if (winner === 'priority') prioritiesFirst.add(demand.order.id)
-        conflicts.push({ id, productId, locationId, priorityOrderId: demand.order.id, earlierOrderIds: earlier.map((item) => item.order.id), quantity: Math.min(short, takenByEarlier), winner, decided: decisions.has(id) })
-      }
+      const found = priorityConflicts(demands, onHand, decisions, locationId, productId)
+      const { prioritiesFirst } = found
+      conflicts.push(...found.conflicts)
 
       const outcome = (extra: Batch[], withoutOrderId?: string) => {
         const kept = demands.filter((item) => item.order.id !== withoutOrderId)

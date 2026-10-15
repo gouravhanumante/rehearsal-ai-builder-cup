@@ -70,7 +70,9 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - **Conflicts:** when a priority order is left short because an earlier standard order took the
   stock, the app asks "Who gets the 14 cases?" with **Order due first** / **Priority order**.
   Until answered, the order due first keeps it. Approving with an unanswered conflict shows a
-  warning and records how many conflicts used the default. (`ConflictCards.tsx`)
+  warning and records how many conflicts used the default. (`ConflictCards.tsx`) The answer
+  applies everywhere: the Orders page shares the stock out the same way, so both screens name
+  the same customer as short (`priorityConflicts` in `shared/planner/plan.ts`).
 - Each transfer route into the delayed location is its own option. It moves **only what is
   short**, and only what the source can **spare** after covering its own orders (`spareStock`,
   user decision 2026-10-14), capped by the destination's daily receiving limit and storage room,

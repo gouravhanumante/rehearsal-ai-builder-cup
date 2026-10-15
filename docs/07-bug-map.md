@@ -92,7 +92,7 @@ flowchart LR
   st -->|"No"| unk["Counts as 0, labelled no stock count, Add count link [test]"]
   st -->|"Yes"| al["Stock counts only once arrived; repeating deliveries keep counting [test]"]
   all["Every open order checked against its warehouse's stock and deliveries, not only delayed ones [test]"]
-  al --> cf["Conflict: order due first by default, user can switch [proven]"]
+  al --> cf["Conflict: order due first by default, user can switch; Orders page follows the choice [proven]"]
   al --> tr["Transfer: receiving limit, timing, storage room, cost per trip + per package, book-by time [test]"]
   al --> sf["Ship-from: a question until the user says it can deliver there [test]"]
   al --> sup["Supplier: missing details mean Waiting for reply [test]"]

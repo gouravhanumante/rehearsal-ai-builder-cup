@@ -64,6 +64,17 @@ describe('which orders the delay affects', () => {
 })
 
 describe('is every order covered by its warehouse, even with nothing late', () => {
+  it('after the user chooses "priority order first", the Orders page gives the stock to the priority order too, so both screens agree', () => {
+    // North Hub has 14, nothing late. Cafe A (standard, 10) is due Thu 10 am; Hotel B (priority, 10) Thu 2 pm.
+    const order = (id: string, priority: 'protected' | 'standard', dueAt: string): Order => ({ id, customer: id, locationId: 'north', dueAt, priority, lines: [{ productId: 'harbor-blend', quantity: 10 }], evidence: typed })
+    const base: Workspace = { ...sampleWorkspace, disruptions: [], shipments: [], orders: [order('A', 'standard', '2026-10-15T10:00:00+05:30'), order('B', 'protected', '2026-10-15T14:00:00+05:30')] }
+    const covered = (data: Workspace, id: string) => orderCoverage(data).find((line) => line.orderId === id)?.covered
+    expect([covered(base, 'A'), covered(base, 'B')]).toEqual([10, 4])
+    const chosen: Workspace = { ...base, conflictDecisions: [{ conflictId: 'conflict:B:harbor-blend', winner: 'priority' }] }
+    expect([covered(chosen, 'A'), covered(chosen, 'B')]).toEqual([4, 10])
+    expect(rehearse(chosen).impact.affectedOrderIds).toEqual(['A'])
+  })
+
   // South Hub has 14 cases; nothing is delayed.
   const order = (id: string, quantity: number, dueAt: string): Order => ({
     id, customer: id, locationId: 'south', dueAt, priority: 'standard', lines: [{ productId: 'harbor-blend', quantity }], evidence: typed,
