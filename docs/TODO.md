@@ -16,7 +16,7 @@ Updated after the movement ledger and transfer lifecycle implementation. Diagram
 - [ ] Agree delivery-confirmation naming, allocation warnings versus reservation locks, recording an already-happened split without permission, and order edits/corrections after cancellation (proposed D-F diagrams).
 
 ## Found by seeded browser scenarios (2026-10-15, `browser-test-matrix.md`)
-- [ ] **Needs ruling (P05):** after approving a transfer, the plan says "Priority orders covered" but the customer messages still say those cases are short, because a booking counts only once it departs (`approvalMessages`).
+- [x] **Ruled (P05):** customer messages after approving count the booked transfer, worded as expected, not certain (`approvalMessages`); test observed red first.
 - [ ] **Needs ruling (I01):** importing a stock count equal to current stock is skipped as "already the same", but the editor's **Record this count again** saves it on purpose so later send corrections are not added twice (`import/build.ts` vs `DetailsEditor`).
 - [ ] **Needs ruling (O11):** a past-due order with stock is shown as Watch under "No order short"; nothing says its promised date has passed.
 - [x] **Bug (B01):** restore accepted a backup with an impossible history (a 500-case send on a 12-case order). Fixed 2026-10-15: `parseBackup` refuses sends above the order or for a missing order (`impossibleSend`); two `backup.test.ts` cases observed red first. Browser storage loads (`parseWorkspace`) do not run this check.

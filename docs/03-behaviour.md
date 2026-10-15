@@ -246,7 +246,12 @@ Agreed with the user: both paths exist, and the difference is always visible.
   team to send exactly the approved quantity by the plan's arrival (and leave by the book-by time);
   ship-from asks the other location to deliver that order. Each customer the problem still leaves
   short gets a note: how much arrives on time and when the rest should follow, taken from the next
-  delivery recorded after their due date, or "we will confirm" when none is recorded. They open in
+  delivery recorded after their due date, or "we will confirm" when none is recorded. A transfer just
+  booked by this approval counts for these notes, worded as expected, not certain (user decision
+  2026-10-15): "We can deliver 14 cases on time. 4 more cases are expected on Thu 1:00 pm, once our
+  transfer from South Hub arrives." A customer fully covered that way gets the subject "part is coming
+  from South Hub" instead of "part will be late". The planner itself still counts a booking only once
+  it departs. They open in
   a "Messages to send" box right after approving, with **Copy message** and **Email** (when an email
   is known); a copy stays on that approval in History. Nothing is sent automatically.
 - **Customer-message causes** (`approvalMessages`, `frontend/src/presentation/approvalMessages.ts`):

@@ -27,7 +27,7 @@ describe('messages ready to send after approving', () => {
       expect(notes.length).toBeGreaterThan(0)
       expect(notes.every((note) => !note.body.includes('a supplier delivery to us is late'))).toBe(true)
       expect(notes[0].body).toContain('We can deliver 14 cases of Harbor Blend Coffee on time.')
-      expect(notes.every((note) => note.body.includes('We will confirm when'))).toBe(true)
+      expect(notes.filter((note) => note.to !== 'Common Ground Cafe').every((note) => note.body.includes('We will confirm when'))).toBe(true)
     }
   })
 
@@ -54,12 +54,16 @@ describe('messages ready to send after approving', () => {
     expect(transfer.body).toContain('Please send 8 cases of Harbor Blend Coffee to North Hub. If it leaves now it arrives Thu, 15 Oct, 12:00 pm; it must leave by Thu, 15 Oct, 10:00 am at the latest to arrive in time.')
   })
 
-  it('after booking 8, the transfer is not described as already arrived and every still-short customer gets a note', () => {
+  it('after booking 8, messages count the transfer as expected, not certain, matching the plan', () => {
+    // On hand 14; the 8 booked from South Hub reach North Hub Thu 12:00 pm, the customer about 1 hour later.
     const notes = messagesFor(withCustomerTravel(sampleWorkspace), 'transfer:south-to-north:harbor-blend').slice(1)
+    const to = (name: string) => notes.find((note) => note.to === name)!.body
     expect(notes.map((note) => note.to)).toEqual(['Common Ground Cafe', 'Harbor Market', 'Daily Goods Co.'])
-    expect(notes[0].body).toContain('We can deliver 14 cases of Harbor Blend Coffee on time.')
-    expect(notes[0].body).toContain('remaining 4 cases of Harbor Blend Coffee should follow after our next delivery arrives on Fri, 16 Oct, 4:00 pm.')
-    expect(notes.slice(1).every((note) => note.body.includes("We can't deliver it on time."))).toBe(true)
+    expect(to('Common Ground Cafe')).toContain('We can deliver 14 cases of Harbor Blend Coffee on time. 4 more cases of Harbor Blend Coffee are expected on Thu, 15 Oct, 1:00 pm, once our transfer from South Hub arrives.')
+    expect(to('Common Ground Cafe')).not.toContain('should follow after our next delivery')
+    expect(to('Harbor Market')).toContain('4 cases of Harbor Blend Coffee are expected on Thu, 15 Oct, 1:00 pm, once our transfer from South Hub arrives. The remaining 8 cases of Harbor Blend Coffee should follow after our next delivery arrives on Fri, 16 Oct, 4:00 pm.')
+    expect(to('Harbor Market')).not.toContain("We can't deliver it on time.")
+    expect(to('Daily Goods Co.')).toContain("We can't deliver it on time.")
   })
 
   it('never invents a date: with no later delivery on its way, the note says the date will follow', () => {

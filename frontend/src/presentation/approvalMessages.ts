@@ -1,6 +1,7 @@
 import type { Workspace } from '../../../shared/planner/model'
 import { mustLeaveBy, rehearse, type Plan } from '../../../shared/planner/plan'
 import type { Format } from './format'
+import { pluralUnit } from './format'
 import type { Wording } from './planText'
 import { emailOf } from './supplierAsk'
 
@@ -62,6 +63,12 @@ export function approvalMessages(plan: Plan, before: Workspace, after: Workspace
   const stillShort = rehearse(after, now).impact.groups
     .filter((group) => group.locationId === plan.locationId && group.productId === plan.productId)
     .flatMap((group) => group.allocations.filter((item) => item.covered < item.ordered))
+  // A booking only counts once it departs; customers are told what it is expected to cover (user decision 2026-10-15).
+  const newBookings = new Set(after.shipments.filter((shipment) => shipment.transferStatus === 'booked' && !before.shipments.some((old) => old.id === shipment.id)).map((shipment) => shipment.id))
+  const asExpected: Workspace = { ...after, shipments: after.shipments.map((shipment) => newBookings.has(shipment.id) ? { ...shipment, transferStatus: 'in-transit' as const } : shipment) }
+  const expectedCovered = new Map(rehearse(asExpected, now).impact.groups
+    .filter((group) => group.locationId === plan.locationId && group.productId === plan.productId)
+    .flatMap((group) => group.allocations).map((item) => [item.orderId, item.covered]))
   for (const line of stillShort) {
     const order = after.orders.find((item) => item.id === line.orderId)
     if (!order) continue
@@ -73,6 +80,8 @@ export function approvalMessages(plan: Plan, before: Workspace, after: Workspace
       .map((shipment) => lastMileHours === null ? shipment.confirmedArrivalAt : new Date(Date.parse(shipment.confirmedArrivalAt) + lastMileHours * 3_600_000).toISOString())
       .sort((first, second) => Date.parse(first) - Date.parse(second))[0]
     const missing = line.ordered - line.covered
+    const expectedExtra = newBookings.size && plan.arrivalAt ? Math.max(0, (expectedCovered.get(line.orderId) ?? line.ordered) - line.covered) : 0
+    const stillMissing = missing - expectedExtra
     const delayedSupplier = before.shipments.some((shipment) => shipment.locationId === order.locationId
       && !shipment.fromLocationId
       && shipment.lines.some((item) => item.productId === plan.productId)
@@ -80,16 +89,25 @@ export function approvalMessages(plan: Plan, before: Workspace, after: Workspace
       && Date.parse(shipment.originalArrivalAt) <= Date.parse(warehouseCutoff)
       && Date.parse(shipment.confirmedArrivalAt) > Date.parse(warehouseCutoff))
     const onTime = customerCutoff === null
-      ? `Customer arrival time is not confirmed because delivery travel time from ${words.locationName(order.locationId)} is not recorded. `
-      : line.covered > 0 ? `We can deliver ${amount(line.covered)} on time. ` : `We can't deliver it on time. `
-    const rest = nextArrival
-      ? `The ${line.covered > 0 ? 'remaining ' : ''}${amount(missing)} should follow after our next delivery arrives on ${format.dateTime(nextArrival)}.`
-      : `We will confirm when the ${line.covered > 0 ? 'remaining ' : ''}${amount(missing)} can follow.`
+      ? `${line.covered > 0 ? `We have ${amount(line.covered)} ready at ${words.locationName(order.locationId)}. ` : ''}Customer arrival time is not confirmed because delivery travel time from ${words.locationName(order.locationId)} is not recorded. `
+      : line.covered > 0 ? `We can deliver ${amount(line.covered)} on time. ` : expectedExtra > 0 ? '' : `We can't deliver it on time. `
+    const source = words.locationName(plan.sourceLocationId ?? '')
+    const unit = before.products.find((item) => item.id === plan.productId)?.unit ?? 'unit'
+    const extra = line.covered > 0 ? `${format.number(expectedExtra)} more ${pluralUnit(unit, expectedExtra)} of ${product}` : amount(expectedExtra)
+    const expectedText = expectedExtra === 0 || !plan.arrivalAt ? ''
+      : lastMileHours === null
+        ? `${extra} are expected at ${words.locationName(order.locationId)} on ${format.dateTime(plan.arrivalAt)}, once our transfer from ${source} arrives. `
+        : `${extra} are expected on ${format.dateTime(new Date(Date.parse(plan.arrivalAt) + lastMileHours * 3_600_000).toISOString())}, once our transfer from ${source} arrives. `
+    const someBefore = line.covered > 0 || expectedExtra > 0
+    const rest = stillMissing === 0 ? ''
+      : nextArrival
+        ? `The ${someBefore ? 'remaining ' : ''}${amount(stillMissing)} should follow after our next delivery arrives on ${format.dateTime(nextArrival)}.`
+        : `We will confirm when the ${someBefore ? 'remaining ' : ''}${amount(stillMissing)} can follow.`
     messages.push({
       to: order.customer,
       email: null,
-      subject: `Your order ${order.id}: part will be late`,
-      body: [`Hello ${order.customer},`, '', `About your order ${order.id} for ${amount(line.ordered)}, due ${format.dateTime(order.dueAt)}:${delayedSupplier ? ' a supplier delivery to us is late.' : ''} ${onTime}${rest}`, 'Sorry for the trouble.', sign].join('\n'),
+      subject: stillMissing === 0 ? `Your order ${order.id}: part is coming from ${source}` : `Your order ${order.id}: part will be late`,
+      body: [`Hello ${order.customer},`, '', `About your order ${order.id} for ${amount(line.ordered)}, due ${format.dateTime(order.dueAt)}:${delayedSupplier ? ' a supplier delivery to us is late.' : ''} ${onTime}${expectedText}${rest}`.trimEnd(), 'Sorry for the trouble.', sign].join('\n'),
     })
   }
   return messages
