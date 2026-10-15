@@ -317,7 +317,8 @@ Two separate choices:
   - Importing the same file twice changes nothing the second time. Imported values are marked "Imported from file"
     and count as verified.
   - Dates follow the country's order (day first for India, month first for the US, changeable); a date with no time
-    means the end of that day. A new arrival date for a known shipment keeps the original promise and is not
+    means the end of that day. An Excel time is read to the nearest minute, because Excel stores 10:00 as a fraction
+    that can come out as 09:59:59.999 (`cellText` in `frontend/src/import/table.ts`). A new arrival date for a known shipment keeps the original promise and is not
     treated as a delay until the user reports one.
 - Not built yet: several products on one order when typing it in, importing routes and suppliers.
 

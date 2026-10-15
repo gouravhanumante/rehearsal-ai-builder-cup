@@ -9,10 +9,12 @@ export const MAX_IMPORT_ROWS = 100_000
 export function cellText(cell: unknown): string {
   if (cell === null || cell === undefined) return ''
   if (cell instanceof Date) {
+    // Excel stores 10:00 as a fraction of a day that can land a hair under (09:59:59.999).
+    const cellTime = new Date(Math.round(cell.getTime() / 60_000) * 60_000)
     const pad = (value: number) => String(value).padStart(2, '0')
-    const date = `${cell.getUTCFullYear()}-${pad(cell.getUTCMonth() + 1)}-${pad(cell.getUTCDate())}`
-    const hasTime = cell.getUTCHours() !== 0 || cell.getUTCMinutes() !== 0
-    return hasTime ? `${date} ${pad(cell.getUTCHours())}:${pad(cell.getUTCMinutes())}` : date
+    const date = `${cellTime.getUTCFullYear()}-${pad(cellTime.getUTCMonth() + 1)}-${pad(cellTime.getUTCDate())}`
+    const hasTime = cellTime.getUTCHours() !== 0 || cellTime.getUTCMinutes() !== 0
+    return hasTime ? `${date} ${pad(cellTime.getUTCHours())}:${pad(cellTime.getUTCMinutes())}` : date
   }
   return String(cell).trim()
 }

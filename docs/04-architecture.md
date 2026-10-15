@@ -79,7 +79,7 @@ sent / confirmed) · Audit log (for undo and history).
 - Local in-memory rate limits are a development guard only; configure Cloud Run scale limits and production request/budget controls before a public AI endpoint is deployed.
 
 ## Correctness
-- The sample's outcome (24 exposed, transfer of 8 leaves 16, all-at-once rejected by 6) is pinned by `shared/planner/plan.test.ts`; the four `test-data/` scenarios are checked by hand.
+- The sample's outcome (24 exposed, transfer of 8 leaves 16, all-at-once rejected by 6) is pinned by `shared/planner/plan.test.ts`; the four `test-data/` businesses are imported from their real files, delayed, and checked against each README by `frontend/src/import/scenarios.test.ts`.
 - Engine tests cover receiving limits, timing, costs, storage room, conflicts, unknown supplier facts and applying a plan; see `07-bug-map.md` for what each test protects.
 - The planner re-runs on every change in the browser, and once more on the server before an approval.
 - No budget rule exists yet.

@@ -121,7 +121,7 @@ Rules worth knowing:
 - If any row of an order is bad, the **whole order is left out**, so demand is never understated.
 - **Importing the same file twice changes nothing** the second time.
 - Names are matched ignoring capitals and spacing, so "LION CITY DC" and "lion city dc " are one place.
-- Dates follow your country's order (day first for India, month first for the US). A date with no time means the end of that day.
+- Dates follow your country's order (day first for India, month first for the US). A date with no time means the end of that day. Excel times are read to the nearest minute (Excel can store 10:00 as 9:59:59.999).
 - Several rows with the same order or shipment number become the lines of one order or shipment.
 
 ---

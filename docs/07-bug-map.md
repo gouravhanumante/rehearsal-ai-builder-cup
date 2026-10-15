@@ -148,11 +148,12 @@ flowchart LR
 ```
 
 ## 7. Importing a file
-Where a wrong number could slip in, and what stops it. Every `[test]` is in `frontend/src/import/import.test.ts` or `backend/src/importMapping.test.ts`.
+Where a wrong number could slip in, and what stops it. Every `[test]` is in `frontend/src/import/import.test.ts`, `frontend/src/import/scenarios.test.ts` or `backend/src/importMapping.test.ts`.
 
 ```mermaid
 flowchart LR
   f["File (csv/xlsx, read in the browser)"] --> cells["Quoted commas, semicolons, Windows line endings [test]"]
+  f --> xt["Excel time 10:00 read as 10:00, not 09:59 [proven]"]
   f --> cols["Column names matched; one column never used twice [test]"]
   cols --> ai["Gemini suggests only real fields and real columns [test]"]
   cells --> val["Dates in the country's order; impossible dates refused [test]"]
@@ -161,9 +162,14 @@ flowchart LR
   num --> ord
   ord --> twice["Same file twice changes nothing [test]"]
   twice --> mark["Marked Imported from file, not typed in [test]"]
+  mark --> sc["All four test-data businesses: import, report the delay, exposed and orders at risk match each README [test]"]
+  sc --> multi["Delivering an order with several products takes every product off stock [proven]"]
   ui["Preview and confirm screens [manual]"]
+  classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
   classDef manual fill:#FFECBD,stroke:#E8A302
-  class cells,cols,ai,val,num,ord,twice,mark test
+  class xt,multi proven
+  class cells,cols,ai,val,num,ord,twice,mark,sc test
   class ui manual
 ```
+`xt` failed before the fix in `cellText` (`frontend/src/import/table.ts`). `multi` failed when delivery was changed to take only an order's first product off stock; the older single-product tests did not notice.

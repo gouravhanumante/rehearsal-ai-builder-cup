@@ -6,6 +6,8 @@
 - [x] **Is it worth it?** Optional selling price per product; options costing more than the packages they save are worth get a warning (2026-10-15). Warning only, ranking unchanged.
 - [x] **Latest time to book**: ready transfers show "Book by …" (2026-10-15). Suppliers give an arrival time, not a lead time, so purchases have no book-by yet.
 - [ ] **Move more per trip** (idea, not agreed): when the trip cost is high, consider moving extra stock in the same trip instead of exactly the shortfall.
+- [ ] **Needs a ruling (found 2026-10-15, scenario 01):** a transfer that lands after a priority order is due (Surat DC to Mumbai arrives 17 Oct 8 am; Spice Route Cafe is due 16 Oct 2 pm) still helps the later order (Metro Mart). Should it be offered, and how should it be labelled? Not tested until decided.
+- [x] Excel times read to the nearest minute: 10:00 had been imported as 09:59, which at midnight would have moved a date to the day before (`cellText`, 2026-10-15).
 - [x] Inventory row for a missing count now says "Not counted · counts as 0", matching the planner (`InventoryView.tsx`, 2026-10-15).
 - [x] `03-behaviour.md` now says a record-changing approval clears the approval mark, as the code does (`WorkspaceScreen.tsx`, 2026-10-15).
 
