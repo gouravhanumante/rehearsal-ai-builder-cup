@@ -50,7 +50,7 @@ export function AskSuppliers({ plans, onRecordReply }: AskSuppliersProps) {
   const product = words.productName(first.productId)
 
   return (
-    <details className="ask-suppliers" open={waiting.length > 0}>
+    <details className="ask-suppliers">
       <summary className="ask-head">
         <span className="ask-head-icon"><Send size={16} /></span>
         <span className="ask-head-text">

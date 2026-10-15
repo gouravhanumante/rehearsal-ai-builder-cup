@@ -99,8 +99,9 @@ Agreed with the user: both paths exist, and the difference is always visible.
   one message for that product — the shortage capped by storage room, needed by the first order
   that is short (`plan.request`). A supplier missing two products gets two emails. Copy it, email
   one supplier, or **Email all N waiting** (BCC, when 2+ waiting suppliers have an email). Each
-  supplier row has **Record reply** and **Attach reply**; the panel folds once everyone has
-  replied. Only a plain email address becomes a link (`emailOf`). The app does not send anything
+  supplier row has **Record reply** and **Attach reply**. The panel starts folded so the next
+  problem stays in view; its header says how many suppliers are still waiting (user decision
+  2026-10-15). Only a plain email address becomes a link (`emailOf`). The app does not send anything
   itself.
 - **Storage limits** (user decision 2026-10-14): set an optional limit for one product at one
   location on that stock count (`storageLimits`). A different warehouse can have a different
