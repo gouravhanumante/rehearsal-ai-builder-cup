@@ -32,8 +32,13 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - Typed-in details are usable. A plan that relies on them is labelled **Ready · unverified**
   instead of **Ready to use** (`statusLabel` in `frontend/src/presentation/planText.ts`).
 - Approving such a plan first opens a warning that lists each typed-in detail, offers
-  **Attach proof** once per record, or **Approve with warning**. The approval is then shown as
-  "approved with a warning". (`frontend/src/components/planning/ApprovalWarning.tsx`)
+  **Attach proof** once per record, or **Approve with warning**.
+  (`frontend/src/components/planning/ApprovalWarning.tsx`)
+- A transfer, purchase or ship-from approval changes the records (see "Approving changes the
+  records" below) and shows a "Recorded: …" notice. Because the records changed, the approval mark
+  itself is cleared, so no "Approved" or "with a warning" label stays on the option (`approve` and
+  `saveChange` in `frontend/src/WorkspaceScreen.tsx`). The "Approved … with a warning" label only
+  appears for a plan whose approval changes no records.
 - Changing a value read from a document turns that value back into "entered manually".
   Order priority, ship-from location and a supplier's name are the user's own choices and need
   no proof. (`isFact` in `frontend/src/components/editing/editorConfigs.ts`)
@@ -42,7 +47,7 @@ Agreed with the user: both paths exist, and the difference is always visible.
   the shortage and on each recovery option, then **Confirm and save**.
   (`frontend/src/components/editing/DetailsEditor.tsx`)
 - Saving any change clears an existing approval, because it was given for the old numbers
-  (`saveChange` in `frontend/src/App.tsx`). Approvals are saved with the edits, so they survive
+  (`saveChange` in `frontend/src/WorkspaceScreen.tsx`). Approvals are saved with the edits, so they survive
   a page reload (user decision 2026-10-14); Reset clears them.
 - Demo edits stay in this browser until **Reset**, which restores the sample
   (`frontend/src/data/demoStore.ts`). Edits saved by the first version are moved to the new
