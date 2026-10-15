@@ -1,4 +1,4 @@
-import type { Evidence, InboundShipment, Money, Order, TransferRoute, Workspace } from './model.js'
+import type { Evidence, Goal, InboundShipment, Money, Order, TransferRoute, Workspace } from './model.js'
 import { SAMPLE_NOW } from './sample.js'
 
 export type PlanStatus = 'ready' | 'conditional' | 'rejected'
@@ -514,24 +514,32 @@ export function rehearse(input: Workspace, now: string = planningNow(input)) {
 export type Rehearsal = ReturnType<typeof rehearse>
 
 /**
- * The Overview shows one plan: a ready plan that protects the priority order first, then the one
- * leaving the least exposed, then the cheaper one (unknown cost last), then the one relying on fewer typed-in details.
+ * The best ready plan for the business's goal (see rankPlans). Protect deliveries, the default: priority
+ * orders covered, then least left short, then cheaper, then fewer typed-in details.
  */
-export function recommendPlan(plans: Plan[]) {
-  return rankPlans(plans).find((plan) => plan.status === 'ready' && plan.outcome)
+export function recommendPlan(plans: Plan[], goal: Goal = 'protect') {
+  return rankPlans(plans, goal).find((plan) => plan.status === 'ready' && plan.outcome)
 }
 
 const statusOrder: Record<PlanStatus, number> = { ready: 0, conditional: 1, rejected: 2 }
-/** Best first: ready plans ranked as above, then ones waiting for information, then ones that can't be done. */
-export function rankPlans(plans: Plan[]) {
+/**
+ * Best first: ready plans by the goal, then ones waiting for information, then ones that can't be done.
+ * Lowest cost: cheapest total first (unknown cost last). Balanced: priority orders covered, then the
+ * lowest cost per package it saves. Ties fall back to the protect-deliveries order.
+ */
+export function rankPlans(plans: Plan[], goal: Goal = 'protect') {
   const costOf = (plan: Plan) => plan.cost?.amount ?? Number.MAX_SAFE_INTEGER
+  const perPackage = (plan: Plan) => (plan.cost && plan.savedQuantity ? plan.cost.amount / plan.savedQuantity : Number.MAX_SAFE_INTEGER)
+  const priority = (first: Plan, second: Plan) => Number(second.outcome?.protectsPriority) - Number(first.outcome?.protectsPriority)
+  const exposure = (first: Plan, second: Plan) => (first.outcome?.exposedQuantity ?? 0) - (second.outcome?.exposedQuantity ?? 0)
+  const protect = (first: Plan, second: Plan) => priority(first, second) || exposure(first, second) || costOf(first) - costOf(second) || first.unverified.length - second.unverified.length
+  const byGoal = goal === 'cost'
+    ? (first: Plan, second: Plan) => costOf(first) - costOf(second) || protect(first, second)
+    : goal === 'balanced'
+      ? (first: Plan, second: Plan) => priority(first, second) || perPackage(first) - perPackage(second) || protect(first, second)
+      : protect
   return [...plans].sort((first, second) => statusOrder[first.status] - statusOrder[second.status]
-    || (first.status === 'ready'
-      ? Number(second.outcome?.protectsPriority) - Number(first.outcome?.protectsPriority)
-        || (first.outcome?.exposedQuantity ?? 0) - (second.outcome?.exposedQuantity ?? 0)
-        || costOf(first) - costOf(second)
-        || first.unverified.length - second.unverified.length
-      : 0))
+    || (first.status === 'ready' ? byGoal(first, second) : 0))
 }
 
 /** A plan whose status is ready but relies on typed-in details. */

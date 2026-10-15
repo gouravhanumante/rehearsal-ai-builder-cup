@@ -98,12 +98,12 @@ flowchart LR
   al --> sup["Supplier: missing details mean Waiting for reply [test]"]
   sup --> buy["Buys only what is short and fits storage; price per package + delivery charge [test]"]
   al --> grp["Each option belongs to exactly one problem [test]"]
-  al --> rec["Ranked on total cost; best ready plan picked [test]"]
+  al --> rec["Ranked by the business's goal: protect deliveries (default), lowest cost, balanced per package saved [proven]"]
   worth["Costs more than the stock saved is worth: warning only [test]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
-  class loc,na,cf,risk proven
-  class due,st,unk,al,all,tr,sf,sup,buy,grp,rec,worth test
+  class loc,na,cf,risk,rec proven
+  class due,st,unk,al,all,tr,sf,sup,buy,grp,worth test
 ```
 All `[test]` boxes here are in `shared/planner/plan.test.ts`, except `worth` (`frontend/src/presentation/planText.test.ts`). The counts-as-0 rule replaced "unknown, not zero" on 2026-10-15 (`docs/03-behaviour.md`); its new test has not been seen failing yet, so it dropped from `[proven]` to `[test]`.
 

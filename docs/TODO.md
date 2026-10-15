@@ -39,7 +39,7 @@
 - [x] create evidence-backed extraction confirmation, followed by separate apply confirmation (Demo edits)
 - [x] calculate sample impact and receiving-capacity feasibility
 - [x] show plan options, conditional facts, and rejection reason
-- [ ] let the user select a planning objective and compare options against it
+- [x] let the user select a planning objective and compare options against it (2026-10-15: goal picker)
 - [x] persist business changes only after user confirmation (two-step editor; approval applies the plan)
 - [x] prepare action drafts after approval (2026-10-15: supplier order, transfer request, notes to customers still short)
 - [x] Firestore is used: each signed-in user's workspace (2026-10-15). Hackathon requirement for Firebase, Firestore, Cloud Run and Gemini now met in the build

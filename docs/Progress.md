@@ -91,8 +91,8 @@ data already saved still opens).
 - [x] Ready-to-send texts after approving: purchase order to the supplier (with email), transfer request to the sending location, ship-from request, note to each customer still short (no guessed dates). Copy or email; nothing sent automatically; a copy kept in History (`approvalMessages.test.ts`, seen failing)
 - [x] Also: "at risk" now means left short; covered only by stock on its way is Watch (`8610514`)
 
-### 4. Pick a goal
-- [ ] Choose **Protect deliveries** (default, today's ranking), **Lowest cost** or **Balanced**; options re-rank and the best pick follows the goal
+### 4. Pick a goal — done (2026-10-15)
+- [x] **Protect deliveries** (default), **Lowest cost**, **Balanced** (priority first, then cheapest per package saved); saved per business, noted in History; options and the Overview's best pick follow it; Ask AI sees the goal's order (`plan.test.ts`, seen failing)
 
 ## In progress
 - review provisional distributor sample quantities, dates, and estimated costs together

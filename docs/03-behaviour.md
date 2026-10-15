@@ -209,9 +209,8 @@ Agreed with the user: both paths exist, and the difference is always visible.
 - **Repeating deliveries** (`repeatEveryDays`: 7, 14 or 28): the next delivery is
   `confirmedArrivalAt`, later ones follow the original schedule (`arrivalsOf`). Reporting one late
   moves only that delivery; later ones still count for the delay plan.
-- The Overview shows one ready plan: the one that protects the priority order, then leaves the
-  least exposed, then costs less (unknown cost last), then relies on fewer typed-in details
-  (`recommendPlan`). If none is ready it says so instead of recommending something.
+- The Overview shows one ready plan per problem, the best for the business's goal (`recommendPlan`,
+  see section 10). If none is ready it says so instead of recommending something.
 - Money and times follow the workspace country (sample: India → ₹ and India time). A time typed
   in, or read from a document without a timezone, is taken as the business's local time,
   including daylight-saving changes (`shared/planner/time.ts`, `countries.ts`).
@@ -363,10 +362,21 @@ Two separate choices:
     treated as a delay until the user reports one.
 - Not built yet: several products on one order when typing it in, importing routes and suppliers.
 
-## 10. Objectives
-- User chooses what matters most: **protect delivery promises**, **minimise extra cost**, or
-  a balance. Possibly "protect these customers first".
-- Hard constraints always win over objectives.
+## 10. Goal (built 2026-10-15)
+- Recovery options shows "What matters most right now?" with three choices (`GoalPicker.tsx`); it is
+  saved with the business (`workspace.goal`) and the change is noted in History. Ready options
+  re-rank straight away (`rankPlans(plans, goal)` in `shared/planner/plan.ts`); waiting and
+  can't-be-done options always come after ready ones.
+  - **Protect deliveries** (default, the earlier ranking): priority orders covered, then fewest
+    packages left short, then cheaper (unknown cost last), then fewer typed-in details.
+  - **Lowest cost**: cheapest total first, even if more is left short; ties as above.
+  - **Balanced**: priority orders covered, then the lowest cost for each package it saves
+    (`cost / savedQuantity`); ties as above.
+- Example (sample, short 24): transfer 8 for ₹95 (₹11.88 a case) vs buy all 24 from Supplier B.
+  At ₹10 a case (₹240): Protect and Balanced buy, Lowest cost transfers. At ₹13 (₹312): Protect
+  still buys, Balanced transfers.
+- The Overview labels its pick "Best option · {goal}". Ask AI sees options in the goal's order.
+- Hard rules always win: an option that can't be done is never ranked above one that can.
 
 ## 11. Core loop
 Understand the business → capture and confirm changes → ask targeted questions →

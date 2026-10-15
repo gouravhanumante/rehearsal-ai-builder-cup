@@ -91,7 +91,7 @@ export function buildAssistantContext(workspace: Workspace, rehearsal: Rehearsal
     source: 'Rehearsal',
   }]
 
-  const shown = rankPlans(rehearsal.plans).slice(0, MAX_ASSISTANT_OPTIONS)
+  const shown = rankPlans(rehearsal.plans, workspace.goal).slice(0, MAX_ASSISTANT_OPTIONS)
   const options = shown.map((plan, index) => {
     const text = words.planText(plan)
     return {

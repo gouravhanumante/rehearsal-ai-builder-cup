@@ -5,6 +5,7 @@ import { type Plan } from '../../../../shared/planner/plan'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { openQuestions } from '../../presentation/questions'
 import { problemsOf } from '../../presentation/problems'
+import { goalLabel } from '../../presentation/goals'
 
 type OverviewRecommendationProps = {
   onApprove: (plan: Plan) => void
@@ -22,7 +23,7 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
 
   return (
     <div className="overview-problems">
-      {many && <p className="section-kicker overview-problems-kicker">BEST FIX FOR EACH PROBLEM · {problems.length} PROBLEMS</p>}
+      {many && <p className="section-kicker overview-problems-kicker">BEST FIX FOR EACH PROBLEM · {problems.length} PROBLEMS · {goalLabel(workspace.goal).toUpperCase()}</p>}
       {problems.map(({ group, best: plan, title }, index) => {
         const short = `${words.quantity(group.exposedQuantity, group.productId)} short`
         const headingId = `recommendation-title-${index}`
@@ -45,7 +46,7 @@ export function OverviewRecommendation({ onApprove, onViewOptions }: OverviewRec
           <section className="overview-recommendation" aria-labelledby={headingId} key={title}>
             <div className="recommendation-icon">{unverified ? <TriangleAlert size={19} /> : <ShieldCheck size={19} />}</div>
             <div className="recommendation-main">
-              <div className="recommendation-title"><p className="section-kicker">{many ? `${title.toUpperCase()} · ${short.toUpperCase()}` : 'BEST OPTION'}</p><StatusBadge tone={unverified ? 'warning' : 'success'} dot>{text.statusLabel}</StatusBadge></div>
+              <div className="recommendation-title"><p className="section-kicker">{many ? `${title.toUpperCase()} · ${short.toUpperCase()}` : `BEST OPTION · ${goalLabel(workspace.goal).toUpperCase()}`}</p><StatusBadge tone={unverified ? 'warning' : 'success'} dot>{text.statusLabel}</StatusBadge></div>
               <h2 id={headingId}>{text.title}</h2>
               <p>{text.detail}</p>
               <div className="recommendation-outcome"><strong>{text.impact}</strong><span>{text.cost}</span></div>

@@ -14,6 +14,8 @@ import { TransfersView } from './components/operations/TransfersView'
 import { HistoryView } from './components/operations/HistoryView'
 import { ReceiveDialog } from './components/operations/ReceiveDialog'
 import { ReadyMessages } from './components/planning/ReadyMessages'
+import { GoalPicker } from './components/planning/GoalPicker'
+import { goalLabel } from './presentation/goals'
 import { approvalMessages } from './presentation/approvalMessages'
 import { ConfirmDialog } from './components/layout/ConfirmDialog'
 import { ApprovalWarning } from './components/planning/ApprovalWarning'
@@ -250,7 +252,10 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
             {activeSection === 'Inventory' && <InventoryView onEdit={openEditor} onImport={isReal ? () => setImportKind('stock') : undefined} />}
             {activeSection === 'Between locations' && <TransfersView onAnswerDelivery={answerDelivery} onAskAgain={askAgain} onEdit={openEditor} onForgetDelivery={forgetDelivery} onRemoveRoute={setRemovingRouteId} />}
             {activeSection === 'Suppliers' && <SuppliersView onEdit={openEditor} onReceive={setReceivingId} onRemoveSupplier={setRemovingSupplierId} />}
-            {activeSection === 'Rehearsals' && <RecoveryPlans onAddDetails={openEditor} onAnswerDelivery={answerDelivery} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />}
+            {activeSection === 'Rehearsals' && <>
+              {rehearsal.plans.some((plan) => plan.status === 'ready') && <GoalPicker goal={workspace.goal} onChange={(goal) => saveChange({ ...workspace, goal }, { kind: 'edit', text: `Goal set to ${goalLabel(goal)}.` })} />}
+              <RecoveryPlans onAddDetails={openEditor} onAnswerDelivery={answerDelivery} onApprove={requestApproval} onDecideConflict={decideConflict} onRuleOutTransfer={ruleOutTransfer} />
+            </>}
             {activeSection === 'History' && <HistoryView />}
             <footer className="page-footer">
               <span>{isReal ? (saveStatus ?? 'Your business') + '. Download a backup any time from the menu.' : 'Illustrative distributor data · edits stay in this browser until Reset'}</span>

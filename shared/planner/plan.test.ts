@@ -356,6 +356,25 @@ describe('overview recommendation', () => {
   })
 })
 
+describe('the business picks a goal', () => {
+  // Short 24. Transfer from South Hub: 8 cases for ₹95 (₹11.88 a case), 16 still short.
+  // Supplier B: all 24, arriving Thursday 10 am, at the price below.
+  const supplierAt = (price: number, goal?: Workspace['goal']): Workspace => ({ ...withSupplierB({ cases: 24, price, arrival: thursdayMorning, evidence: quote }), goal })
+  const best = (data: Workspace) => recommendPlan(rehearse(data).plans, data.goal)?.kind
+
+  it('at ₹10 a case (₹240): protect deliveries buys all 24, lowest cost moves 8 for ₹95, balanced buys (₹10 beats ₹11.88 a case)', () => {
+    expect(best(supplierAt(10))).toBe('supplier')
+    expect(best(supplierAt(10, 'protect'))).toBe('supplier')
+    expect(best(supplierAt(10, 'cost'))).toBe('transfer')
+    expect(best(supplierAt(10, 'balanced'))).toBe('supplier')
+  })
+
+  it('at ₹13 a case (₹312): protect deliveries still buys all 24, but balanced moves 8 (₹11.88 beats ₹13 a case)', () => {
+    expect(best(supplierAt(13, 'protect'))).toBe('supplier')
+    expect(best(supplierAt(13, 'balanced'))).toBe('transfer')
+  })
+})
+
 describe('storage limits', () => {
   // North Hub has 14 cases and is 24 short before the delayed shipment lands.
   const withLimit = (atNorth?: number): Workspace => ({

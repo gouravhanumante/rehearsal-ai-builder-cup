@@ -155,7 +155,7 @@ Rules worth knowing:
 - Money, dates and numbers follow the business's country (India, US, UK, Singapore, Japan, UAE).
 
 **Not built yet (known gaps)**
-- No choice of goal yet (options are always ranked to protect deliveries first).
+- **Pick a goal** on Recovery options: Protect deliveries (default), Lowest cost, or Balanced (cheapest per package saved, priority orders first). Options re-rank straight away.
 - Voice input. Undo. Several products on one order when typing it by hand (import supports it). Deleting shipments, orders, locations or products. Search and paging outside Inventory.
 
 The full list is in [`docs/TODO.md`](docs/TODO.md).

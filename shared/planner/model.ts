@@ -81,6 +81,8 @@ export type ConflictDecision = { conflictId: string; winner: 'earliest-due' | 'p
 export type Approval = { planId: string; withWarning: boolean; approvedAt: string; defaultedConflicts: number }
 
 export type HistoryKind = 'delay' | 'approval' | 'received' | 'order' | 'edit' | 'import'
+/** What the best option is picked for. Missing means 'protect' (deliveries first). */
+export type Goal = 'protect' | 'cost' | 'balanced'
 export type HistoryMessage = { to: string; email: string | null; subject: string; body: string }
 /** One line in the business's History. Read-only; written when a change is saved. */
 export type HistoryEntry = { at: string; kind: HistoryKind; text: string; messages?: HistoryMessage[] }
@@ -106,6 +108,7 @@ export type Workspace = {
   suppliers: Supplier[]
   conflictDecisions: ConflictDecision[]
   approval: Approval | null
+  goal?: Goal
   /** Oldest first. Missing in saves made before History existed. */
   history?: HistoryEntry[]
 }
