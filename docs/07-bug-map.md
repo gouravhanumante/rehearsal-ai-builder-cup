@@ -98,14 +98,10 @@ flowchart LR
   al --> grp["Each option belongs to exactly one problem [test]"]
   al --> rec["Ranked on total cost; best ready plan picked [test]"]
   worth["Costs more than the stock saved is worth: warning only [test]"]
-  inv["Inventory row still says 'unknown, not zero' for a missing count [GAP]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
-  classDef manual fill:#FFECBD,stroke:#E8A302
-  classDef gap fill:#FFCDC2,stroke:#DC3009
   class loc,na,cf proven
   class due,st,unk,al,all,tr,sf,sup,buy,grp,rec,worth test
-  class inv gap
 ```
 All `[test]` boxes here are in `shared/planner/plan.test.ts`, except `worth` (`frontend/src/presentation/planText.test.ts`). The counts-as-0 rule replaced "unknown, not zero" on 2026-10-15 (`docs/03-behaviour.md`); its new test has not been seen failing yet, so it dropped from `[proven]` to `[test]`.
 

@@ -6,8 +6,8 @@
 - [x] **Is it worth it?** Optional selling price per product; options costing more than the packages they save are worth get a warning (2026-10-15). Warning only, ranking unchanged.
 - [x] **Latest time to book**: ready transfers show "Book by …" (2026-10-15). Suppliers give an arrival time, not a lead time, so purchases have no book-by yet.
 - [ ] **Move more per trip** (idea, not agreed): when the trip cost is high, consider moving extra stock in the same trip instead of exactly the shortfall.
-- [ ] **Code and docs disagree, needs a ruling (found 2026-10-15):** the Inventory row for a missing count still says "Not counted · unknown, not zero" (`InventoryView.tsx`), but the agreed rule is that it counts as 0.
-- [ ] **Code and docs disagree, needs a ruling (found 2026-10-15):** `03-behaviour.md` says an approval is shown as "approved with a warning", but approving a transfer, purchase or ship-from changes the records and `saveChange` then clears the approval mark (`WorkspaceScreen.tsx`).
+- [x] Inventory row for a missing count now says "Not counted · counts as 0", matching the planner (`InventoryView.tsx`, 2026-10-15).
+- [x] `03-behaviour.md` now says a record-changing approval clears the approval mark, as the code does (`WorkspaceScreen.tsx`, 2026-10-15).
 
 ## Priority P0 — must have for V1
 - [ ] confirm theme and hero demo business
