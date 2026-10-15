@@ -273,22 +273,31 @@ Two separate choices:
   approve, or execute.
 
 ## 9a. Demo and Real workspaces (V1 decision; blank start implemented 2026-10-14)
-- The first screen offers **Sign in with Google** (needed for your own business) and **Try the sample** (no sign-up).
-  After sign-in: **Continue** opens the business saved to the account; **Move {name} to my account** moves a business
-  saved in this browser by an earlier version, then clears the browser copy (warns first if it would replace one
-  already in the account); **Set up my business** starts a new one (`frontend/src/App.tsx`, `StartScreen.tsx`;
-  user decision 2026-10-15).
+- The first screen (`frontend/src/App.tsx`, `StartScreen.tsx`; user decisions 2026-10-15):
+  - Signed out: **Sign in with Google**, **Start as a guest** (or **Continue without signing in** when a guest
+    business exists) and **Try the sample**.
+  - Signed in: **Your businesses**, a list with **Open** for each (an account can hold several), **Add another
+    business**, and, if this browser has a guest business, **Save {name} to my account** or **Keep using it here**.
+- **Guest** business: one per browser, saved only in this browser (IndexedDB, `frontend/src/data/realStore.ts`). The
+  top bar says "Saved in this browser only" and shows **Sign in to save** (or **Save to my account** when already
+  signed in). Clicking it signs in if needed, then asks "Save {name} to your account?" with **Save to my account**
+  or **Not now**. Saving adds it as a new business next to any already in the account; it never replaces one. The
+  browser copy is removed only after Firestore confirms the save, and a guest save still in progress finishes
+  first (`moveGuestToAccount` in `frontend/src/data/moveGuest.ts`). A cancelled or blocked sign-in, or a failed
+  save, leaves the guest business as it was.
 - **Demo** is a resettable, no-signup sample workspace for judges (`mode: 'demo'`, saved in localStorage).
 - **Real** (`mode: 'real'`) starts completely empty (`shared/planner/blank.ts`): name and country (which set
   currency, number format and timezone). The user adds locations, products, stock, orders and shipments in any
   order; the **Setup** tab lists what is added and what is next (`presentation/setup.ts`). Nothing blocks
   anything: missing facts stay unknown, and a plan that needs one says so.
-- A Real workspace is saved to the signed-in Google account in Firestore (`frontend/src/cloud/cloudStore.ts`), so it
+- A signed-in business is saved to the Google account in Firestore (`frontend/src/cloud/cloudStore.ts`), so it
   opens on any device. Saves run one at a time; if another device or tab saved first, this one shows the newer
   version and asks the user to make their last change again, instead of overwriting it. Only the account's owner
-  can read or write it (`firestore.rules`). The menu has **Download backup**, **Restore from backup** (checked like
-  any saved data; always restored as the user's own workspace, never the sample), **Delete this workspace** (asks
-  first) and **Sign out**.
+  can read or write it (`firestore.rules`). A business saved under the earlier one-business-per-account layout is
+  carried into the list the first time the list is read, and the old copy is removed only after that save. The
+  menu has **Switch business** (back to the list), **Download backup**, **Restore from backup** (signed in: added
+  as a new business; guest: replaces the guest business), **Delete this business** (asks first; removes only that
+  one) and **Sign out**.
 - With no disruption reported, the Overview says "No disruption right now" and what is being watched, instead of
   showing a recommendation. Orders, Inventory, Suppliers and Rehearsals each have an empty state with the next action.
 - Reset exists only for the sample; it never touches a Real workspace.

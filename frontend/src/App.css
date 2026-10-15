@@ -1011,6 +1011,15 @@
 .start-restore { display: inline-flex; align-items: center; gap: 7px; margin-top: 22px; color: var(--green); font-size: 12px; font-weight: 700; cursor: pointer; }
 .start-restore:focus-within { outline: var(--focus-ring); outline-offset: 3px; }
 .start-account { margin-top: 12px; color: var(--muted, #5b6b66); font-size: 12px; }
+.start-businesses { margin-bottom: 20px; }
+.start-businesses h2 { margin: 0 0 10px; color: var(--ink); font-size: 17px; font-weight: 800; }
+.start-businesses ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.start-businesses li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid #9fbd8b; border-radius: 10px; background: var(--paper); }
+.start-businesses li > svg { color: var(--green); }
+.start-businesses li span { display: grid; gap: 2px; min-width: 0; }
+.start-businesses li strong { overflow: hidden; color: var(--ink); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.start-businesses li small { color: var(--muted); font-size: 12px; }
+.save-account-button { white-space: nowrap; }
 .link-button { padding: 0; border: 0; background: none; color: var(--green); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
 .link-button:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

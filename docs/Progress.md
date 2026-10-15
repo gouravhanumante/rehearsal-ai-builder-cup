@@ -62,17 +62,43 @@
 - options grouped by problem with a best pick each; next steps when a problem has no option (2026-10-15)
 - worth-it warning from an optional selling price; Book by time on ready transfers (2026-10-15)
 - Ask your backup suppliers per problem, one message per product, Email all (BCC) (2026-10-15)
+- own business saved per Google account in Firestore; owner-only rules tested on the emulator and deployed (2026-10-15)
+- Google sign-in switched on in the Firebase console (2026-10-15)
+- all four `test-data/` businesses checked end to end against their READMEs; Excel 10:00 no longer read as 09:59 (2026-10-15)
+
+## Build plan (agreed 2026-10-15)
+Worked through one at a time, top to bottom. Each item is committed with its tests and docs before the next
+starts, and ticked here only after that commit. Rule for every item: nothing existing breaks (all checks green,
+data already saved still opens).
+
+### 1. Guest mode + several businesses per account — done (2026-10-15), Google sign-in itself still to be tried by hand
+- [x] Guest: **Start as a guest** / **Continue without signing in**; one business per browser, saved only in this browser; the top bar says so
+- [x] Several businesses per account in Firestore (`users/{uid}/businesses/{id}`): list with **Open**, **Add another business**, **Switch business** in the menu; **Delete** removes only the open one
+- [x] A business saved under the earlier one-per-account layout is carried into the list, not dropped (`listBusinesses`)
+- [x] Guest signs in at any time (top bar button): asked "Save {name} to your account?" **Save to my account** / **Not now**; added as a new business, never replacing one
+- [x] The browser copy is deleted only after Firestore confirms the save; a pending guest save finishes first; a failed or cancelled sign-in leaves the guest business untouched (`moveGuest.test.ts`, seen failing with the wrong order)
+- [x] Firestore rules for the new layout, deployed; rules tests updated, plus "another person can't open someone's second business", seen failing
+- [x] Browser run as a guest: Kaveri Distributors, 3 locations, 3 products, 5 orders, 2 deliveries (one weekly), a delay, a transfer route, a backup supplier, approve a transfer (Mysuru 60 → 45, 15 arriving), answer "can it deliver?", approve ship-from, mark an order delivered (oil 25 → 5), Ask AI, reload, blocked sign-in. Findings are in `TODO.md`
+- [ ] Real Google sign-in, saving a guest business to an account, two businesses, two devices: needs a person (the built-in browser blocks the Google window)
+
+### 2. Mark received + History
+- [ ] **Mark received** on an incoming delivery: enter what arrived (all / part / not yet); stock goes up and the delivery closes
+- [ ] Part arrived (6 of 8): "Are the other 2 still coming?" Yes keeps 2 incoming, No closes it
+- [ ] **History**: read-only list of delays reported, approvals, deliveries received, orders delivered/cancelled, edits
+
+### 3. Messages after approval
+- [ ] Ready-to-send texts after approving: purchase order to the supplier, transfer booking, note to a customer whose order will still be late or short. Copy or email; nothing is sent automatically
+
+### 4. Pick a goal
+- [ ] Choose **Protect deliveries** (default, today's ranking), **Lowest cost** or **Balanced**; options re-rank and the best pick follows the goal
 
 ## In progress
 - review provisional distributor sample quantities, dates, and estimated costs together
 - finalize the exact V1 demo flow and confirm hackathon theme
 
 ## Pending
-- mark an approved delivery as received (see `TODO.md`)
-- redeploy backend and frontend with the 2026-10-15 work
-- turn on Google sign-in in the Firebase console (Authentication → Sign-in method → Google); until then sign-in shows "Google sign-in is not switched on"
-- deploy the frontend with sign-in and Firestore
-- Mark received + History, then messages after approval, then pick a goal (`05-scope-and-decisions.md`)
+- the build plan above, in order
+- redeploy backend and frontend once item 1 is done
 - review provisional distributor sample quantities, dates, and estimated costs together
 - deck, demo video, demo script, and submission assets
 

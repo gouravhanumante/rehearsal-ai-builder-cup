@@ -108,25 +108,27 @@ All `[test]` boxes here are in `shared/planner/plan.test.ts`, except `worth` (`f
 ## 5. Saving and Reset
 ```mermaid
 flowchart LR
-  s["Confirm and save (own business)"] --> sp["Split into documents under 1 MiB, rejoined exactly, order kept [test]"]
+  s["Confirm and save (signed in)"] --> sp["Split into documents under 1 MiB, rejoined exactly, order kept [test]"]
   sp --> dmg["Damaged or tampered pieces refused, not loaded [test]"]
   sp --> only["Only changed pieces written; removed ones deleted so they don't come back [test]"]
-  sp --> fs[("Firestore, per account")]
-  fs --> own["Another signed-in person can't read or change it [proven]"]
-  fs --> anon["Signed-out visitor, stray documents, extra fields, oversized bodies refused [test]"]
-  fs --> two["Saved first on another device: newer version shown, not overwritten [manual]"]
-  mv["Move browser save to account [manual]"]
+  sp --> fs[("Firestore, per account, several businesses")]
+  fs --> own["Another signed-in person can't list, read or change any of them, including a second business [proven]"]
+  fs --> anon["Signed-out visitor, stray documents, bad ids, extra fields, oversized bodies refused [test]"]
+  fs --> old["Old one-business copy: owner can read and remove it, nobody can write it [test]"]
+  fs --> two["Saved first on another device: newer version shown, not overwritten [manual, not yet tried]"]
+  g["Guest: this browser only"] --> keep["Reload keeps it; blocked sign-in leaves it as it was [manual]"]
+  g --> mv["Save to account: browser copy removed only after the account save succeeds; last edit waited for [proven]"]
   d["Sample: browser storage"] --> bad["Unreadable data: sample loaded and user told [proven]"]
   d --> v1["First-version saves moved to new format [test]"]
   rs["Reset"] --> seed["Sample data back [manual]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
   classDef manual fill:#FFECBD,stroke:#E8A302
-  class own,bad proven
-  class sp,dmg,only,anon,v1 test
-  class two,mv,seed manual
+  class own,bad,mv proven
+  class sp,dmg,only,anon,old,v1 test
+  class two,keep,seed manual
 ```
-Splitting is `frontend/src/cloud/chunks.test.ts`. The rules boxes are `frontend/rules-tests/firestore.rules.test.ts` (`npm run test:rules`, needs Java 21+). `own` was seen failing on 2026-10-15 when the read rule was loosened to "any signed-in person". `two` and `mv` are **not checked yet**: they can only be tried once Google sign-in is turned on in the Firebase console.
+Splitting is `frontend/src/cloud/chunks.test.ts`; the move is `frontend/src/data/moveGuest.test.ts`; the rules boxes are `frontend/rules-tests/firestore.rules.test.ts` (`npm run test:rules`, needs Java 21+). `own` failed on 2026-10-15 when the read rule for a business's data was loosened to "any signed-in person". `mv` failed (3 tests) when the browser copy was cleared before the account save. `keep` was checked in the browser on 2026-10-15. `two` and a real Google sign-in have **not been tried yet**: the built-in browser blocks the Google window.
 
 ## 6. Ask AI
 ```mermaid

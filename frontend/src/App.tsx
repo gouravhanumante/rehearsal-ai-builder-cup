@@ -7,30 +7,37 @@ import type { Workspace } from '../../shared/planner/model'
 import { sampleWorkspace } from '../../shared/planner/sample'
 import { downloadBackup, parseBackup } from './data/backup'
 import { clearDemo, loadDemo, onDemoChangedElsewhere, saveDemo } from './data/demoStore'
-import { clearReal, loadReal } from './data/realStore'
-import type { Account } from './cloud/cloudStore'
+import { clearReal, describeStorageError, loadReal, onRealChangedElsewhere, saveReal } from './data/realStore'
+import { moveGuestToAccount } from './data/moveGuest'
+import type { Account, BusinessSummary } from './cloud/cloudStore'
 import './App.css'
 
 const LAST_KEY = 'rehearsal.last'
+const LAST_BUSINESS_KEY = 'rehearsal.lastBusiness'
 const MAX_BACKUP_BYTES = 100 * 1024 * 1024
 const SAVED = 'Saved to your account'
+const SAVED_HERE = 'Saved in this browser only'
 
 // Firebase loads only when needed, so the sample opens without it.
 let cloudModule: Promise<typeof import('./cloud/cloudStore')> | null = null
 const cloud = () => (cloudModule ??= import('./cloud/cloudStore'))
 const describe = async (error: unknown) => (await cloud()).describeCloudError(error)
 
+/** Where the open business is kept: the sample, a guest business in this browser, or one in the account. */
+type Place = { kind: 'demo' } | { kind: 'guest' } | { kind: 'cloud'; id: string }
+
 type Session =
   | { phase: 'loading' }
-  | { phase: 'start'; account: Account | null; cloudName: string | null; localName: string | null }
-  | { phase: 'ready'; workspace: Workspace; revision: number }
+  | { phase: 'start'; account: Account | null; businesses: BusinessSummary[]; localName: string | null }
+  | { phase: 'ready'; workspace: Workspace; place: Place; revision: number }
 
-const remember = (mode: 'demo' | 'real' | null) => {
-  if (mode) localStorage.setItem(LAST_KEY, mode)
-  else localStorage.removeItem(LAST_KEY)
+const remember = (place: Place | null) => {
+  if (!place) { localStorage.removeItem(LAST_KEY); return }
+  localStorage.setItem(LAST_KEY, place.kind === 'cloud' ? 'real' : place.kind)
+  if (place.kind === 'cloud') localStorage.setItem(LAST_BUSINESS_KEY, place.id)
 }
 
-/** A business saved in this browser before sign-in existed; offered once to move into the account. */
+/** The guest business saved in this browser, if any. */
 async function browserBusiness() {
   try {
     const real = await loadReal()
@@ -44,53 +51,71 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [askingSave, setAskingSave] = useState(false)
   const [busy, setBusy] = useState(false)
   const revision = useRef(0)
+  // The latest guest save; moving to the account waits for it so the last edit is included.
+  const guestSaving = useRef<Promise<void>>(Promise.resolve())
 
-  const show = useCallback((workspace: Workspace) => {
+  const show = useCallback((workspace: Workspace, place: Place) => {
     revision.current += 1
-    setSession({ phase: 'ready', workspace, revision: revision.current })
+    remember(place)
+    setSession({ phase: 'ready', workspace, place, revision: revision.current })
   }, [])
 
   const showStart = useCallback(async (who: Account | null) => {
     const local = await browserBusiness()
-    let cloudName: string | null = null
+    let businesses: BusinessSummary[] = []
     if (who) {
-      try {
-        const loaded = await (await cloud()).loadCloud(who.uid)
-        if (loaded && 'workspace' in loaded) cloudName = loaded.workspace.businessName
-        else if (loaded) setNotice(`${loaded.error} Restore a backup file to continue.`)
-      } catch (error) { setNotice(await describe(error)) }
+      try { businesses = await (await cloud()).listBusinesses(who.uid) } catch (error) { setNotice(await describe(error)) }
     }
-    setSession({ phase: 'start', account: who, cloudName, localName: local?.businessName ?? null })
+    setSaveStatus(null)
+    setSession({ phase: 'start', account: who, businesses, localName: local?.businessName ?? null })
   }, [])
 
   const openDemo = useCallback(() => {
     const result = loadDemo()
-    remember('demo')
     setNotice(result.notice)
-    show(result.workspace)
+    show(result.workspace, { kind: 'demo' })
   }, [show])
 
-  const openReal = useCallback(async (who: Account, message: string | null = null) => {
+  const openGuest = useCallback(async (message: string | null = null) => {
     try {
-      const loaded = await (await cloud()).loadCloud(who.uid)
+      const loaded = await loadReal()
       if (loaded && 'workspace' in loaded) {
-        remember('real')
-        setSaveStatus(SAVED)
+        setSaveStatus(SAVED_HERE)
         setNotice(message)
-        show(loaded.workspace)
+        show(loaded.workspace, { kind: 'guest' })
         return
       }
+      if (loaded) setNotice(`${loaded.error} Restore a backup file to continue.`)
+    } catch (error) { setNotice(describeStorageError(error)) }
+    remember(null)
+    await showStart(null)
+  }, [show, showStart])
+
+  const openBusiness = useCallback(async (who: Account, id: string, message: string | null = null) => {
+    try {
+      const loaded = await (await cloud()).loadBusiness(who.uid, id)
+      if (loaded && 'workspace' in loaded) {
+        setSaveStatus(SAVED)
+        setNotice(message)
+        show(loaded.workspace, { kind: 'cloud', id })
+        return
+      }
+      if (loaded) setNotice(`${loaded.error} Restore a backup file to continue.`)
     } catch (error) { setNotice(await describe(error)) }
+    remember(null)
     await showStart(who)
   }, [show, showStart])
 
   useEffect(() => {
     // Opening the page picks up where the user left off, or asks what they want to do.
     const last = localStorage.getItem(LAST_KEY)
+    const lastBusiness = localStorage.getItem(LAST_BUSINESS_KEY)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (last === 'demo') openDemo()
+    else if (last === 'guest') void openGuest()
     let first = true
     let stop = () => {}
     let live = true
@@ -100,69 +125,113 @@ function App() {
         setAccount(next)
         if (!first) return
         first = false
-        if (last === 'demo') return
-        if (next && last === 'real') void openReal(next)
+        if (last === 'demo' || last === 'guest') return
+        if (next && last === 'real' && lastBusiness) void openBusiness(next, lastBusiness)
         else void showStart(next)
       })
     }).catch(() => {
-      if (last !== 'demo') { setNotice('Rehearsal could not reach its sign-in service. Check the connection, or try the sample.'); void showStart(null) }
+      if (last !== 'demo' && last !== 'guest') { setNotice('Rehearsal could not reach its sign-in service. Check the connection, start as a guest, or try the sample.'); void showStart(null) }
     })
     return () => { live = false; stop() }
-  }, [openDemo, openReal, showStart])
+  }, [openDemo, openGuest, openBusiness, showStart])
 
-  const mode = session.phase === 'ready' ? session.workspace.mode : null
-  const uid = mode === 'real' ? account?.uid : undefined
+  const place = session.phase === 'ready' ? session.place : null
+  const cloudId = place?.kind === 'cloud' ? place.id : null
+  const placeKind = place?.kind ?? null
   useEffect(() => {
-    if (mode === 'demo') return onDemoChangedElsewhere((next) => show(next))
-    if (!uid || !account) return
+    if (placeKind === 'demo') return onDemoChangedElsewhere((next) => show(next, { kind: 'demo' }))
+    if (placeKind === 'guest') return onRealChangedElsewhere(() => { void openGuest('This business was changed in another tab, so the latest version is shown.') })
+    if (!cloudId || !account) return
     let stop = () => {}
     let live = true
     void cloud().then((module) => {
-      if (live) stop = module.onCloudChanged(uid, () => { void openReal(account, 'This business was updated on another device or tab, so the latest version is shown.') })
+      if (live) stop = module.onBusinessChanged(account.uid, cloudId, () => { void openBusiness(account, cloudId, 'This business was updated on another device or tab, so the latest version is shown.') })
     })
     return () => { live = false; stop() }
-  }, [mode, uid, account, show, openReal])
+  }, [placeKind, cloudId, account, show, openGuest, openBusiness])
 
   const change = (next: Workspace) => {
-    setSession((current) => (current.phase === 'ready' ? { ...current, workspace: next } : current))
-    if (next.mode === 'demo') {
-      saveDemo(next)
+    if (session.phase !== 'ready') return
+    setSession({ ...session, workspace: next })
+    const where = session.place
+    if (where.kind === 'demo') { saveDemo(next); return }
+    if (where.kind === 'guest') {
+      setSaveStatus('Saving…')
+      guestSaving.current = saveReal(next)
+        .then(() => setSaveStatus(SAVED_HERE))
+        .catch((error: unknown) => { setSaveStatus('Not saved'); setNotice(describeStorageError(error)) })
       return
     }
     if (!account) { setSaveStatus('Not saved'); setNotice('You are signed out, so this change was not saved. Sign in again to keep working.'); return }
     setSaveStatus('Saving…')
-    cloud().then((module) => module.saveCloud(account.uid, next))
+    cloud().then((module) => module.saveBusiness(account.uid, where.id, next))
       .then(() => setSaveStatus(SAVED))
       .catch(async (error: unknown) => {
         setSaveStatus('Not saved')
         const module = await cloud()
-        if (error instanceof module.ConflictError) void openReal(account, module.describeCloudError(error))
+        if (error instanceof module.ConflictError) void openBusiness(account, where.id, module.describeCloudError(error))
         else setNotice(module.describeCloudError(error))
       })
   }
 
-  /** Saves a workspace as the account's business and opens it. */
-  const saveAndOpen = async (workspace: Workspace, message: string | null) => {
-    if (!account) { setNotice('Sign in with Google first.'); return false }
+  /** Signed in: a new business in the account. Signed out: the guest business in this browser. */
+  const addAndOpen = async (workspace: Workspace, message: string | null) => {
     setBusy(true)
     try {
-      await (await cloud()).saveCloud(account.uid, workspace)
+      if (account) {
+        const id = await (await cloud()).createBusiness(account.uid, workspace)
+        setSaveStatus(SAVED)
+        setNotice(message)
+        show(workspace, { kind: 'cloud', id })
+      } else {
+        await saveReal(workspace)
+        setSaveStatus(SAVED_HERE)
+        setNotice(message)
+        show(workspace, { kind: 'guest' })
+      }
     } catch (error) {
-      setNotice(await describe(error))
-      return false
+      setNotice(account ? await describe(error) : describeStorageError(error))
     } finally { setBusy(false) }
-    remember('real')
-    setSaveStatus(SAVED)
-    setNotice(message)
-    show(workspace)
-    return true
+  }
+
+  /** Copies the guest business into the account as a new business; the browser copy goes only after that succeeds. */
+  const saveGuestToAccount = async (who: Account) => {
+    setAskingSave(false)
+    setBusy(true)
+    try {
+      const module = await cloud()
+      const result = await moveGuestToAccount({
+        finishGuestSave: () => guestSaving.current,
+        loadGuest: browserBusiness,
+        saveToAccount: (workspace) => module.createBusiness(who.uid, workspace),
+        clearGuest: clearReal,
+      })
+      if (!result.moved) { setNotice('There is no business saved in this browser any more.'); await showStart(who); return }
+      setSaveStatus(SAVED)
+      setNotice(`${result.workspace.businessName} is now saved to your account, so you can open it on any device.${result.browserCopyLeft ? ' A copy is still in this browser; you can delete it from the start screen.' : ''}`)
+      show(result.workspace, { kind: 'cloud', id: result.businessId })
+    } catch (error) {
+      setNotice(`${await describe(error) ?? 'It was not saved.'} Your business is still saved in this browser.`)
+    } finally { setBusy(false) }
   }
 
   const signIn = async () => {
     setNotice(null)
-    try { await (await cloud()).signInWithGoogle() } catch (error) { setNotice(await describe(error)); return }
+    try { await (await cloud()).signInWithGoogle() } catch (error) { setNotice(await describe(error)); return null }
     const who = (await cloud()).currentAccount()
-    if (who) { setAccount(who); await openReal(who) }
+    if (who) setAccount(who)
+    return who
+  }
+
+  const signInFromStart = async () => {
+    const who = await signIn()
+    if (who) await showStart(who)
+  }
+
+  /** From inside a guest business: sign in if needed, then ask before saving it to the account. */
+  const offerSaveToAccount = async () => {
+    const who = account ?? await signIn()
+    if (who) setAskingSave(true)
   }
 
   const signOut = async () => {
@@ -170,70 +239,69 @@ function App() {
     try { await (await cloud()).signOutNow() } catch (error) { setNotice(await describe(error)); return }
     remember(null)
     setAccount(null)
-    setSaveStatus(null)
     setNotice(null)
     await showStart(null)
   }
 
-  const moveBrowserBusiness = async () => {
-    const local = await browserBusiness()
-    if (!local) { setNotice('There is no business saved in this browser any more.'); return }
-    if (await saveAndOpen(local, `${local.businessName} is now saved to your account, so you can open it on any device.`)) {
-      try { await clearReal() } catch { /* the account copy is what counts now */ }
-    }
-  }
-
   const create = (businessName: string, country: string) => {
-    void saveAndOpen(createBlankWorkspace(businessName, country), null)
+    void addAndOpen(createBlankWorkspace(businessName, country), null)
   }
 
   const restore = async (file: File) => {
     if (file.size > MAX_BACKUP_BYTES) { setNotice('That file is too large to be a Rehearsal backup.'); return }
     const parsed = parseBackup(await file.text())
     if ('error' in parsed) { setNotice(parsed.error); return }
-    await saveAndOpen(parsed.workspace, 'Your backup was restored.')
+    await addAndOpen(parsed.workspace, account ? `Your backup was restored as a new business, ${parsed.workspace.businessName}.` : 'Your backup was restored in this browser.')
   }
 
-  const deleteReal = async () => {
+  const deleteOpen = async () => {
     setConfirmingDelete(false)
-    if (!account) return
-    try { await (await cloud()).deleteCloud(account.uid) } catch (error) { setNotice(await describe(error)); return }
+    if (session.phase !== 'ready') return
+    const where = session.place
+    if (where.kind === 'guest') {
+      try { await clearReal() } catch (error) { setNotice(describeStorageError(error)); return }
+      setNotice('Your business was deleted from this browser.')
+    } else if (where.kind === 'cloud' && account) {
+      try { await (await cloud()).deleteBusiness(account.uid, where.id) } catch (error) { setNotice(await describe(error)); return }
+      setNotice(`${session.workspace.businessName} was deleted from your account.`)
+    } else return
     remember(null)
-    setNotice('Your workspace was deleted from your account.')
     await showStart(account)
   }
 
   const resetDemo = () => {
     clearDemo()
     setNotice(null)
-    show(sampleWorkspace)
+    show(sampleWorkspace, { kind: 'demo' })
   }
 
   if (session.phase === 'loading') return <div className="app-loading" role="status">Loading…</div>
 
   if (session.phase === 'start') {
+    const who = session.account
     return <StartScreen
-      accountEmail={session.account?.email ?? (session.account ? 'your Google account' : null)}
+      accountEmail={who?.email ?? (who ? 'your Google account' : null)}
       busy={busy}
-      cloudName={session.cloudName}
+      businesses={session.businesses}
       localName={session.localName}
       notice={notice}
-      onContinue={() => { if (session.account) void openReal(session.account) }}
+      onContinueGuest={() => void openGuest()}
       onCreate={create}
-      onMoveLocal={() => void moveBrowserBusiness()}
+      onOpen={(id) => { if (who) void openBusiness(who, id) }}
       onRestore={(file) => void restore(file)}
-      onSignIn={() => void signIn()}
+      onSaveLocal={() => { if (who) void saveGuestToAccount(who) }}
+      onSignIn={() => void signInFromStart()}
       onSignOut={() => void signOut()}
       onTrySample={openDemo}
     />
   }
 
-  const { workspace } = session
+  const { workspace, place: where } = session
   return (
     <>
       <WorkspaceScreen
         key={session.revision}
-        accountEmail={account?.email ?? null}
+        accountEmail={where.kind === 'cloud' ? account?.email ?? null : null}
         notice={notice}
         onChange={change}
         onDelete={() => setConfirmingDelete(true)}
@@ -242,16 +310,28 @@ function App() {
         onResetDemo={resetDemo}
         onRestore={(file) => void restore(file)}
         onSignOut={() => void signOut()}
-        onSwitch={() => { setNotice(null); if (workspace.mode === 'demo') void showStart(account); else openDemo() }}
+        onSwitch={() => { setNotice(null); if (where.kind === 'demo') void showStart(account); else openDemo() }}
+        onSwitchBusiness={where.kind === 'demo' ? null : () => { setNotice(null); void showStart(account) }}
         saveStatus={saveStatus}
+        saveToAccount={where.kind === 'guest' && !busy ? { label: account ? 'Save to my account' : 'Sign in to save', onClick: () => void offerSaveToAccount() } : null}
         workspace={workspace}
       />
+      {askingSave && account && <ConfirmDialog
+        body={`It is added to your account next to any businesses already there, and opens on any device. The copy in this browser is removed only after your account confirms the save.`}
+        cancelLabel="Not now"
+        confirmLabel="Save to my account"
+        onClose={() => setAskingSave(false)}
+        onConfirm={() => void saveGuestToAccount(account)}
+        title={`Save ${workspace.businessName} to your account?`}
+      />}
       {confirmingDelete && <ConfirmDialog
-        body="This removes your business data from your account, on every device. Download a backup first if you might want it back."
-        confirmLabel="Delete workspace"
+        body={where.kind === 'guest'
+          ? 'This removes your business data from this browser. Download a backup first if you might want it back.'
+          : `This removes ${workspace.businessName} from your account, on every device. Your other businesses are kept. Download a backup first if you might want it back.`}
+        confirmLabel="Delete business"
         onClose={() => setConfirmingDelete(false)}
-        onConfirm={() => void deleteReal()}
-        title="Delete this workspace?"
+        onConfirm={() => void deleteOpen()}
+        title={`Delete ${workspace.businessName}?`}
       />}
     </>
   )

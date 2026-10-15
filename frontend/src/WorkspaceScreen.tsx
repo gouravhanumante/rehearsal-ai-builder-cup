@@ -33,17 +33,19 @@ type WorkspaceScreenProps = {
   accountEmail: string | null
   notice: string | null
   saveStatus: string | null
+  saveToAccount: { label: string; onClick: () => void } | null
   onChange: (next: Workspace) => void
   onNotice: (message: string | null) => void
   onResetDemo: () => void
   onSignOut: () => void
   onSwitch: () => void
+  onSwitchBusiness: (() => void) | null
   onExport: () => void
   onRestore: (file: File) => void
   onDelete: () => void
 }
 
-export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, onChange, onNotice, onResetDemo, onSignOut, onSwitch, onExport, onRestore, onDelete }: WorkspaceScreenProps) {
+export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, saveToAccount, onChange, onNotice, onResetDemo, onSignOut, onSwitch, onSwitchBusiness, onExport, onRestore, onDelete }: WorkspaceScreenProps) {
   const rehearsal = useMemo(() => rehearse(workspace), [workspace])
   const format = useMemo(() => createFormat(workspace.settings), [workspace.settings])
   const words = useMemo(() => createWording(workspace, format), [workspace, format])
@@ -184,7 +186,7 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, o
   return (
     <WorkspaceViewContext.Provider value={view}>
       <div className="app-shell" id="top">
-        <Topbar accountEmail={accountEmail} businessName={workspace.businessName} mode={workspace.mode} onAsk={() => setAssistantOpen(true)} onDelete={onDelete} onExport={onExport} onReset={onResetDemo} onRestore={onRestore} onSignOut={onSignOut} onSwitch={onSwitch} saveStatus={saveStatus} />
+        <Topbar accountEmail={accountEmail} businessName={workspace.businessName} mode={workspace.mode} onAsk={() => setAssistantOpen(true)} onDelete={onDelete} onExport={onExport} onReset={onResetDemo} onRestore={onRestore} onSignOut={onSignOut} onSwitch={onSwitch} onSwitchBusiness={onSwitchBusiness} saveStatus={saveStatus} saveToAccount={saveToAccount} />
         <div className="workspace-layout">
           <SectionNavigation activeSection={activeSection} affectedOrderCount={rehearsal.impact.affectedOrderIds.length} mode={workspace.mode} onNavigate={setActiveSection} setupRemaining={progress.requiredTotal - progress.requiredDone} showSetup={isReal} />
           <main className="dashboard-shell">

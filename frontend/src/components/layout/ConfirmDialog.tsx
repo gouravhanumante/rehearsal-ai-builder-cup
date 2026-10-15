@@ -6,11 +6,12 @@ type ConfirmDialogProps = {
   title: string
   body: string
   confirmLabel: string
+  cancelLabel?: string
   onConfirm: () => void
   onClose: () => void
 }
 
-export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onClose }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, body, confirmLabel, cancelLabel = 'Cancel', onConfirm, onClose }: ConfirmDialogProps) {
   useEscapeKey(onClose)
   return (
     <div className="dialog-overlay">
@@ -22,7 +23,7 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onClose }:
         </header>
         <p className="approval-dialog-intro">{body}</p>
         <footer>
-          <Button onClick={onClose} variant="quiet">Cancel</Button>
+          <Button onClick={onClose} variant="quiet">{cancelLabel}</Button>
           <Button onClick={onConfirm} variant="primary">{confirmLabel}</Button>
         </footer>
       </section>

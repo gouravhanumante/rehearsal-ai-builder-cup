@@ -8,6 +8,12 @@
 - [ ] **Move more per trip** (idea, not agreed): when the trip cost is high, consider moving extra stock in the same trip instead of exactly the shortfall.
 - [ ] **Needs a ruling (found 2026-10-15, scenario 01):** a transfer that lands after a priority order is due (Surat DC to Mumbai arrives 17 Oct 8 am; Spice Route Cafe is due 16 Oct 2 pm) still helps the later order (Metro Mart). Should it be offered, and how should it be labelled? Not tested until decided.
 - [x] Excel times read to the nearest minute: 10:00 had been imported as 09:59, which at midnight would have moved a date to the day before (`cellText`, 2026-10-15).
+
+## Found in the browser run as a new distributor (2026-10-15, Kaveri Distributors)
+- [ ] **"Orders at risk" counts covered orders (needs a ruling).** Every order due before the late delivery is counted, even when stock covers it. Kaveri: Bengaluru has 40 bags; Hotel Annapoorna (30) and Green Leaf (25) are due before the late rice. After approving the Mysuru transfer both show **Covered** and 0 are exposed, yet the Overview says "2 orders at risk" and "2 deliveries need attention". Same with Restored Co: 0 exposed, 2 "at risk", both Covered. Proposal: count only orders that are actually short.
+- [ ] **Ask AI repeats that wrong count.** Asked "which order should I worry about most?", it named Hotel Annapoorna and said Bengaluru "only has 40", ignoring the approved 15-bag transfer arriving today. Likely fixed by the item above, since it reads the same facts.
+- [ ] **Book-by uses the priority order even when it is already covered.** Kaveri: Hotel Annapoorna (priority, due Sat 10 am) is covered from stock; the shortage is Green Leaf's (due Sun noon). The transfer said "Book by Sat 5 am", a day earlier than needed.
+- [ ] Small: the route review shows "How long it takes 5" with no unit (hours). Ask AI does not send on Enter, only with the Send button.
 - [x] Inventory row for a missing count now says "Not counted · counts as 0", matching the planner (`InventoryView.tsx`, 2026-10-15).
 - [x] `03-behaviour.md` now says a record-changing approval clears the approval mark, as the code does (`WorkspaceScreen.tsx`, 2026-10-15).
 

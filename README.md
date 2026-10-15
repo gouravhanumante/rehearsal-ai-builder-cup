@@ -128,8 +128,9 @@ Rules worth knowing:
 
 ## Where your data lives
 
-- **Your own business** needs **Google sign-in** and is saved to **your account in Firestore**, so it opens on any device. Only you can read or change it (enforced by `firestore.rules`). If an older version saved a business in this browser, after signing in you can **Move it to your account** in one click.
-- Use the **⋮ menu**: **Download backup**, **Restore from backup**, **Delete this workspace**, **Sign out**.
+- **Without signing in** (guest), your business is saved **only in this browser**. Sign in any time with **Sign in to save** in the top bar: Rehearsal asks first, adds it to your account, and removes the browser copy only after your account has it.
+- **Signed in with Google**, your businesses are saved to **your account in Firestore**, so they open on any device. An account can hold **several businesses**; pick one from the list. Only you can read or change them (enforced by `firestore.rules`).
+- Use the **⋮ menu**: **Switch business**, **Download backup**, **Restore from backup**, **Delete this business**, **Sign out**.
 - The **sample** needs no sign-up and is saved only in this browser. **Reset** only touches the sample.
 - Rehearsal's API stores nothing. When you use Ask AI, read a document or use **Ask Gemini** for columns, only what you submit is sent to Gemini to be processed.
 - The free Gemini tier lets Google use submitted content. **Use test data only** until a paid tier or Vertex AI is configured.

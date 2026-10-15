@@ -51,6 +51,8 @@ Out (later):
 | Approving a plan changes the records (transfer, purchase, ship-from) | 2026-10-15 |
 | Every code change updates the docs it affects in the same commit (`.github/copilot-instructions.md`) | 2026-10-15 |
 | Own business saved to Firestore per Google account; Google sign-in only; the sample stays no-signup in the browser; a business saved in the browser can be moved to the account in one click | 2026-10-15 |
+| Guest mode: one business per browser without signing in; signing in asks first, then adds it to the account; the browser copy is removed only after the account save succeeds | 2026-10-15 |
+| An account can hold several businesses, picked from a list; Delete removes only the open one | 2026-10-15 |
 | Next, in order: Mark received (partial asks "are the rest still coming?") + read-only History; ready-to-send messages after approval (supplier order, transfer booking, late customer); pick a goal (default Protect deliveries) | 2026-10-15 |
 
 Details and the code behind each 2026-10-14/15 row are in `03-behaviour.md` (search "user decision").

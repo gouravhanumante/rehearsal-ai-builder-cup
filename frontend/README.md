@@ -45,7 +45,7 @@ To deploy, run the **Deploy frontend (Firebase Hosting)** workflow from GitHub A
 - `src/presentation/` — wording and formatting (option labels, supplier messages, Setup steps, paging)
 - `src/import/` — reads csv/xlsx in the browser, matches columns, builds the import preview
 - `src/cloud/` — Google sign-in and saving the own workspace to Firestore (`cloudStore.ts`), splitting it into documents under 1 MiB (`chunks.ts`)
-- `src/data/` — sample in localStorage (`demoStore.ts`), reading a business saved in the browser by the earlier version so it can be moved (`realStore.ts`), backup/restore, server plan check
+- `src/data/` — sample in localStorage (`demoStore.ts`), the guest business in IndexedDB (`realStore.ts`), saving a guest business to the account without losing it (`moveGuest.ts`), backup/restore, server plan check
 - `src/domain/` — facts sent to Ask AI (`assistantContext.ts`)
 - `src/design-system/` — shared tokens and UI primitives
 - The planner itself is in `../shared/planner/`, shared with the backend.

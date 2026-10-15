@@ -1,24 +1,41 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // A signed-in person can only ever touch their own workspace, and only the document shapes the app writes.
-    match /users/{uid}/workspace/{docId} {
-      allow read, delete: if request.auth != null && request.auth.uid == uid;
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
 
-      allow create, update: if request.auth != null && request.auth.uid == uid
-        && (
-          (docId == 'core'
-            && request.resource.data.keys().hasOnly(['json', 'chunkIds', 'revision', 'updatedAt'])
-            && request.resource.data.json is string && request.resource.data.json.size() < 700000
-            && request.resource.data.chunkIds is list && request.resource.data.chunkIds.size() < 1000
-            && request.resource.data.revision is int)
-          ||
-          (docId.matches('^(products|locations|stock|storageLimits|orders|shipments|routes|suppliers)-[0-9]{1,3}$')
-            && request.resource.data.keys().hasOnly(['list', 'index', 'json'])
-            && request.resource.data.json is string && request.resource.data.json.size() < 700000
-            && request.resource.data.index is int
-            && request.resource.data.list is string)
-        );
+    // A signed-in person can only ever touch their own businesses, and only the document shapes the app writes.
+    match /users/{uid}/businesses/{businessId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && businessId.matches('^[A-Za-z0-9]{1,40}$')
+        && request.resource.data.keys().hasOnly(['name', 'country', 'updatedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.country is string && request.resource.data.country.size() == 2
+        && request.resource.data.updatedAt is int;
+
+      match /parts/{docId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && businessId.matches('^[A-Za-z0-9]{1,40}$')
+          && (
+            (docId == 'core'
+              && request.resource.data.keys().hasOnly(['json', 'chunkIds', 'revision', 'updatedAt'])
+              && request.resource.data.json is string && request.resource.data.json.size() < 700000
+              && request.resource.data.chunkIds is list && request.resource.data.chunkIds.size() < 1000
+              && request.resource.data.revision is int)
+            ||
+            (docId.matches('^(products|locations|stock|storageLimits|orders|shipments|routes|suppliers)-[0-9]{1,3}$')
+              && request.resource.data.keys().hasOnly(['list', 'index', 'json'])
+              && request.resource.data.json is string && request.resource.data.json.size() < 700000
+              && request.resource.data.index is int
+              && request.resource.data.list is string)
+          );
+      }
+    }
+
+    // The earlier one-business layout: read once to carry it into the list, then deleted. No new writes.
+    match /users/{uid}/workspace/{docId} {
+      allow read, delete: if isOwner(uid);
     }
   }
 }

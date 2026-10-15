@@ -31,7 +31,7 @@ async function run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) =>
 
 export type RealLoad = { workspace: Workspace } | { error: string } | null
 
-/** A business saved in this browser before sign-in existed. Read once to move it into the account, then cleared. */
+/** A guest business, saved only in this browser. Signing in offers to move it to the account. */
 export async function loadReal(): Promise<RealLoad> {
   const stored = await run<unknown>('readonly', (store) => store.get(KEY))
   if (stored === undefined) return null
@@ -39,6 +39,34 @@ export async function loadReal(): Promise<RealLoad> {
   return workspace && workspace.mode === 'real' ? { workspace } : { error: 'Your saved workspace could not be read.' }
 }
 
+export function describeStorageError(error: unknown) {
+  const name = (error as { name?: string } | null)?.name
+  if (name === 'QuotaExceededError') return 'This browser has no room left to save your workspace. Download a backup, free some space, and try again.'
+  return 'Your latest change could not be saved in this browser. Download a backup so nothing is lost.'
+}
+
+// A channel never hears its own messages, so a tab does not reload itself every time it saves.
+let channel: BroadcastChannel | null = null
+function tabChannel() {
+  if (typeof BroadcastChannel === 'undefined') return null
+  channel ??= new BroadcastChannel('rehearsal-real')
+  return channel
+}
+
+export async function saveReal(workspace: Workspace): Promise<void> {
+  await run('readwrite', (store) => store.put(workspace, KEY))
+  tabChannel()?.postMessage('changed')
+}
+
 export async function clearReal(): Promise<void> {
   await run('readwrite', (store) => store.delete(KEY))
+  tabChannel()?.postMessage('changed')
+}
+
+/** Another tab saved or deleted the guest business; this tab should reload it rather than overwrite it. */
+export function onRealChangedElsewhere(reload: () => void) {
+  const shared = tabChannel()
+  if (!shared) return () => {}
+  shared.onmessage = reload
+  return () => { shared.onmessage = null }
 }
