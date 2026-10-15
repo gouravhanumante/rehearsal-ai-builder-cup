@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Boxes, ClipboardPlus, FileUp, Info, MapPinPlus, PackagePlus, Route, TriangleAlert, Truck, X } from 'lucide-react'
 import { Topbar } from './components/layout/Topbar'
+import { Button } from './design-system/Button'
 import { SectionNavigation, type SectionName } from './components/layout/SectionNavigation'
 import { AskAiPanel, type ChatTurn } from './components/assistant/AskAiPanel'
 import { DetailsEditor } from './components/editing/DetailsEditor'
@@ -12,6 +13,8 @@ import { SuppliersView } from './components/operations/SuppliersView'
 import { TransfersView } from './components/operations/TransfersView'
 import { HistoryView } from './components/operations/HistoryView'
 import { ReceiveDialog } from './components/operations/ReceiveDialog'
+import { ReadyMessages } from './components/planning/ReadyMessages'
+import { approvalMessages } from './presentation/approvalMessages'
 import { ConfirmDialog } from './components/layout/ConfirmDialog'
 import { ApprovalWarning } from './components/planning/ApprovalWarning'
 import { OverviewRecommendation } from './components/planning/OverviewRecommendation'
@@ -19,7 +22,7 @@ import { RecoveryPlans } from './components/planning/RecoveryPlans'
 import { ImportDialog } from './components/import/ImportDialog'
 import { SetupView, type SetupAction } from './components/setup/SetupView'
 import type { ImportKind } from '../../shared/import/fields'
-import type { HistoryKind, OrderLine, Workspace } from '../../shared/planner/model'
+import type { HistoryKind, HistoryMessage, OrderLine, Workspace } from '../../shared/planner/model'
 import { planningNow, rehearse, type Plan } from '../../shared/planner/plan'
 import { addHistory, applyPlan, receiveDelivery, setOrderStatus } from '../../shared/planner/apply'
 import { checkPlanOnServer } from './data/planCheck'
@@ -63,12 +66,13 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
   const [removingSupplierId, setRemovingSupplierId] = useState<string | null>(null)
   const [closing, setClosing] = useState<{ orderId: string; status: 'delivered' | 'cancelled' } | null>(null)
   const [receivingId, setReceivingId] = useState<string | null>(null)
+  const [readyMessages, setReadyMessages] = useState<{ title: string; messages: HistoryMessage[] } | null>(null)
   const [activeSection, setActiveSection] = useState<SectionName>(isReal && progress.isEmpty ? 'Setup' : 'Overview')
   const editorConfig = editor ? editorFor(editor.target, workspace, format) : null
 
   // Any change to the data means an earlier approval was given for different numbers.
-  const saveChange = (next: Workspace, history?: { kind: HistoryKind; text: string }) => {
-    const recorded = history ? addHistory(next, { at: new Date().toISOString(), kind: history.kind, text: history.text.slice(0, 400) }) : next
+  const saveChange = (next: Workspace, history?: { kind: HistoryKind; text: string; messages?: HistoryMessage[] }) => {
+    const recorded = history ? addHistory(next, { at: new Date().toISOString(), kind: history.kind, text: history.text.slice(0, 400), ...(history.messages?.length ? { messages: history.messages.slice(0, 20) } : {}) }) : next
     onChange({ ...recorded, approval: null })
     setEditor(null)
   }
@@ -76,14 +80,16 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
   const approve = (plan: Plan, withWarning: boolean) => {
     const next = applyPlan(workspace, plan, planningNow(workspace))
     const text = `${approvedNotice(plan).replace(/ It is listed under .*$/, '')}${withWarning ? ' Approved with a warning: it relies on typed-in details.' : ''}`
+    const messages = approvalMessages(plan, workspace, next, format, words, planningNow(workspace))
+    if (messages.length > 0) setReadyMessages({ title: words.planText(plan).title, messages })
     if (next !== workspace) {
-      saveChange(next, { kind: 'approval', text })
+      saveChange(next, { kind: 'approval', text, messages })
       onNotice(approvedNotice(plan))
       setPendingApproval(null)
       return
     }
     const defaultedConflicts = rehearsal.conflicts.filter((conflict) => !conflict.decided).length
-    onChange(addHistory({ ...workspace, approval: { planId: plan.id, withWarning, approvedAt: new Date().toISOString(), defaultedConflicts } }, { at: new Date().toISOString(), kind: 'approval', text: `Approved: ${words.planText(plan).title}` }))
+    onChange(addHistory({ ...workspace, approval: { planId: plan.id, withWarning, approvedAt: new Date().toISOString(), defaultedConflicts } }, { at: new Date().toISOString(), kind: 'approval', text: `Approved: ${words.planText(plan).title}`, ...(messages.length ? { messages } : {}) }))
     setPendingApproval(null)
   }
 
@@ -287,6 +293,15 @@ export function WorkspaceScreen({ workspace, accountEmail, notice, saveStatus, s
           }}
           title={closing.status === 'delivered' ? `Mark ${closingOrder.customer}'s order delivered?` : `Cancel ${closingOrder.customer}'s order?`}
         />}
+        {readyMessages && <div className="dialog-overlay">
+          <button aria-label="Close" className="assistant-scrim" onClick={() => setReadyMessages(null)} type="button" />
+          <section aria-labelledby="ready-title" aria-modal="true" className="approval-dialog ready-dialog" role="dialog">
+            <header><div><h2 id="ready-title">Messages to send</h2><p>{readyMessages.title}</p></div><Button aria-label="Close" className="assistant-close" icon={<X size={18} />} onClick={() => setReadyMessages(null)} variant="quiet" /></header>
+            <p className="approval-dialog-intro">Rehearsal wrote these from the approved plan. Check them, then copy or email. Nothing is sent automatically, and a copy stays in History.</p>
+            <ReadyMessages messages={readyMessages.messages} />
+            <footer><Button onClick={() => setReadyMessages(null)} variant="primary">Done</Button></footer>
+          </section>
+        </div>}
         {importKind && <ImportDialog kind={importKind} onApply={(next, summary) => { saveChange(next, { kind: 'import', text: summary }); setImportKind(null) }} onClose={() => setImportKind(null)} />}
         {receivingShipment && <ReceiveDialog
           onClose={() => setReceivingId(null)}

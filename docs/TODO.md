@@ -41,7 +41,7 @@
 - [x] show plan options, conditional facts, and rejection reason
 - [ ] let the user select a planning objective and compare options against it
 - [x] persist business changes only after user confirmation (two-step editor; approval applies the plan)
-- [ ] prepare action drafts after approval (supplier ask messages exist before approval; nothing is drafted after)
+- [x] prepare action drafts after approval (2026-10-15: supplier order, transfer request, notes to customers still short)
 - [x] Firestore is used: each signed-in user's workspace (2026-10-15). Hackathon requirement for Firebase, Firestore, Cloud Run and Gemini now met in the build
 - [x] deploy working prototype on Google Cloud stack (Cloud Run + Firebase Hosting, project rehearsal-ai-builder-cup-2026)
 - [ ] create demo script and 3-minute flow

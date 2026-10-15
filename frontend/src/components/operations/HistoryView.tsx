@@ -2,6 +2,7 @@ import { CalendarClock, ClipboardCheck, FileUp, History, PackageCheck, PencilLin
 import type { HistoryKind } from '../../../../shared/planner/model'
 import { useWorkspaceView } from '../../presentation/workspaceView'
 import { EmptyState } from '../layout/EmptyState'
+import { ReadyMessages } from '../planning/ReadyMessages'
 
 const kinds: Record<HistoryKind, { label: string; icon: typeof History }> = {
   delay: { label: 'Delay', icon: CalendarClock },
@@ -30,7 +31,12 @@ export function HistoryView() {
               <li className={`history-entry history-${entry.kind}`} key={`${entry.at}-${index}`}>
                 <Icon aria-hidden="true" size={16} />
                 <span className="history-kind">{label}</span>
-                <span className="history-text">{entry.text}</span>
+                <span className="history-text">{entry.text}
+                  {entry.messages && entry.messages.length > 0 && <details className="history-messages">
+                    <summary>Messages to send ({entry.messages.length})</summary>
+                    <ReadyMessages messages={entry.messages} />
+                  </details>}
+                </span>
                 <time dateTime={entry.at}>{format.dateTime(entry.at)}</time>
               </li>
             )

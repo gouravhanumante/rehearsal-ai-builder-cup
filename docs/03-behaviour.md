@@ -174,6 +174,16 @@ Agreed with the user: both paths exist, and the difference is always visible.
   out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a
   **purchase** adds the supplier's delivery and lowers what they still offer; **ship from another
   warehouse** moves the order. Changed counts are marked typed-in until recounted.
+- **Messages to send after approving** (user decision 2026-10-15, `approvalMessages` in
+  `frontend/src/presentation/approvalMessages.ts`, `ReadyMessages.tsx`): written by code from the
+  approved plan, never by Gemini. A purchase states the quantity, quoted price, delivery charge,
+  total and arrival, addressed to the supplier's email; a transfer asks the sending location's
+  team to send exactly the approved quantity by the plan's arrival (and leave by the book-by time);
+  ship-from asks the other location to deliver that order. Each customer the problem still leaves
+  short gets a note: how much arrives on time and when the rest should follow, taken from the next
+  delivery recorded after their due date, or "we will confirm" when none is recorded. They open in
+  a "Messages to send" box right after approving, with **Copy message** and **Email** (when an email
+  is known); a copy stays on that approval in History. Nothing is sent automatically.
 - **Mark received** (user decision 2026-10-15, `receiveDelivery` in `shared/planner/apply.ts`,
   `ReceiveDialog.tsx`): every incoming delivery in Suppliers has it. The user enters what actually
   arrived per product (prefilled with what was expected). It is added to that location's stock (a

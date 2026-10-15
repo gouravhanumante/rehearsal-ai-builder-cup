@@ -151,10 +151,11 @@ Rules worth knowing:
 - **Approving records the plan** in the workspace after the server re-checks it: a transfer lowers the source's stock and adds an incoming delivery, a purchase adds the supplier's delivery, ship-from moves the order. Nothing is sent to anyone.
 - **Mark received** on any incoming delivery: what arrived goes into stock and the delivery stops counting, so it is never counted twice. If only part came, Rehearsal asks whether the rest is still coming and when.
 - **History**: a read-only list of delays, approvals, deliveries received, orders closed and changes saved.
+- **Messages to send after approving**: a purchase order, a transfer request, and a note to each customer still short, written from the approved plan. Copy or email them; nothing is sent automatically.
 - Money, dates and numbers follow the business's country (India, US, UK, Singapore, Japan, UAE).
 
 **Not built yet (known gaps)**
-- No ready-to-send messages after approval; no choice of goal (options are always ranked to protect deliveries first).
+- No choice of goal yet (options are always ranked to protect deliveries first).
 - Voice input. Undo. Several products on one order when typing it by hand (import supports it). Deleting shipments, orders, locations or products. Search and paging outside Inventory.
 
 The full list is in [`docs/TODO.md`](docs/TODO.md).

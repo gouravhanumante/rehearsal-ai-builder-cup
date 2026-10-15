@@ -58,7 +58,10 @@ const isWorkspaceShape = shape({
   }), LIMITS.suppliers),
   conflictDecisions: listOf(shape({ conflictId: isText(200), winner: oneOf('earliest-due', 'priority') }), 1000),
   approval: nullable(shape({ planId: isText(200), withWarning: (value) => typeof value === 'boolean', approvedAt: isTime, defaultedConflicts: isCount })),
-  history: optional(listOf(shape({ at: isTime, kind: oneOf('delay', 'approval', 'received', 'order', 'edit', 'import'), text: isText(400) }), LIMITS.history)),
+  history: optional(listOf(shape({
+    at: isTime, kind: oneOf('delay', 'approval', 'received', 'order', 'edit', 'import'), text: isText(400),
+    messages: optional(listOf(shape({ to: isText(120), email: nullable(isText(120)), subject: isText(200), body: isText(3000) }), 20)),
+  }), LIMITS.history)),
 })
 
 /** Checks untrusted data (browser storage, API requests) before the planner sees it. */

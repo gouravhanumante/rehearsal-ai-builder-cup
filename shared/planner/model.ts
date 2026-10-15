@@ -81,8 +81,9 @@ export type ConflictDecision = { conflictId: string; winner: 'earliest-due' | 'p
 export type Approval = { planId: string; withWarning: boolean; approvedAt: string; defaultedConflicts: number }
 
 export type HistoryKind = 'delay' | 'approval' | 'received' | 'order' | 'edit' | 'import'
+export type HistoryMessage = { to: string; email: string | null; subject: string; body: string }
 /** One line in the business's History. Read-only; written when a change is saved. */
-export type HistoryEntry = { at: string; kind: HistoryKind; text: string }
+export type HistoryEntry = { at: string; kind: HistoryKind; text: string; messages?: HistoryMessage[] }
 
 export type Workspace = {
   version: 2

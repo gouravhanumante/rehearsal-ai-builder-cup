@@ -87,8 +87,9 @@ data already saved still opens).
 - [x] **History**: read-only list of delays, approvals, deliveries received, orders delivered/cancelled/reopened, edits and imports; newest 500 kept; saved with the business (Firestore rules and chunking allow it)
 - [x] Browser run on Kaveri: received the Mysuru transfer (15), part of the late rice (40 of 50, rest Fri 23 Oct), the weekly oil (moved to Mon 26 Oct); rice at Bengaluru 40 → 95; History shows each step
 
-### 3. Messages after approval
-- [ ] Ready-to-send texts after approving: purchase order to the supplier, transfer booking, note to a customer whose order will still be late or short. Copy or email; nothing is sent automatically
+### 3. Messages after approval — done (2026-10-15)
+- [x] Ready-to-send texts after approving: purchase order to the supplier (with email), transfer request to the sending location, ship-from request, note to each customer still short (no guessed dates). Copy or email; nothing sent automatically; a copy kept in History (`approvalMessages.test.ts`, seen failing)
+- [x] Also: "at risk" now means left short; covered only by stock on its way is Watch (`8610514`)
 
 ### 4. Pick a goal
 - [ ] Choose **Protect deliveries** (default, today's ranking), **Lowest cost** or **Balanced**; options re-rank and the best pick follows the goal
