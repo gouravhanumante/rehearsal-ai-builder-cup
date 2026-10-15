@@ -1,4 +1,4 @@
-name: Deploy frontend (Firebase Hosting)
+name: Deploy frontend (Firebase Hosting + Firestore rules)
 
 on:
   workflow_dispatch:
@@ -35,10 +35,21 @@ jobs:
           npx vitest run
           npm run build
 
+      # The Firestore emulator needs Java 21+.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Test Firestore rules on the emulator
+        working-directory: frontend
+        run: npm run test:rules
+
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
-      - name: Deploy to Firebase Hosting
-        run: npx --yes firebase-tools deploy --only hosting --project "$PROJECT_ID" --non-interactive
+      # Rules ship with the site so saves and rules never drift apart.
+      - name: Deploy Firestore rules and Firebase Hosting
+        run: npx --yes firebase-tools deploy --only firestore:rules,hosting --project "$PROJECT_ID" --non-interactive

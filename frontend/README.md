@@ -36,7 +36,7 @@ Vite proxies `/api` to `http://localhost:8080`.
 - `npm run build` — TypeScript and production build
 - `npm run test:rules` — Firestore security rules against the local emulator (`rules-tests/`). Needs Java 21+; with Java 17 installed, point `JAVA_HOME` at Android Studio's bundled Java: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npm run test:rules`
 
-To deploy, run the **Deploy frontend (Firebase Hosting)** workflow from GitHub Actions (`.github/workflows/deploy-frontend.yml`). It runs these checks, builds, and publishes `dist/` with `firebase.json` from the repository root.
+To deploy, run the **Deploy frontend (Firebase Hosting + Firestore rules)** workflow from GitHub Actions (`.github/workflows/deploy-frontend.yml`). It runs these checks, tests the Firestore rules on the emulator (Java 21), builds, and publishes `dist/` and `firestore.rules` together, using `firebase.json` from the repository root. Its service account needs `roles/firebasehosting.admin` and `roles/firebaserules.admin`.
 
 ## Code layout
 

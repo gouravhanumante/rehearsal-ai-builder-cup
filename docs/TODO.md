@@ -74,7 +74,7 @@ Updated after the movement ledger and transfer lifecycle implementation. Diagram
 - [x] add orders and shipments by hand in a Real workspace (one product per order/shipment; several lines per order still to do)
 - [x] spreadsheet import (CSV and Excel): column matching with Gemini suggestions, preview, confirm, saved as "Imported from file"
 - [x] cloud save for Real workspaces (2026-10-15): Google sign-in, saved per account in Firestore, rules tested against the emulator and deployed. Google sign-in still has to be turned on in the Firebase console
-- [ ] Firestore rules tests need Java 21+; this Mac has 17, so run them with Android Studio's Java: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npm run test:rules`. Not in the GitHub deploy workflows yet
+- [x] Firestore rules tests need Java 21+; locally (Java 17) run them with Android Studio's Java: `JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npm run test:rules`. The deploy-frontend workflow now runs them on Java 21 and deploys the rules with the site (2026-10-15).
 - [ ] SKIPPED for V1: search and paging for hundreds of locations/orders (lists render every row; the sample is small, a 100-store import is just long). Also: the inventory and order views do a linear lookup per row, which will be slow in the thousands
 - [ ] before real users: decide whether Gemini sees sample rows from imported files (free Gemini tier lets Google use content; test data only). Keep one switch to send headers only.
 - [x] create evidence-backed extraction confirmation, followed by separate apply confirmation (Demo edits)
