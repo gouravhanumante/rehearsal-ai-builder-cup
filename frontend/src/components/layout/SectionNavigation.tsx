@@ -1,6 +1,6 @@
-import { Boxes, ClipboardCheck, ClipboardList, LayoutDashboard, ListChecks, Route, Truck } from 'lucide-react'
+import { Boxes, ClipboardCheck, ClipboardList, History, LayoutDashboard, ListChecks, Route, Truck } from 'lucide-react'
 
-export type SectionName = 'Setup' | 'Overview' | 'Orders' | 'Inventory' | 'Between locations' | 'Suppliers' | 'Rehearsals'
+export type SectionName = 'Setup' | 'Overview' | 'Orders' | 'Inventory' | 'Between locations' | 'Suppliers' | 'Rehearsals' | 'History'
 
 type SectionNavigationProps = {
   activeSection: SectionName
@@ -19,6 +19,7 @@ const sections = [
   { name: 'Between locations' as const, icon: Route },
   { name: 'Suppliers' as const, icon: Truck },
   { name: 'Rehearsals' as const, icon: ClipboardCheck },
+  { name: 'History' as const, icon: History },
 ]
 
 export function SectionNavigation({ activeSection, affectedOrderCount, showSetup, setupRemaining, mode, onNavigate }: SectionNavigationProps) {

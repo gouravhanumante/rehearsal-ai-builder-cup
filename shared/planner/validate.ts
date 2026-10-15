@@ -3,7 +3,7 @@ import type { Workspace } from './model.js'
 /** Hard caps so a request or saved file cannot make the planner do unbounded work. */
 export const LIMITS = {
   products: 20_000, locations: 10_000, stock: 300_000, orders: 100_000, lines: 100,
-  shipments: 20_000, routes: 20_000, suppliers: 2_000, offers: 20_000,
+  shipments: 20_000, routes: 20_000, suppliers: 2_000, offers: 20_000, history: 500,
 }
 
 type Check = (value: unknown) => boolean
@@ -58,6 +58,7 @@ const isWorkspaceShape = shape({
   }), LIMITS.suppliers),
   conflictDecisions: listOf(shape({ conflictId: isText(200), winner: oneOf('earliest-due', 'priority') }), 1000),
   approval: nullable(shape({ planId: isText(200), withWarning: (value) => typeof value === 'boolean', approvedAt: isTime, defaultedConflicts: isCount })),
+  history: optional(listOf(shape({ at: isTime, kind: oneOf('delay', 'approval', 'received', 'order', 'edit', 'import'), text: isText(400) }), LIMITS.history)),
 })
 
 /** Checks untrusted data (browser storage, API requests) before the planner sees it. */

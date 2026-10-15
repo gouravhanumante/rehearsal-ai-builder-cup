@@ -1,6 +1,6 @@
 # 04 — Architecture (V1 direction confirmed 2026-10-14; checked against code 2026-10-15)
 
-Built today: Firebase Hosting serving the frontend and rewriting `/api` to Cloud Run (`firebase.json`); the API image built by `cloudbuild.yaml`; Firebase Authentication (Google) and Firestore holding each user's own workspace (`frontend/src/cloud/`). Not built: voice input, Gemini function calling, an audit log or undo.
+Built today: Firebase Hosting serving the frontend and rewriting `/api` to Cloud Run (`firebase.json`); the API image built by `cloudbuild.yaml`; Firebase Authentication (Google) and Firestore holding each user's own workspace (`frontend/src/cloud/`). Not built: voice input, Gemini function calling, undo. History is a read-only list saved inside the workspace (`history`, newest 500), not a separate audit log.
 
 ## Guiding principle
 **Gemini proposes; code checks.** The model interprets messy input and explains results.

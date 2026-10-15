@@ -80,6 +80,10 @@ export type ConflictDecision = { conflictId: string; winner: 'earliest-due' | 'p
 
 export type Approval = { planId: string; withWarning: boolean; approvedAt: string; defaultedConflicts: number }
 
+export type HistoryKind = 'delay' | 'approval' | 'received' | 'order' | 'edit' | 'import'
+/** One line in the business's History. Read-only; written when a change is saved. */
+export type HistoryEntry = { at: string; kind: HistoryKind; text: string }
+
 export type Workspace = {
   version: 2
   /** The sample is a shared demo; a real workspace belongs to one business. */
@@ -101,6 +105,8 @@ export type Workspace = {
   suppliers: Supplier[]
   conflictDecisions: ConflictDecision[]
   approval: Approval | null
+  /** Oldest first. Missing in saves made before History existed. */
+  history?: HistoryEntry[]
 }
 
 export type Money = { amount: number; currency: string }

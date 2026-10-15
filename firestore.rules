@@ -24,7 +24,7 @@ service cloud.firestore {
               && request.resource.data.chunkIds is list && request.resource.data.chunkIds.size() < 1000
               && request.resource.data.revision is int)
             ||
-            (docId.matches('^(products|locations|stock|storageLimits|orders|shipments|routes|suppliers)-[0-9]{1,3}$')
+            (docId.matches('^(products|locations|stock|storageLimits|orders|shipments|routes|suppliers|history)-[0-9]{1,3}$')
               && request.resource.data.keys().hasOnly(['list', 'index', 'json'])
               && request.resource.data.json is string && request.resource.data.json.size() < 700000
               && request.resource.data.index is int

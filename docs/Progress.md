@@ -81,10 +81,11 @@ data already saved still opens).
 - [x] Browser run as a guest: Kaveri Distributors, 3 locations, 3 products, 5 orders, 2 deliveries (one weekly), a delay, a transfer route, a backup supplier, approve a transfer (Mysuru 60 → 45, 15 arriving), answer "can it deliver?", approve ship-from, mark an order delivered (oil 25 → 5), Ask AI, reload, blocked sign-in. Findings are in `TODO.md`
 - [ ] Real Google sign-in, saving a guest business to an account, two businesses, two devices: needs a person (the built-in browser blocks the Google window)
 
-### 2. Mark received + History
-- [ ] **Mark received** on an incoming delivery: enter what arrived (all / part / not yet); stock goes up and the delivery closes
-- [ ] Part arrived (6 of 8): "Are the other 2 still coming?" Yes keeps 2 incoming, No closes it
-- [ ] **History**: read-only list of delays reported, approvals, deliveries received, orders delivered/cancelled, edits
+### 2. Mark received + History — done (2026-10-15)
+- [x] **Mark received** on an incoming delivery: enter what arrived; stock goes up and the delivery closes; a delay on it is cleared (`receiveDelivery`, seen failing when the delivery was left incoming)
+- [x] Part arrived (40 of 50): "Are the other 10 still coming?" Yes needs a date and keeps 10 incoming; No closes it. A regular delivery moves to next week
+- [x] **History**: read-only list of delays, approvals, deliveries received, orders delivered/cancelled/reopened, edits and imports; newest 500 kept; saved with the business (Firestore rules and chunking allow it)
+- [x] Browser run on Kaveri: received the Mysuru transfer (15), part of the late rice (40 of 50, rest Fri 23 Oct), the weekly oil (moved to Mon 26 Oct); rice at Bengaluru 40 → 95; History shows each step
 
 ### 3. Messages after approval
 - [ ] Ready-to-send texts after approving: purchase order to the supplier, transfer booking, note to a customer whose order will still be late or short. Copy or email; nothing is sent automatically

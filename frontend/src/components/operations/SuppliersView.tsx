@@ -1,4 +1,4 @@
-import { FileUp, LifeBuoy, PencilLine, Plus, Repeat, Settings2, Trash2, TriangleAlert, Truck } from 'lucide-react'
+import { FileUp, LifeBuoy, PackageCheck, PencilLine, Plus, Repeat, Settings2, Trash2, TriangleAlert, Truck } from 'lucide-react'
 import { Button } from '../../design-system/Button'
 import { StatusBadge } from '../../design-system/StatusBadge'
 import type { Fact } from '../../../../shared/planner/model'
@@ -11,6 +11,7 @@ import { EmptyState } from '../layout/EmptyState'
 
 type SuppliersViewProps = {
   onEdit: (target: EditTarget, mode: 'manual' | 'document') => void
+  onReceive: (shipmentId: string) => void
   onRemoveSupplier: (supplierId: string) => void
 }
 
@@ -26,7 +27,7 @@ function FactLine<T>({ label, fact, show }: { label: string; fact: Fact<T>; show
   )
 }
 
-export function SuppliersView({ onEdit, onRemoveSupplier }: SuppliersViewProps) {
+export function SuppliersView({ onEdit, onReceive, onRemoveSupplier }: SuppliersViewProps) {
   const { workspace, rehearsal, format, words } = useWorkspaceView()
   const delayed = new Set(workspace.disruptions.map((disruption) => disruption.shipmentId))
   const atLimit = workspace.suppliers.length >= LIMITS.suppliers
@@ -64,6 +65,7 @@ export function SuppliersView({ onEdit, onRemoveSupplier }: SuppliersViewProps) 
                     {late && <small>Was {format.dateTime(shipment.originalArrivalAt)} · {shipment.updateSource}</small>}
                   </div>
                   <div className="supplier-actions">
+                    <Button aria-label={`Mark ${shipment.id} received`} icon={<PackageCheck size={14} />} onClick={() => onReceive(shipment.id)} variant="primary">Mark received</Button>
                     <Button aria-label={`Report ${shipment.id} late`} icon={<TriangleAlert size={14} />} onClick={() => onEdit({ type: 'report-delay', shipmentId: shipment.id }, 'manual')} variant="secondary">{late ? 'Update delay' : 'Report late'}</Button>
                   </div>
                 </article>

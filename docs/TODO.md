@@ -1,7 +1,7 @@
 # Rehearsal — TODO and Priority Backlog
 
 ## Open gaps found while testing (2026-10-15)
-- [ ] **Mark a delivery received**: approved transfers and purchases become incoming deliveries; when one arrives the user must recount stock and delete the delivery by hand, or it counts twice.
+- [x] **Mark a delivery received** (2026-10-15): stock goes up, the delivery stops counting as incoming; part arrived asks whether the rest is still coming and when. Plus a read-only **History**.
 - [x] **Shipping cost**: routes cost per trip + per package; supplier replies have a delivery charge; locations have a delivery cost per order for ship-from (2026-10-15).
 - [x] **Is it worth it?** Optional selling price per product; options costing more than the packages they save are worth get a warning (2026-10-15). Warning only, ranking unchanged.
 - [x] **Latest time to book**: ready transfers show "Book by …" (2026-10-15). Suppliers give an arrival time, not a lead time, so purchases have no book-by yet.

@@ -164,8 +164,21 @@ Agreed with the user: both paths exist, and the difference is always visible.
   `shared/planner/apply.ts`), so the picture stays true afterwards: a **transfer** takes the stock
   out of the source now and adds "Transfer from …" as an incoming delivery at the destination; a
   **purchase** adds the supplier's delivery and lowers what they still offer; **ship from another
-  warehouse** moves the order. Changed counts are marked typed-in until recounted. Still missing:
-  marking a delivery as received (see docs/TODO.md).
+  warehouse** moves the order. Changed counts are marked typed-in until recounted.
+- **Mark received** (user decision 2026-10-15, `receiveDelivery` in `shared/planner/apply.ts`,
+  `ReceiveDialog.tsx`): every incoming delivery in Suppliers has it. The user enters what actually
+  arrived per product (prefilled with what was expected). It is added to that location's stock (a
+  count is started if there was none) and the delivery stops counting as incoming, so it is never
+  counted twice; a delay reported on it is cleared. If part is missing (6 of 8) Rehearsal asks "Are
+  the other 2 still coming?": **Yes** needs a date, and the 2 stay incoming as `{id}-REST` for that
+  date; **No** closes it. **Add to stock** stays disabled until that is answered, so no date is
+  guessed. A regular delivery moves to its next date on the original schedule. Nothing arrived:
+  the dialog offers **Report it late** instead.
+- **History** (user decision 2026-10-15, `HistoryView.tsx`, `addHistory`): a read-only list, newest
+  first, written whenever a change is saved: delays reported or resolved, plans approved (and whether
+  with a warning), deliveries received, orders delivered/cancelled/reopened, edits (the editor's
+  title and changed fields), imports, conflict and "can it deliver?" answers, routes and suppliers
+  removed. It keeps the newest 500 entries and is saved with the business (guest or account).
 - **Can stock move between them?** (`RecoveryPlans.tsx`): when another location can spare a short
   product and there is no transfer route from it, Recovery options asks. **Yes, add transfer**
   opens the route form prefilled; **No** saves the pair (`noTransfers`) and stops asking.

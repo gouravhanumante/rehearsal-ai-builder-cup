@@ -2,10 +2,10 @@ import type { Workspace } from '../../../shared/planner/model'
 import { parseWorkspace } from '../../../shared/planner/validate'
 
 /** The long lists are stored as separate size-bounded documents; Firestore refuses documents over 1 MiB. */
-export const LIST_NAMES = ['products', 'locations', 'stock', 'storageLimits', 'orders', 'shipments', 'routes', 'suppliers'] as const
+export const LIST_NAMES = ['products', 'locations', 'stock', 'storageLimits', 'orders', 'shipments', 'routes', 'suppliers', 'history'] as const
 export type ListName = typeof LIST_NAMES[number]
 /** Lists older or smaller workspaces may not have; when absent or empty they stay in the core document as they are. */
-const OPTIONAL_LISTS: readonly ListName[] = ['storageLimits']
+const OPTIONAL_LISTS: readonly ListName[] = ['storageLimits', 'history']
 export const MAX_CHUNK_BYTES = 600_000
 
 export type Chunk = { id: string; list: ListName; index: number; json: string }

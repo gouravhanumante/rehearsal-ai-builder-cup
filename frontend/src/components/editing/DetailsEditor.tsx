@@ -19,7 +19,7 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'application/pd
 type DetailsEditorProps = {
   config: EditorConfig
   initialMode: 'manual' | 'document'
-  onApply: (next: Workspace) => void
+  onApply: (next: Workspace, summary: string) => void
   onClose: () => void
 }
 
@@ -62,6 +62,10 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
   const isNew = config.isNew ?? false
   const changedKeys = reviewFieldKeys(isNew, config.fields, values, config.initial, origin, config.initialEvidence)
   const changedFields = config.fields.filter((field) => changedKeys.includes(field.key))
+  // One line for History, e.g. "Add order: Customer Hotel Annapoorna, Quantity 30".
+  const summary = `${config.title}: ${changedFields.slice(0, 4).map((field) => isNew
+    ? `${field.label} ${displayValue(field, values[field.key] ?? '', format)}`
+    : `${field.label} ${displayValue(field, config.initial[field.key] ?? '', format)} → ${displayValue(field, values[field.key] ?? '', format)}`).join(', ')}`.slice(0, 400)
 
   // The change as typed so far, so a shortage can be flagged before Review.
   const draft = useMemo(() => {
@@ -299,7 +303,7 @@ export function DetailsEditor({ config, initialMode, onApply, onClose }: Details
         <footer className="editor-footer">
           {step === 'edit'
             ? <><Button onClick={onClose} variant="quiet">Cancel</Button><Button disabled={!showForm || reading} icon={<ArrowRight size={15} />} onClick={goToReview} variant="primary">Review changes</Button></>
-            : <><Button icon={<ArrowLeft size={15} />} onClick={() => setStep('edit')} variant="quiet">Back</Button><Button disabled={!next || changedFields.length === 0} onClick={() => next && onApply(next)} variant="primary">Confirm and save</Button></>}
+            : <><Button icon={<ArrowLeft size={15} />} onClick={() => setStep('edit')} variant="quiet">Back</Button><Button disabled={!next || changedFields.length === 0} onClick={() => next && onApply(next, summary)} variant="primary">Confirm and save</Button></>}
         </footer>
       </aside>
     </div>

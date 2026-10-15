@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Workspace } from './model.js'
-import { applyPlan, setOrderStatus } from './apply.js'
+import { addHistory, applyPlan, receiveDelivery, setOrderStatus } from './apply.js'
 import { orderCoverage, rehearse } from './plan.js'
 import { SAMPLE_NOW, sampleEvidence, sampleWorkspace } from './sample.js'
+import { LIMITS } from './validate.js'
 
 const planOf = (data: Workspace, id: string) => {
   const plan = rehearse(data).plans.find((item) => item.id === id)
@@ -51,5 +52,77 @@ describe('closing an order', () => {
     expect(orderCoverage(delivered)).toEqual([])
     const reopened = setOrderStatus(delivered, 'ORD-1082', 'open', SAMPLE_NOW)
     expect(reopened.stock.find((record) => record.locationId === 'north')?.available.value).toBe(14)
+  })
+})
+
+describe('marking a delivery received', () => {
+  // Approving the transfer sends 8 cases from South Hub (14 → 6) to North Hub (14 on hand).
+  const transfer = () => applyPlan(sampleWorkspace, planOf(sampleWorkspace, 'transfer:south-to-north:harbor-blend'), SAMPLE_NOW)
+  const transferId = (data: Workspace) => data.shipments.find((item) => item.supplierName === 'Transfer from South Hub')!.id
+  const northStock = (data: Workspace) => data.stock.find((record) => record.locationId === 'north')?.available.value
+  const arrivingAtNorth = (data: Workspace) => data.shipments.filter((item) => item.locationId === 'north').flatMap((item) => item.lines).reduce((total, line) => total + line.quantity, 0)
+  const thursday = '2026-10-22T09:00:00+05:30'
+
+  it('all 8 arrive: North Hub goes from 14 to 22 and the transfer is no longer incoming, so it is never counted twice', () => {
+    const sent = transfer()
+    const before = arrivingAtNorth(sent)
+    const got = receiveDelivery(sent, transferId(sent), [{ productId: 'harbor-blend', quantity: 8 }], null, SAMPLE_NOW)
+    expect(northStock(got)).toBe(22)
+    expect(arrivingAtNorth(got)).toBe(before - 8)
+  })
+
+  it('6 of 8 arrive and the other 2 are still coming Thursday: 20 on hand, 2 still incoming for Thursday', () => {
+    const sent = transfer()
+    const got = receiveDelivery(sent, transferId(sent), [{ productId: 'harbor-blend', quantity: 6 }], { arrivalAt: thursday }, SAMPLE_NOW)
+    expect(northStock(got)).toBe(20)
+    expect(got.shipments.find((item) => item.id === `${transferId(sent)}-REST`)).toMatchObject({ lines: [{ productId: 'harbor-blend', quantity: 2 }], confirmedArrivalAt: thursday })
+  })
+
+  it('6 of 8 arrive and the other 2 are not coming: 20 on hand and nothing left incoming from that transfer', () => {
+    const sent = transfer()
+    const got = receiveDelivery(sent, transferId(sent), [{ productId: 'harbor-blend', quantity: 6 }], null, SAMPLE_NOW)
+    expect(northStock(got)).toBe(20)
+    expect(got.shipments.some((item) => item.id.startsWith(transferId(sent)))).toBe(false)
+  })
+
+  it('the late shipment finally arrives: its stock counts and its delay is no longer a problem', () => {
+    const got = receiveDelivery(sampleWorkspace, 'SH-204', [{ productId: 'harbor-blend', quantity: 24 }], null, SAMPLE_NOW)
+    expect(northStock(got)).toBe(38)
+    expect(got.disruptions).toEqual([])
+    expect(rehearse(got).impact.groups.filter((group) => group.kind === 'delay')).toEqual([])
+    // 18 + 12 + 8 + 10 = 48 ordered against 38 on hand: the last 10 are still short, now as a plain shortage.
+    expect(rehearse(got).impact.exposedQuantity).toBe(10)
+  })
+
+  it('this week\'s regular delivery arrives: stock goes up once and the delivery moves to next week, not later', () => {
+    const monday = '2026-10-19T09:00:00+05:30'
+    const weekly: Workspace = { ...sampleWorkspace, disruptions: [], shipments: [{ ...sampleWorkspace.shipments[0], id: 'WEEKLY', originalArrivalAt: monday, confirmedArrivalAt: monday, repeatEveryDays: 7, lines: [{ productId: 'harbor-blend', quantity: 10 }] }] }
+    const got = receiveDelivery(weekly, 'WEEKLY', [{ productId: 'harbor-blend', quantity: 10 }], null, SAMPLE_NOW)
+    expect(northStock(got)).toBe(24)
+    expect(Date.parse(got.shipments[0].confirmedArrivalAt)).toBe(Date.parse('2026-10-26T09:00:00+05:30'))
+  })
+
+  it('a delivery with two products adds each to its own count, and starts a count where there was none', () => {
+    const data: Workspace = { ...sampleWorkspace, products: [...sampleWorkspace.products, { id: 'oat-milk', name: 'Oat Milk', unit: 'case', pack: '12 x 1 L' }], disruptions: [],
+      shipments: [{ ...sampleWorkspace.shipments[0], lines: [{ productId: 'harbor-blend', quantity: 5 }, { productId: 'oat-milk', quantity: 7 }] }] }
+    const got = receiveDelivery(data, 'SH-204', [{ productId: 'harbor-blend', quantity: 5 }, { productId: 'oat-milk', quantity: 7 }], null, SAMPLE_NOW)
+    expect(northStock(got)).toBe(19)
+    expect(got.stock.find((record) => record.locationId === 'north' && record.productId === 'oat-milk')?.available.value).toBe(7)
+  })
+})
+
+describe('history', () => {
+  const entry = (n: number) => ({ at: SAMPLE_NOW, kind: 'edit' as const, text: `change ${n}` })
+
+  it('adds the newest entry at the end and keeps the earlier ones', () => {
+    const once = addHistory(sampleWorkspace, entry(1))
+    expect(addHistory(once, entry(2)).history?.map((item) => item.text)).toEqual(['change 1', 'change 2'])
+  })
+
+  it(`keeps only the newest ${LIMITS.history}, dropping the oldest`, () => {
+    let data = sampleWorkspace
+    for (let n = 1; n <= LIMITS.history + 3; n += 1) data = addHistory(data, entry(n))
+    expect(data.history).toHaveLength(LIMITS.history)
+    expect(data.history?.[0].text).toBe('change 4')
   })
 })

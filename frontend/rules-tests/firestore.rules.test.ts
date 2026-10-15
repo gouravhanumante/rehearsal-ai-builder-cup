@@ -35,6 +35,7 @@ describe('who can see and change a saved business', () => {
       await assertSucceeds(setDoc(doc(db, path), summary))
       await assertSucceeds(setDoc(doc(db, `${path}/parts/core`), core))
       await assertSucceeds(setDoc(doc(db, `${path}/parts/stock-0`), chunk))
+      await assertSucceeds(setDoc(doc(db, `${path}/parts/history-0`), { ...chunk, list: 'history' }))
     }
     await assertSucceeds(getDocs(collection(db, 'users/alice/businesses')))
     await assertSucceeds(getDoc(doc(db, `${second}/parts/core`)))

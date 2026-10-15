@@ -24,17 +24,17 @@ flowchart LR
   w -->|"Attach proof"| ed["Opens that record's editor [manual]"]
   ok --> ap["Transfer: source stock down, delivery added. Purchase: delivery added, offer reduced. Ship-from: order moved [test]"]
   ap --> keep["Saved; the approval mark itself is cleared because the records changed [manual]"]
-  rcv["Approved delivery arrives: no Mark received, user must recount and can't remove it on screen [GAP]"]
+  rcv["Delivery arrives: Mark received adds it to stock and stops it counting as incoming, never twice [proven]"]
+  part["Part arrived: rest stays incoming only with a date the user gives; regular delivery moves to next week [test]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
   classDef manual fill:#FFECBD,stroke:#E8A302
   classDef gap fill:#FFCDC2,stroke:#DC3009
-  class s proven
-  class c,ap test
+  class s,rcv proven
+  class c,ap,part test
   class stop,ok,w,ed,keep manual
-  class rcv gap
 ```
-`ap` is `shared/planner/apply.test.ts`; `keep` is `saveChange` in `frontend/src/WorkspaceScreen.tsx`.
+`ap`, `rcv` and `part` are `shared/planner/apply.test.ts`; `keep` is `saveChange` in `frontend/src/WorkspaceScreen.tsx`. `rcv` failed (4 tests) when receiving was changed to leave the delivery listed as incoming.
 
 ## 2. Adding or editing details
 ```mermaid

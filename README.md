@@ -65,7 +65,7 @@ flowchart LR
 ## Try it yourself
 
 ### Option 1: the sample (30 seconds)
-Open the link, click **Try the sample**. Click around: **Overview**, **Orders**, **Inventory**, **Between locations**, **Suppliers**, **Rehearsals** (the options). Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. Approve the transfer and watch South Hub's stock go down and the transfer appear under incoming deliveries. **Reset** puts the sample back.
+Open the link, click **Try the sample**. Click around: **Overview**, **Orders**, **Inventory**, **Between locations**, **Suppliers**, **Rehearsals** (the options), **History**. Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. Approve the transfer and watch South Hub's stock go down and the transfer appear under incoming deliveries. **Reset** puts the sample back.
 
 ### Option 2: your own business, from a blank page
 Click **Sign in with Google**, then **Set up my business**, give it a name and a country (this sets currency, number format and timezone). It is saved to your account, so it opens on any device. Then the **Setup** tab walks you through it, in any order:
@@ -149,11 +149,12 @@ Rules worth knowing:
 - **Ask your backup suppliers**: a ready-to-send message per problem, with Email all (BCC). Nothing is sent by Rehearsal.
 - Orders can be marked delivered (stock goes down), cancelled, or reopened. Suppliers and transfer routes can be edited and removed.
 - **Approving records the plan** in the workspace after the server re-checks it: a transfer lowers the source's stock and adds an incoming delivery, a purchase adds the supplier's delivery, ship-from moves the order. Nothing is sent to anyone.
+- **Mark received** on any incoming delivery: what arrived goes into stock and the delivery stops counting, so it is never counted twice. If only part came, Rehearsal asks whether the rest is still coming and when.
+- **History**: a read-only list of delays, approvals, deliveries received, orders closed and changes saved.
 - Money, dates and numbers follow the business's country (India, US, UK, Singapore, Japan, UAE).
 
 **Not built yet (known gaps)**
-- **Marking a delivery received.** When an approved transfer or purchase arrives, you must recount the stock and remove the delivery by hand, or it counts twice. There is no way to remove a delivery on screen yet.
-- No history of decisions yet; no ready-to-send messages after approval; no choice of goal (options are always ranked to protect deliveries first).
+- No ready-to-send messages after approval; no choice of goal (options are always ranked to protect deliveries first).
 - Voice input. Undo. Several products on one order when typing it by hand (import supports it). Deleting shipments, orders, locations or products. Search and paging outside Inventory.
 
 The full list is in [`docs/TODO.md`](docs/TODO.md).

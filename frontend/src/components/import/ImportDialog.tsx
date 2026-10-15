@@ -12,7 +12,7 @@ import { useWorkspaceView } from '../../presentation/workspaceView'
 
 type ImportDialogProps = {
   kind: ImportKind
-  onApply: (next: Workspace) => void
+  onApply: (next: Workspace, summary: string) => void
   onClose: () => void
 }
 
@@ -153,7 +153,7 @@ export function ImportDialog({ kind, onApply, onClose }: ImportDialogProps) {
         <footer className="editor-footer">
           {step === 'file' && <Button onClick={onClose} variant="quiet">Cancel</Button>}
           {step === 'columns' && <><Button icon={<ArrowLeft size={15} />} onClick={() => { setStep('file'); setError(null) }} variant="quiet">Back</Button><Button disabled={missing.length > 0 || busy !== null} icon={<ArrowRight size={15} />} onClick={() => setStep('review')} variant="primary">Check the import</Button></>}
-          {step === 'review' && result && <><Button icon={<ArrowLeft size={15} />} onClick={() => setStep('columns')} variant="quiet">Back</Button><Button disabled={changes === 0 || result.blocked !== null} onClick={() => onApply(result.workspace)} variant="primary">{changes === 0 ? 'Nothing to save' : `Save ${format.number(changes)} ${changes === 1 ? 'row' : 'rows'}`}</Button></>}
+          {step === 'review' && result && <><Button icon={<ArrowLeft size={15} />} onClick={() => setStep('columns')} variant="quiet">Back</Button><Button disabled={changes === 0 || result.blocked !== null} onClick={() => onApply(result.workspace, `${definition.label} imported from ${table?.fileName ?? 'a file'}: ${result.added} added, ${result.updated} updated${result.problems.length ? `, ${result.problems.length} rows left out` : ''}`.slice(0, 400))} variant="primary">{changes === 0 ? 'Nothing to save' : `Save ${format.number(changes)} ${changes === 1 ? 'row' : 'rows'}`}</Button></>}
         </footer>
       </aside>
     </div>

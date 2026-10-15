@@ -39,6 +39,13 @@ describe('saving a business online in pieces', () => {
     expect(joinWorkspace(coreJson, chunks)?.storageLimits).toHaveLength(30_000)
   })
 
+  it('saves a full History (500 entries) and brings it back in order', () => {
+    const workspace = { ...sampleWorkspace, history: Array.from({ length: 500 }, (_, i) => ({ at: '2026-10-15T09:00:00+05:30', kind: 'edit' as const, text: `Edited order ${i}: quantity ${i} → ${i + 1}` })) }
+    const { coreJson, chunks } = splitWorkspace(workspace, 20_000)
+    expect(chunks.filter((chunk) => chunk.list === 'history').length).toBeGreaterThan(1)
+    expect(joinWorkspace(coreJson, chunks)?.history?.map((item) => item.text)).toEqual(workspace.history.map((item) => item.text))
+  })
+
   it('keeps the order of a list, whatever order the pieces arrive in', () => {
     const workspace = bigBusiness(10, 100)
     const { coreJson, chunks } = splitWorkspace(workspace, 20_000)
