@@ -35,11 +35,11 @@ The sample is a coffee distributor, **Northstar Supply**. Open it and you land o
 | **The delay** | Supplier Meridian Foods' shipment SH-204 (Harbor Blend Coffee) was due Tue 13 Oct and is now due Fri 16 Oct, 3 pm |
 | **The impact** | **24 cases exposed**, **3 orders at risk** |
 | **Orders at risk** | Common Ground Cafe (priority order) needs 18 cases but only 14 are covered. Harbor Market needs 12 and 0 are covered |
-| **Best option** | **Transfer 8 cases from South Hub.** It fits North Hub's receiving limit of 8 cases per day and arrives before the priority order is due. 16 cases remain exposed |
-| **Option that needs information** | **Buy emergency stock from Supplier B.** Can't be checked yet: stock available, price and arrival time are missing |
+| **Best option** | **Transfer 8 cases from South Hub** for ₹95 (₹55 a trip + ₹5 a case). It fits North Hub's receiving limit of 8 cases per day and arrives before the priority order is due. 16 cases remain exposed |
+| **Option waiting for a reply** | **Buy from Supplier B.** Can't be checked yet: stock available, price and arrival time are missing. Rehearsal drafts the message to ask them |
 | **Option that can't be done** | **Transfer all 14 cases in one day.** North Hub can receive at most 8 a day, so it would exceed capacity by 6 |
 
-Each option is marked **Ready to use**, **Needs information** or **Can't be done**, with the reason in plain words. You can click **Add details** on the missing one, type in or upload the supplier's quote, and watch the option become checkable.
+Options are grouped by problem, best first. Each is marked **Ready to use**, **Ready · unverified**, **Waiting for reply**, **Needs your answer**, **Needs information** or **Can't be done**, with the reason in plain words (`statusLabel` in `frontend/src/presentation/planText.ts`). Click **Add details** on a waiting one, type in or upload the supplier's quote, and watch the option become checkable.
 
 ---
 
@@ -56,7 +56,7 @@ flowchart LR
 ### Four ideas that make it trustworthy
 
 1. **Gemini proposes, the code checks.** Gemini reads documents, suggests spreadsheet columns and answers questions. But the numbers, dates and "is this possible?" decisions come from ordinary, tested code. Gemini can never mark an option as ready on its own.
-2. **Unknown is never zero.** If you haven't counted stock at a location, Rehearsal says "unknown", not "0". An option that depends on a missing fact says exactly what is missing.
+2. **Missing facts are said out loud.** A location with no stock count counts as 0, and every place that uses it says "no stock count, so it counts as 0" with an **Add count** link. A supplier option with a missing price or date is never guessed: it says exactly what is missing.
 3. **Typed-in is not the same as proven.** Anything you type is marked **Unverified**. Attach a photo or PDF (a stock count, a supplier quote) and Gemini reads it, showing the exact words it found. You check each value, and it becomes **Verified**. An option that rests on unverified numbers is shown as *Ready · unverified* and warns you before you approve.
 4. **You always check before saving.** Every change is two steps: enter the values, then see what it would change (exposed quantity, orders at risk, which options flip) before confirming.
 
@@ -65,7 +65,7 @@ flowchart LR
 ## Try it yourself
 
 ### Option 1: the sample (30 seconds)
-Open the link, click **Try the sample**. Click around: **Orders**, **Inventory**, **Suppliers**, **Rehearsals** (the options). Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. **Reset** puts the sample back.
+Open the link, click **Try the sample**. Click around: **Overview**, **Orders**, **Inventory**, **Between locations**, **Suppliers**, **Rehearsals** (the options). Try **Ask AI** ("What should I do first?"). Edit a number and see the plan change. Approve the transfer and watch South Hub's stock go down and the transfer appear under incoming deliveries. **Reset** puts the sample back.
 
 ### Option 2: your own business, from a blank page
 Click **Set up my business**, give it a name and a country (this sets currency, number format and timezone). Then the **Setup** tab walks you through it, in any order:
@@ -103,7 +103,7 @@ Don't want to invent a business? Four independent scenarios are in the [`test-da
 4. **The WhatsApp message arrives.** She clicks **Report a delay**, picks shipment SH-7001 (Mango Juice 1L, 120 cases) and uploads the screenshot `delay-message-alphonso-agro.png`. Gemini reads **22 Oct 2026, 5:00 pm** and shows the quote it found. She confirms.
 5. **See the impact.** Mumbai Warehouse has only 30 cases of mango juice. Two orders need 90 cases before the 22nd (Spice Route Cafe 40, Metro Mart 50). So **60 cases are exposed and 2 orders are at risk.**
 6. **Find a way out.** She adds a transfer route from Surat DC to Mumbai Warehouse and uploads the carrier booking (arrives 17 Oct 08:00). She also adds a supplier and uploads the FreshPress quote (150 cases at ₹410, delivery 18 Oct 12:00). Both options are now checked with real numbers and can be compared.
-7. **Decide.** She approves one. The approval is saved and remembered.
+7. **Decide.** She approves one. Approving records it: a transfer takes the stock out of Surat DC now and adds it as an incoming delivery at Mumbai Warehouse; a purchase adds the supplier's delivery.
 
 ---
 
@@ -139,15 +139,22 @@ Rules worth knowing:
 ## What is and isn't built
 
 **Works today**
-- The sample workflow, Ask AI, document reading with quotes, verified vs unverified values, conflict handling, two-step editing, simulated approval re-checked by the server.
+- The sample workflow, Ask AI, document reading with quotes, verified vs unverified values, conflict handling, two-step editing.
 - A blank workspace with a guided Setup, empty states, typed-in orders/shipments/suppliers/transfer routes, spreadsheet import, Report a delay, backup/restore.
+- Every open order is checked against its warehouse's stock and deliveries due before it, not only orders hit by a delay. Deliveries can repeat (weekly, every 2 weeks, every 4 weeks).
+- Recovery options: transfer between locations, buy from a backup supplier, or ship the order from another warehouse (after you say that warehouse can deliver to those customers).
+- Costs: transfer routes cost per trip and per package, suppliers have a price per package and a delivery charge, locations have a delivery cost per order. Options are ranked on total cost. A product's optional selling price gives a warning when a fix costs more than the stock it saves is worth. Ready transfers show the latest time to book.
+- Storage room per product per warehouse; Rehearsal asks suppliers only for what still fits.
+- **Ask your backup suppliers**: a ready-to-send message per problem, with Email all (BCC). Nothing is sent by Rehearsal.
+- Orders can be marked delivered (stock goes down), cancelled, or reopened. Suppliers and transfer routes can be edited and removed.
+- **Approving records the plan** in the workspace after the server re-checks it: a transfer lowers the source's stock and adds an incoming delivery, a purchase adds the supplier's delivery, ship-from moves the order. Nothing is sent to anyone.
 - Money, dates and numbers follow the business's country (India, US, UK, Singapore, Japan, UAE).
 
 **Not built yet (known gaps)**
+- **Marking a delivery received.** When an approved transfer or purchase arrives, you must recount the stock and remove the delivery by hand, or it counts twice. There is no way to remove a delivery on screen yet.
 - **Sign-in and cloud save.** Data is per device. Groundwork is parked on the `cloud-save-wip` branch.
 - **Firestore is not used yet.** Firebase is used for Hosting only.
-- **Approvals are simulated.** Approving a plan does not change any real business system, and nothing is sent to anyone.
-- Several products on one order when typing it by hand (import supports it). Deleting shipments, orders, locations or products. Search and paging for very long lists.
+- Voice input. Undo. Several products on one order when typing it by hand (import supports it). Deleting shipments, orders, locations or products. Search and paging outside Inventory.
 
 The full list is in [`docs/TODO.md`](docs/TODO.md).
 
@@ -157,8 +164,8 @@ The full list is in [`docs/TODO.md`](docs/TODO.md).
 
 | Tool | What it does here |
 |---|---|
-| **Gemini** (`gemini-3.5-flash-lite`) | Reads receipts and messages (photos and PDFs), suggests spreadsheet column matches, answers Ask AI questions. Never decides whether an option is possible. |
-| **Cloud Run** | Runs the API. Holds the Gemini key (as a secret), re-checks a plan on the server before an approval is recorded, and rate-limits requests. |
+| **Gemini** (`gemini-3.5-flash-lite`) | Reads receipts and messages (photos and PDFs), suggests spreadsheet column matches, answers Ask AI questions. Never decides whether an option is possible. Supplier messages are written by code, not Gemini. |
+| **Cloud Run** | Runs the API. Holds the Gemini key (as a secret), re-checks a plan on the server before an approval is recorded, and rate-limits requests (`backend/src/app.ts`). |
 | **Firebase Hosting** | Serves the web app and forwards `/api` calls to Cloud Run. |
 
 ---
@@ -199,14 +206,15 @@ shared/planner/     The rules engine (plain TypeScript, no libraries). Finds aff
 shared/import/      Which fields a stock/order/shipment file can fill in.
 frontend/           React + Vite web app.
   src/components/     Screens: start, setup, operations, planning, editing, import, assistant.
+  src/presentation/   Wording and formatting: option labels, supplier messages, Setup steps.
   src/import/         Reads csv/xlsx, matches columns, builds the import preview.
-  src/data/           Browser storage (IndexedDB), backup and restore.
+  src/data/           Browser storage (sample in localStorage, own workspace in IndexedDB), backup and restore.
 backend/            Node + Express API: Ask AI, document reading, column matching, plan re-check.
 test-data/          Four ready-made scenarios with spreadsheets and receipts.
 docs/               Product, behaviour rules, architecture, decisions, bug map, backlog.
 ```
 
-The rules engine is deliberately ordinary tested code. Tests are written from plain rules ("money must not move while a no-show can still be reported", "an unreadable count is never zero"), and each important test has been checked to fail when the rule is deliberately broken.
+The rules engine is deliberately ordinary tested code. Tests are written from plain rules ("a transfer must fit the receiving limit", "an unreadable count is never zero"), and the [bug map](docs/07-bug-map.md) shows which tests have been seen failing when the rule is deliberately broken, which have not, and which steps are only checked by hand.
 
 ## Project docs
 

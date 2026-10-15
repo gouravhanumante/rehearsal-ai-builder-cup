@@ -4,7 +4,7 @@ Working name: **Rehearsal**. Entry for the **Google Cloud AI Builder Cup 2026** 
 
 > If you are an AI assistant picking this up: read this file, then the docs in order.
 > Treat these docs as the current agreement. Anything marked **OPEN** is not decided yet —
-> ask the user before deciding it. Current status is updated 2026-10-14.
+> ask the user before deciding it. Current status is updated 2026-10-15.
 
 ## One-line pitch
 When something goes wrong in a small business (a late shipment, a stock-out, a warehouse or
@@ -16,10 +16,11 @@ real constraints, and carries the approved response into action.
 |---|---|
 | Idea | Agreed |
 | Product behaviour | Agreed in discussion, written in docs |
-| Tech stack | React + TypeScript, Node API, AI Studio key selected; Cloud Run/Firebase/Firestore pending |
-| Hackathon theme (one only) | **OPEN** |
-| Code | Distributor UI, deterministic planner, and local Gemini API implemented; cloud wiring pending |
-| Deck / video / deployment | Not started |
+| Tech stack | React + Vite on Firebase Hosting, Node API on Cloud Run, Gemini via AI Studio key; Firestore not used |
+| Hackathon theme (one only) | **OPEN** (working direction: Retail & Commerce) |
+| Code | Sample and own-business workspaces, shared planner, import, Gemini reading and Ask AI, approvals that record the plan |
+| Deployment | Live at rehearsal-ai-builder-cup-2026.web.app; 2026-10-15 work not redeployed |
+| Deck / video | Not started |
 
 ## Key dates
 - 2026-10-14 — team formation closes
@@ -44,13 +45,17 @@ real constraints, and carries the approved response into action.
 ## Folder layout
 ```
 AIBuilder2026/
-  docs/       product agreement, UX rules, progress, and backlog
-  frontend/   React app and deterministic distributor planner
-  backend/    TypeScript API for Gemini (local; cloud deploy pending)
+  docs/          product agreement, UX rules, progress, and backlog
+  shared/        planner (used by browser and API) and import field lists
+  frontend/      React app
+  backend/       TypeScript API for Gemini and the plan re-check (Cloud Run)
+  test-data/     four ready-made scenarios
 ```
 
 ## Working rules agreed with the user
 - Docs first, then code.
+- **Every code change updates the docs it affects in the same commit.** Which doc owns what is
+  listed in `.github/copilot-instructions.md`.
 - Gemini proposes; code checks. Numbers (quantities, dates, money) are never trusted from
   the model without being recomputed by code.
 - Nothing changes business data without the user confirming it.

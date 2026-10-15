@@ -42,7 +42,7 @@ Agreed with the user: both paths exist, and the difference is always visible.
   the shortage and on each recovery option, then **Confirm and save**.
   (`frontend/src/components/editing/DetailsEditor.tsx`)
 - Saving any change clears an existing approval, because it was given for the old numbers
-  (`saveChange` in `frontend/src/App.tsx`). Approvals are saved with the edits, so they survive
+  (`saveChange` in `frontend/src/WorkspaceScreen.tsx`). Approvals are saved with the edits, so they survive
   a page reload (user decision 2026-10-14); Reset clears them.
 - Demo edits stay in this browser until **Reset**, which restores the sample
   (`frontend/src/data/demoStore.ts`). Edits saved by the first version are moved to the new

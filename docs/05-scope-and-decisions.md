@@ -37,6 +37,21 @@ Out (later):
 | Real-mode stock counts require attached evidence; extraction and applying changes are separately confirmed | 2026-10-14 |
 | Real-mode questions/selected evidence may be sent to Gemini for processing; Rehearsal does not persist those requests/files | 2026-10-14 |
 | Docs first, then code. Folder: /Users/gourav.hanumante/AIBuilder2026 | 2026-10-13 |
+| Cloud save and search/paging skipped for V1; data stays per device with backup/restore (`TODO.md`) | 2026-10-14 |
+| Priority-vs-due-date conflict: the order due first gets the stock until the user switches it | 2026-10-14 |
+| Every open order is checked against stock and deliveries, delay or not; shortages are rehearsed too | 2026-10-14 |
+| Transfers move only what is short, from what the source can spare; storage limit per product per warehouse | 2026-10-14 |
+| Ship-from another warehouse is an option; "Transfers" section renamed "Between locations" | 2026-10-14 |
+| A missing stock count counts as 0 and is labelled so (replaces "unknown, never zero") | 2026-10-15 |
+| Routes store travel time; cost = per trip + per package; suppliers have a delivery charge; ranked on total | 2026-10-15 |
+| Ship-from waits for the user's "can it deliver to those customers?" answer | 2026-10-15 |
+| Options grouped by problem; ask suppliers per problem with Email all (BCC) | 2026-10-15 |
+| Optional selling price gives a worth-it warning only, ranking unchanged; ready transfers show Book by | 2026-10-15 |
+| Orders can be marked delivered, cancelled or reopened | 2026-10-15 |
+| Approving a plan changes the records (transfer, purchase, ship-from) | 2026-10-15 |
+| Every code change updates the docs it affects in the same commit (`.github/copilot-instructions.md`) | 2026-10-15 |
+
+Details and the code behind each 2026-10-14/15 row are in `03-behaviour.md` (search "user decision").
 
 ## OPEN questions (ask the user)
 1. **Theme:** Retail & Commerce or Manufacturing? Must pick one.
@@ -44,7 +59,7 @@ Out (later):
      sellers and distributors are the larger user group.
    - Manufacturing lists supply and demand, operational data → actions.
 2. **Demo hero business:** which template leads the video? (Others shown briefly.)
-3. **Stack:** React + TypeScript/Node selected; Cloud Run/Firebase project setup remains.
+3. **Stack:** settled and deployed (React on Firebase Hosting, Node API on Cloud Run). Still open: whether to use Firestore at all (see `TODO.md`).
 4. **Name:** keep "Rehearsal"? Not checked for conflicts.
 5. **Languages:** English only, or also voice in Hindi/other languages for the demo?
 6. **Team:** who is on the team (2–4 required, formation closes 14 Oct)? User does all work.

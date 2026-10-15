@@ -1,11 +1,11 @@
 # Rehearsal — Progress Tracker
 
-## Status summary
-- Project status: distributor UI/planner and live local Gemini integration implemented; workspace modes and cloud persistence pending
+## Status summary (checked against code 2026-10-15, commit 25e5e0f)
+- Project status: sample and own-business workspaces, shared planner, Gemini document reading / column matching / Ask AI, and approvals that record the plan are implemented
 - Theme direction: Retail & Commerce
 - Demo hero: Distributor
-- Architecture direction: TypeScript/Node + AI Studio API key; Cloud Run/Firebase deployment pending
-- Code status: sample workflow and local Ask AI integration verified; cloud deployment and receipt evidence flow pending
+- Architecture: React + Vite on Firebase Hosting, Node API on Cloud Run (project rehearsal-ai-builder-cup-2026), Gemini via AI Studio key; Firestore not used
+- Deployed: yes, but the work after 2026-10-14 (costs, worth-it, book-by, supplier asks) is not redeployed yet
 - Submission date: 2026-10-18
 
 ## Completed
@@ -48,20 +48,31 @@
 - live check after scale-up: same sample numbers (24 exposed, transfer leaves 16); Gemini read a quote's arrival time in India time and correctly declined a USD price for a ₹ workspace
 
 - blank workspace: start screen (set up my business / try the sample), empty Real workspace saved in the browser, Setup guide, empty states, backup download/restore, delete (2026-10-14)
+- spreadsheet import (csv/xlsx) with Gemini column suggestions; four test scenarios in `test-data/` (2026-10-14)
+- deployed to Cloud Run + Firebase Hosting (2026-10-14)
+- products by items per package; storage limit per product per warehouse; repeating deliveries (2026-10-14)
+- every open order checked against its warehouse's stock and deliveries, not only delayed ones; short orders get recovery options too (2026-10-14)
+- Between locations section: routes with travel time, edit/remove, "can't move this way" answers (2026-10-14)
+- edit and remove suppliers; backup suppliers can supply several products (2026-10-14)
+- ship an order from another warehouse, after the user says it can deliver to those customers (2026-10-15)
+- orders can be marked delivered, cancelled, or reopened (2026-10-15)
+- a missing stock count counts as 0 and is labelled so (2026-10-15)
+- approving a transfer, purchase or ship-from records it in the workspace (2026-10-15)
+- costs: per trip + per package on routes, supplier delivery charge, delivery cost per order for ship-from; ranked on total (2026-10-15)
+- options grouped by problem with a best pick each; next steps when a problem has no option (2026-10-15)
+- worth-it warning from an optional selling price; Book by time on ready transfers (2026-10-15)
+- Ask your backup suppliers per problem, one message per product, Email all (BCC) (2026-10-15)
 
 ## In progress
 - review provisional distributor sample quantities, dates, and estimated costs together
 - finalize the exact V1 demo flow and confirm hackathon theme
 
 ## Pending
-- configure the Gemini key as a Cloud Run secret for deployment
-- cloud save for Real workspaces (sign-in + Firestore); spreadsheet import; add orders/shipments and report a delay on a shipment
-- evidence-backed two-stage receipt review/apply flow for Real workspace stock (Demo supplier/stock/order edits done)
-- Firestore sample-workspace implementation, then Firebase Hosting and Cloud Run deployment
-- expand planning rules only after the sample assumptions are confirmed
-- approval/apply workflow
-- deployment and public demo setup
-- deck, demo video, and submission assets
+- mark an approved delivery as received (see `TODO.md`)
+- redeploy backend and frontend with the 2026-10-15 work
+- decide on the Firestore open risk (`TODO.md`)
+- review provisional distributor sample quantities, dates, and estimated costs together
+- deck, demo video, demo script, and submission assets
 
 ## Current working assumption
-Demo remains the sample distributor workflow. Real mode will be a separate browser-local workspace; users explicitly submit questions/receipts to Gemini, review its proposed interpretation, inspect calculated consequences, then separately approve applying changes. No live business data is connected and no external action is sent.
+Demo remains the sample distributor workflow. Real mode is a separate browser-local workspace; users explicitly submit questions/documents to Gemini, check its proposed values, review the calculated effect, then save. Approving a plan changes the workspace only; no external action is sent.

@@ -1,7 +1,7 @@
 # 07 — Bug map
 
 Small diagrams of each feature, coloured by **what protects each step**, so weak spots are
-easy to see. Updated 2026-10-14 after the Phase 1 scale-up.
+easy to see. Updated 2026-10-15 to match the code at commit 25e5e0f.
 
 | Colour | Tag | Meaning |
 |---|---|---|
@@ -22,15 +22,19 @@ flowchart LR
   c -->|"Yes"| w["Warning lists details and conflicts [manual]"]
   w -->|"Approve with warning"| ok
   w -->|"Attach proof"| ed["Opens that record's editor [manual]"]
-  ok --> keep["Saved; survives reload; cleared by edits or Reset [manual]"]
+  ok --> ap["Transfer: source stock down, delivery added. Purchase: delivery added, offer reduced. Ship-from: order moved [test]"]
+  ap --> keep["Saved; the approval mark itself is cleared because the records changed [manual]"]
+  rcv["Approved delivery arrives: no Mark received, user must recount and can't remove it on screen [GAP]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
   classDef manual fill:#FFECBD,stroke:#E8A302
   classDef gap fill:#FFCDC2,stroke:#DC3009
   class s proven
-  class c test
+  class c,ap test
   class stop,ok,w,ed,keep manual
+  class rcv gap
 ```
+`ap` is `shared/planner/apply.test.ts`; `keep` is `saveChange` in `frontend/src/WorkspaceScreen.tsx`.
 
 ## 2. Adding or editing details
 ```mermaid
@@ -42,14 +46,19 @@ flowchart LR
   t & d --> r["Review: old to new, effect on options [manual]"]
   r --> s["Saved; proof stamped at review time; approval cleared [manual]"]
   p["Priority, location and names need no proof [proven]"]
-  ed["Delayed shipment, transfer quotes, new routes not editable on screen [GAP]"]
+  dl["Report a delay changes only the next arrival [test]"]
+  rt["Routes and suppliers: edit and remove in Between locations / Suppliers [manual]"]
+  ed["Transfer quotes not editable; shipments, orders, locations, products can't be removed [GAP]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
+  classDef test fill:#C2E5FF,stroke:#007AD2
   classDef manual fill:#FFECBD,stroke:#E8A302
   classDef gap fill:#FFCDC2,stroke:#DC3009
   class t,d,p proven
-  class r,s manual
+  class dl test
+  class r,s,rt manual
   class ed gap
 ```
+`dl` is `frontend/src/components/editing/recordingEditors.test.ts`.
 
 ## 3. Reading a document (API)
 ```mermaid
@@ -77,22 +86,28 @@ flowchart LR
   loc -->|"No"| na["Not affected [proven]"]
   loc -->|"Yes"| due{"Due before the delayed stock arrives? [test]"}
   due -->|"No"| na
-  due -->|"Yes"| st{"Stock counted? [proven]"}
-  st -->|"No"| unk["Exposure unknown, not zero [proven]"]
-  st -->|"Yes"| al["Stock counts only once arrived [test]"]
+  due -->|"Yes"| st{"Stock counted? [test]"}
+  st -->|"No"| unk["Counts as 0, labelled no stock count, Add count link [test]"]
+  st -->|"Yes"| al["Stock counts only once arrived; repeating deliveries keep counting [test]"]
+  all["Every open order checked against its warehouse's stock and deliveries, not only delayed ones [test]"]
   al --> cf["Conflict: order due first by default, user can switch [proven]"]
-  al --> tr["Transfer: receiving limit, timing, quoted cost only [test]"]
-  al --> sup["Supplier: missing details mean Needs information [test]"]
-  sup --> buy["Buys only what is short, price per unit [test]"]
-  al --> rec["Overview picks best ready plan [test]"]
-  later["Not-affected orders not checked against the late stock [GAP]"]
+  al --> tr["Transfer: receiving limit, timing, storage room, cost per trip + per package, book-by time [test]"]
+  al --> sf["Ship-from: a question until the user says it can deliver there [test]"]
+  al --> sup["Supplier: missing details mean Waiting for reply [test]"]
+  sup --> buy["Buys only what is short and fits storage; price per package + delivery charge [test]"]
+  al --> grp["Each option belongs to exactly one problem [test]"]
+  al --> rec["Ranked on total cost; best ready plan picked [test]"]
+  worth["Costs more than the stock saved is worth: warning only [test]"]
+  inv["Inventory row still says 'unknown, not zero' for a missing count [GAP]"]
   classDef proven fill:#CDF4D3,stroke:#3E9B4B
   classDef test fill:#C2E5FF,stroke:#007AD2
+  classDef manual fill:#FFECBD,stroke:#E8A302
   classDef gap fill:#FFCDC2,stroke:#DC3009
-  class loc,na,st,unk,cf proven
-  class due,al,tr,sup,buy,rec test
-  class later gap
+  class loc,na,cf proven
+  class due,st,unk,al,all,tr,sf,sup,buy,grp,rec,worth test
+  class inv gap
 ```
+All `[test]` boxes here are in `shared/planner/plan.test.ts`, except `worth` (`frontend/src/presentation/planText.test.ts`). The counts-as-0 rule replaced "unknown, not zero" on 2026-10-15 (`docs/03-behaviour.md`); its new test has not been seen failing yet, so it dropped from `[proven]` to `[test]`.
 
 ## 5. Saving and Reset
 ```mermaid
