@@ -120,7 +120,7 @@ export function InventoryView({ onEdit, onImport }: InventoryViewProps) {
         <div className="stock-row-quantity">
           {record
             ? <><strong>{format.number(record.available.value)}</strong><span>{pluralUnit(rowProduct.unit, record.available.value)}{cap !== null && ` of ${format.number(cap)} max`}</span></>
-            : <span className="stock-row-unknown">Not counted · counts as 0</span>}
+            : <span className="stock-row-unknown">Not counted · unknown, not zero</span>}
         </div>
         <div className="stock-row-status">
           {overCap && <StatusBadge tone="danger" dot>Over storage limit</StatusBadge>}

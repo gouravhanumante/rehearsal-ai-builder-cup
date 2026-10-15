@@ -1,0 +1,44 @@
+name: Deploy frontend (Firebase Hosting)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: rehearsal-ai-builder-cup-2026
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npx tsc -b
+          npx eslint .
+          npx vitest run
+          npm run build
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase Hosting
+        run: npx --yes firebase-tools deploy --only hosting --project "$PROJECT_ID" --non-interactive

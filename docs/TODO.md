@@ -6,8 +6,6 @@
 - [x] **Is it worth it?** Optional selling price per product; options costing more than the packages they save are worth get a warning (2026-10-15). Warning only, ranking unchanged.
 - [x] **Latest time to book**: ready transfers show "Book by …" (2026-10-15). Suppliers give an arrival time, not a lead time, so purchases have no book-by yet.
 - [ ] **Move more per trip** (idea, not agreed): when the trip cost is high, consider moving extra stock in the same trip instead of exactly the shortfall.
-- [x] Inventory row for a missing count now says "Not counted · counts as 0", matching the planner (`InventoryView.tsx`, 2026-10-15).
-- [x] `03-behaviour.md` now says a record-changing approval clears the approval mark, as the code does (`WorkspaceScreen.tsx`, 2026-10-15).
 
 ## Priority P0 — must have for V1
 - [ ] confirm theme and hero demo business
@@ -31,8 +29,8 @@
 - [x] calculate sample impact and receiving-capacity feasibility
 - [x] show plan options, conditional facts, and rejection reason
 - [ ] let the user select a planning objective and compare options against it
-- [x] persist business changes only after user confirmation (two-step editor; approval applies the plan)
-- [ ] prepare action drafts after approval (supplier ask messages exist before approval; nothing is drafted after)
+- [ ] persist business changes only after user confirmation
+- [ ] prepare action drafts after approval
 - [ ] OPEN RISK: Firestore is not used anywhere in the build. The hackathon requires Firebase, Firestore, Cloud Run and Gemini to all be genuinely used and described. Cheapest honest fix: Cloud Run writes an approval audit record to Firestore (server-side only, client access denied, no sign-in). Not decided
 - [x] deploy working prototype on Google Cloud stack (Cloud Run + Firebase Hosting, project rehearsal-ai-builder-cup-2026)
 - [ ] create demo script and 3-minute flow
@@ -51,10 +49,11 @@
 - [x] persist Real workspace facts and evidence in browser-local storage only (IndexedDB)
 - [x] add document upload with Gemini extraction and privacy notice (supplier quotes, stock sheets, orders)
 - [ ] add Gemini-backed disruption extraction with proposed-update confirmation
-- [ ] known gaps (updated 2026-10-15), deliberately left out:
-  - transfer quotes are not editable on screen (routes, travel time and costs are)
-  - no delete for shipments, orders, locations or products (suppliers and routes can be removed; orders can be cancelled)
+- [ ] known gaps (updated 2026-10-14 after the scale-up), deliberately left out:
+  - the delayed shipment itself, transfer quotes, and new transfer routes are not editable on screen yet (transfer arrival and receiving limits are)
+  - no Add order / add order line / delete anything
   - "check for mistakes" is a human review of the listed typed-in details; there is no AI cross-check
+  - orders not affected by the delay are not checked against the late stock that will cover them
   - document names are not mapped to records ("Choc chips 5kg" vs item code)
   - a quote in a different currency from the workspace is not read (no currency conversion, by design)
   - Phase 2 (after the hackathon): Firestore per organization, sign-in and roles, server-side planning for large workspaces, paged lists, background document reading via Cloud Storage, shared rate limits, request logs

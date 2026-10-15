@@ -35,6 +35,8 @@ Vite proxies `/api` to `http://localhost:8080`.
 - `npm test` — Vitest, including the shared planner tests in `../shared/**` (`vite.config.ts`)
 - `npm run build` — TypeScript and production build
 
+To deploy, run the **Deploy frontend (Firebase Hosting)** workflow from GitHub Actions (`.github/workflows/deploy-frontend.yml`). It runs these checks, builds, and publishes `dist/` with `firebase.json` from the repository root.
+
 ## Code layout
 
 - `src/WorkspaceScreen.tsx` — the workspace: sections, saving changes, approving plans

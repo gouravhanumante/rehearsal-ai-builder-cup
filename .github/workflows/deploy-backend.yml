@@ -1,0 +1,67 @@
+name: Deploy backend (Cloud Run)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: rehearsal-ai-builder-cup-2026
+  REGION: asia-south1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Check
+        working-directory: backend
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npx vitest run
+          npm run build
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build image
+        id: build
+        run: |
+          BUILD_ID=$(gcloud builds submit --project "$PROJECT_ID" --config cloudbuild.yaml \
+            --substitutions _REGION="$REGION" --suppress-logs --format='value(id)' .)
+          echo "id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      # Keeps the service's existing secrets and environment variables.
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy rehearsal-api --project "$PROJECT_ID" --region "$REGION" --quiet \
+            --image "$REGION-docker.pkg.dev/$PROJECT_ID/rehearsal/rehearsal-api:${{ steps.build.outputs.id }}"
+
+      - name: Check the new version answers
+        run: |
+          URL=$(gcloud run services describe rehearsal-api --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')
+          for i in 1 2 3 4 5; do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/api/health" || true)
+            [ "$CODE" = "200" ] && echo "Health check OK" >> "$GITHUB_STEP_SUMMARY" && exit 0
+            echo "attempt $i: HTTP $CODE"; sleep 5
+          done
+          echo "::error::Deployed, but /api/health never returned 200. Check the Cloud Run logs."
+          exit 1

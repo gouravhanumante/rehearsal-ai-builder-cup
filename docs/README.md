@@ -19,7 +19,7 @@ real constraints, and carries the approved response into action.
 | Tech stack | React + Vite on Firebase Hosting, Node API on Cloud Run, Gemini via AI Studio key; Firestore not used |
 | Hackathon theme (one only) | **OPEN** (working direction: Retail & Commerce) |
 | Code | Sample and own-business workspaces, shared planner, import, Gemini reading and Ask AI, approvals that record the plan |
-| Deployment | Live at rehearsal-ai-builder-cup-2026.web.app; 2026-10-15 work not redeployed |
+| Deployment | Live at rehearsal-ai-builder-cup-2026.web.app; 2026-10-15 work not redeployed. Deploy by running the two workflows in GitHub Actions |
 | Deck / video | Not started |
 
 ## Key dates

@@ -28,3 +28,5 @@ No endpoint stores or changes business records; the browser applies changes afte
 The Dockerfile builds a Cloud Run container. Build it from the repository root so the shared planner in `shared/` is included: `docker build -f backend/Dockerfile .` (`cloudbuild.yaml` does this). Configure `GEMINI_API_KEY` as a Cloud Run secret and set `GEMINI_MODEL` / `PORT` as environment variables. Do not bake secrets into the image.
 
 Checks: `npx tsc --noEmit && npx vitest run && npm run build`.
+
+To deploy, run the **Deploy backend (Cloud Run)** workflow from GitHub Actions (`.github/workflows/deploy-backend.yml`). It runs these checks, builds with `cloudbuild.yaml`, deploys `rehearsal-api` and checks `/api/health`. Deploy the backend before the frontend when the shared planner or API contracts changed.
